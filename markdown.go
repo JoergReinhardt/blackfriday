@@ -46,6 +46,10 @@ const (
 	EXTENSION_AUTO_HEADER_IDS                        // Create the header ID from the text
 	EXTENSION_BACKSLASH_LINE_BREAK                   // translate trailing backslashes into line breaks
 	EXTENSION_DEFINITION_LISTS                       // render definition lists
+	EXTENSION_CTX_VAR_DEFINITIONS                    // define a context variable
+	EXTENSION_CTX_VAR_REFERENCES                     // resolve reference to a context variable
+	EXTENSION_CTX_FNC_DEFINITIONS                    // define a function
+	EXTENSION_CTX_FNC_CALLS                          // call a function and render return value if there is one
 
 	commonHtmlFlags = 0 |
 		HTML_USE_XHTML |
@@ -64,6 +68,53 @@ const (
 		EXTENSION_HEADER_IDS |
 		EXTENSION_BACKSLASH_LINE_BREAK |
 		EXTENSION_DEFINITION_LISTS
+)
+
+// for simple projects, context may be chosen to be flat. Given that case, each
+// variable Identifyer has to be unique. Nested Scope allows for reuse of names
+// in a different context, by enforcing variable names to be the dot
+// concatinated chain of all ancestors.
+//
+// If there will be private/public scope, or automatic resolution of variable
+// names, (by searching the local namespace first and in case not found,
+// traveres through all ancestors namespaces, beginning with parent, taking the
+// first match) remains to be seen.
+const (
+	CTX_SCOPE_FLAT = false
+	CTX_SCOPE_NEST = true
+)
+
+// These are the possible flag Values for the context renderer
+//
+// Definitions of variables and functions, are propagated to the context,
+// references to context variables and calls of context functions are
+// backtracked to the corresponding definitions, values parameter and return
+// values, expandet and evaluated.
+//
+// Sections are addressable as value by their ID and may contain, paragraphs,
+// span type elements, each of the blocks specialy treated by context renderer
+// and every arbitrary other block, as well as other (Sub-)Sections, The
+// „document-root” describes a virtual section containing a complete document,
+// with all its contained variables, references, links images and figures,
+// includes and so on.
+//
+// Context variables and functions have an ID, depending on the scope chosen.
+// That ID has either to be unique for the whole document, or to be prefixed by
+// the dot concatenated chane of its ancestor elements names, beginning with
+// the upmost level of section headings, right below the „document-root”.
+const (
+	CTX_TYPE_INT       = 1 << iota // single integer
+	CTX_TYPE_FLOAT                 // single float
+	CTX_TYPE_STRING                // arbitrary piece of string
+	CTX_TYPE_LIST                  // list of values
+	CTX_TYPE_HASH                  // definition list that maps values on to keys
+	CTX_TYPE_MATRIX                // twodimensional array of values
+	CTX_TYPE_PARAGRAPH             // piece of text undivided by a linebreak
+	CTX_TYPE_BLOCK                 // block not explicitly handled by context renderer (made addressable)
+	CTX_TYPE_SECTION               // section header and its contained elements (addressed by section id)
+	CTX_TYPE_REFERENCE             // reference to a context variable (expands to value when evaluated)
+	CTX_TYPE_FUNCTION              // define a function, possibly expecting parameters and/or returning a value
+	CTX_TYPE_CALL                  // call of a context function (may evaluate to return value, or trigger side effect)
 )
 
 // These are the possible flag values for the link renderer.

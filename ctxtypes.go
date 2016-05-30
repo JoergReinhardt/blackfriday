@@ -1,5 +1,9 @@
 package blackfriday
 
+import (
+	"sync"
+)
+
 // These are the possible flag Values for the context renderer
 //
 // Definitions of variables and functions, are propagated to the context,
@@ -26,39 +30,86 @@ const (
 	CTX_TYPE_STRING             // arbitrary piece of string
 	CTX_TYPE_VECTOR             // list, deflist, or map of values
 	CTX_TYPE_MATRIX             // twodimensional array of vectors
-	//////////////// DOC TYPES BLOCK LEVEL ///
-	// complex types that represent semantic block level nodes of the document tree
-	CTX_TYPE_SECTION   // reoresents all parts of document, contained by a section
-	CTX_TYPE_PARAGRAPH // a block of text divided by newlines
-	CTX_TYPE_LIST      // either unordered, ordered, or definition list
-	CTX_TYPE_TABLE     // table is a list of lists
-	CTX_TYPE_QUOTE     // represents quotet text
-	CTX_TYPE_CODE      // represents a code block
-	CTX_TYPE_FUNC      // type to store a function (possibly args & rets)
-	CTX_TYPE_BLOCK     // handles all other blocks for now.
-	//////////////// DOC TYPES INLINE ///
-	// complex types that represent semantic inline nodes of the document tree
-	CTX_TYPE_LINK   // type representing a link
-	CTX_TYPE_FIGURE // type to provide figure inclusion
-	CTX_FUNC_DEF    // define a function, possibly expecting parameters and/or returning a value
-	CTX_TYPE_REF    // reference to a context variable (expands to value when evaluated)
-	CTX_FUNC_CALL   // call of a context function (may evaluate to return value, or trigger side effect)
-	CTX_TYPE_SPAN   // parse all other inline  elements for now.
 	//////////////// OPERATORS
-	CTX_TYPE_UNOP  // called when a unary operator is encountered
-	CTX_TYPE_BINOP // called when a binary operator is encountered
+	CTX_TYPE_UNARYOP  // called when a unary operator is encountered
+	CTX_TYPE_BINARYOP // called when a binary operator is encountered
 
-	contextExtensions = 0 |
-		EXTENSION_CTX_VAR_DEFINITIONS |
-		EXTENSION_CTX_VAR_REFERENCES |
-		EXTENSION_CTX_FNC_DEFINITIONS |
-		EXTENSION_CTX_FNC_CALLS
-
-	contextDefinitions = 0 |
-		EXTENSION_CTX_VAR_DEFINITIONS |
-		EXTENSION_CTX_FNC_DEFINITIONS
-
-	contextReferences = 0 |
-		EXTENSION_CTX_VAR_REFERENCES |
-		EXTENSION_CTX_FNC_CALLS
+	// Document Element Types
+	ROOT     = 0
+	AUTOLINK = 1 << iota
+	BLOCKCODE
+	BLOCKHTML
+	BLOCKQUOTE
+	CODESPAN
+	DOCUMENTFOOTER
+	DOCUMENTHEADER
+	DOUBLEEMPHASIS
+	EMPHASIS
+	ENTITY
+	FOOTNOTEITEM
+	FOOTNOTEREF
+	FOOTNOTES
+	GETFLAGS
+	HRULE
+	HEADER
+	IMAGE
+	LINEBREAK
+	LINK
+	LIST
+	LISTITEM
+	NORMALTEXT
+	PARAGRAPH
+	RAWHTMLTAG
+	STRIKETHROUGH
+	TABLE
+	TABLECELL
+	TABLEHEADERCELL
+	TABLEROW
+	TITLEBLOCK
+	TRIPLEEMPHASIS
 )
+
+type Value interface {
+	Eval() Value
+	Type() int
+	ToType(int) Variable
+}
+type position struct {
+	start int // == offset
+	end   int // start - end = len
+}
+type Variable interface {
+	Id() string
+	Pos() *position
+	Value
+}
+
+// CONTEXT
+//
+//the context struct implements the symtab, that maps values to identity and
+//type. It implements the variable type for all types of variables alike,
+//Symtab key is a two field struct containing of the types identity and type.
+//The Value contains the raw value in a byte slice and can return itself.
+//
+type Context struct {
+	flags  int
+	lock   sync.RWMutex
+	symtab map[string]Value
+	ast    *Tree
+}
+
+func NewContext() *Context {
+	return &Context{
+		lock:   sync.RWMutex{},
+		symtab: make(map[string]Val),
+		ast:    NewRoot(),
+	}
+}
+
+func (c *Context) Lookup(id string) Value {
+	return (*c).symtab[id]
+}
+
+func (c *Context) Declare(id string, v Value) {
+	(*c).symtab[id] = v
+}

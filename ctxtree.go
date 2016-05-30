@@ -4,77 +4,68 @@ package blackfriday
 // applicable as element of a tree.
 type Node interface {
 	parent() *Tree
-	Type() int
-	Content() []byte
+	ElementType() int
 }
 
-// Element ist the broughtest implementation of the node interface. It is
-// capable of representing every document, all nested Elements included. by
-// representing the content in a private function.
-type Element struct {
-	typ     int           // node type
-	content func() []byte //
-	parent  func() *Tree  // function returning a link to the containing node
+//// ELEMENT NODE
+///
+// Element ist the most generic implementation of a node carrying a value. It
+// also implements the Variable Interface by keeping id and position in its own
+// fields.
+type ElementNode struct {
+	id       string // since a value has no identity per default
+	typ      int
+	position              // which part of document input is represented here
+	parent   func() *Tree // function returning a link to the containing node
+	// Eval(), Type(), ToType() -->
+	Value // contains Document Element struct as bassed by parser
 }
 
-func (e *Element) Type() int { return (*e).typ }
+// let each element implement variable interface per default
+func (e ElementNode) Id() string       { return e.id }
+func (e ElementNode) ElementType() int { return e.typ }
+func (e *ElementNode) Pos() position   { return e.position }
 
-func (n *Element) Content() []byte { return (*n).content() }
+//// LIST NODE (keeps sequence order)
+///
+// Can be one of unordered, ordered, or definition list. may be nested If
+// unidentified values are part of the sequence, generate missing id's
+// sequentialy
+type ListNode struct {
+	id  string
+	typ int
+	position
+	list []Node // document elements, structural nodes, single values...
+}
 
+func (e ListNode) Id() string       { return e.id }
+func (e ListNode) ElementType() int { return e.typ }
+func (e ListNode) Pos() position    { return e.position }
+
+//// TREE DATA TYPE
+///
 // Tree Node contains a list of Node interface instances. Since Tree itself
 // implements the Node interface, this type is recursive.
 type Tree struct {
-	*Element        // identity and content of this tree of nodes
-	content  []Node // slice of contained nodes
+	id  string // identity and content of this tree of nodes
+	typ int
+	position
+	parent func() *Tree
+	nodes  []Node // slice of contained nodes
 }
 
-func (t *Tree) Content() (c []byte) {
-	c = []byte{}
-	// call content function of all contained nodes and concatenate output
-	for _, n := range (*t).content {
-		c = append(c, n.Content()...)
-	}
-	return c
-}
-
-// List Node contains a list of references to plain  elements
-type List struct {
-	*Element            // identity and content of this tree of nodes
-	content  []*Element // slice of contained nodes
-}
-
-func (l *List) Content() (c []byte) {
-	c = []byte{}
-	// call content function of all contained nodes and concatenate output
-	for _, n := range (*l).content {
-		c = append(c, n.Content()...)
-	}
-	return c
-}
-
+//// NEWROOT
+///
+// context is rooted in a tree, returning itself as its parent.
 func NewRoot() *Tree {
 	// allocate tree, leave node reference empty
 	t := Tree{
-		nil,
-		[]Node{},
+		id:       "ROOT",
+		typ:      ROOT,
+		position: position{0, 0}, // start, end
+		parent:   func() *Tree { return &Tree{} },
+		nodes:    []Node{}, // contained nodes
 	}
-	// allocate node, set type to root, content to an empty byte slice and
-	// a function to return a reference to the tree instance
-	n := Element{
-		typ: 0,
-		content: func() (b []byte) {
-			b = []byte{}
-			for _, n := range (&t).content {
-				b = append(b, n.Content()...)
-			}
-			return b
-		},
-		parent: func() *Tree { return &t },
-	}
-
-	// set trees identity node referencing its own tree as its parent.
-	// !!! ENDLESS LOOP AHEAD, ALLWAYS CHECK NODE TYPE FOR ROOT !!!
-	t.Element = &n
 
 	// return  reference to the root tree
 	return &t

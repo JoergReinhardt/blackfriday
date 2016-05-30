@@ -2,106 +2,123 @@ package blackfriday
 
 import "bytes"
 
-// Document Element Types
-const (
-	ROOT     = 0
-	AUTOLINK = 1 << iota
-	BLOCKCODE
-	BLOCKHTML
-	BLOCKQUOTE
-	CODESPAN
-	DOCUMENTFOOTER
-	DOCUMENTHEADER
-	DOUBLEEMPHASIS
-	EMPHASIS
-	ENTITY
-	FOOTNOTEITEM
-	FOOTNOTEREF
-	FOOTNOTES
-	GETFLAGS
-	HRULE
-	HEADER
-	IMAGE
-	LINEBREAK
-	LINK
-	LIST
-	LISTITEM
-	NORMALTEXT
-	PARAGRAPH
-	RAWHTMLTAG
-	STRIKETHROUGH
-	TABLE
-	TABLECELL
-	TABLEHEADERCELL
-	TABLEROW
-	TITLEBLOCK
-	TRIPLEEMPHASIS
-)
+// markdown interface to be implemented
 
-// the value type contains the value as byte slice
-type Value []byte
-
-// when evaluated, a value will return a copy of itself
-func (v Value) Eval() Value { return v }
-
-// the Render Call returns the values content as raw byte slice
-func (v Value) Render() []byte { return []byte(v) }
-
-// the interface describing a variable by offering methods to fetch and
-// (re)define it's value and perform type transformation, if nescessary
-type Variable interface {
-	// having context as first anonymous argument equals the signature of
-	// a method of the context struct
-	Eval(*Context) Value // return raw value
-	Type(*Context) int   // return values type
-	ToType(int) bool     // check if can be castet as passed tyoe
-	CastAs(int) Variable // cast as other type
+// autoLink(p *parser, out *bytes.Buffer, data []byte, offset int) : int
+// context specific INLINE callbacks are methods of the parser struct
+func ctxBraces(p *parser, out *bytes.Buffer, data []byte, offset int) { // ['(']
 }
-type tVal struct {
-	typ int
-	val []byte
+func ctxDef(p *parser, out *bytes.Buffer, data []byte, offset int) { // ['{']
+}
+func ctxRef(p *parser, out *bytes.Buffer, data []byte, offset int) { // ['$']
+}
+func ctxColonOrAutoLink(p *parser, out *bytes.Buffer, data []byte, offset int) { // [':']
+}
+func ctxProdOrEmphasis(p *parser, out *bytes.Buffer, data []byte, offset int) { // ['*']
+}
+func ctxBinOpAdd(p *parser, out *bytes.Buffer, data []byte, offset int) { // ['+']
+}
+func ctxBinOpSubstract(p *parser, out *bytes.Buffer, data []byte, offset int) { // ['-']
+}
+func ctxBinOpDivide(p *parser, out *bytes.Buffer, data []byte, offset int) { // ['÷']
+}
+func ctxBinOpDot(p *parser, out *bytes.Buffer, data []byte, offset int) { // ['·']
+}
+func ctxBinOpCross(p *parser, out *bytes.Buffer, data []byte, offset int) { // ['×']
+}
+func ctxBinOpEqual(p *parser, out *bytes.Buffer, data []byte, offset int) { // ['=']
 }
 
-// CONTEXT
-//
-//the context struct implements the symtab, that maps values to identity and
-//type. It implements the variable type for all types of variables alike,
-//Symtab key is a two field struct containing of the types identity and type.
-//The Value contains the raw value in a byte slice and can return itself.
-//
-type Context map[string]tVal
-
-func NewContext() Context { return make(map[string]tVal) }
-
-func (c Context) Lookup(id string) (v Variable) {
-	return v
+// common INLINE CALLBACKS
+func (c *Context) CodeSpan(p *parser, out *bytes.Buffer, data []byte, offset int) {
+}
+func (c *Context) DoubleEmphasis(p *parser, out *bytes.Buffer, data []byte, offset int) {
+}
+func (c *Context) Emphasis(p *parser, out *bytes.Buffer, data []byte, offset int) {
+}
+func (c *Context) Image(p *parser, out *bytes.Buffer, data []byte, offset int) {
+}
+func (c *Context) LineBreak(p *parser, out *bytes.Buffer, data []byte, offset int) {
+}
+func (c *Context) Link(p *parser, out *bytes.Buffer, data []byte, offset int) {
+}
+func (c *Context) RawHtmlTag(p *parser, out *bytes.Buffer, data []byte, offset int) {
+}
+func (c *Context) TripleEmphasis(p *parser, out *bytes.Buffer, data []byte, offset int) {
+}
+func (c *Context) StrikeThrough(p *parser, out *bytes.Buffer, data []byte, offset int) {
+}
+func (c *Context) Entity(p *parser, out *bytes.Buffer, data []byte, offset int) {
+}
+func (c *Context) NormalText(p *parser, out *bytes.Buffer, data []byte, offset int) {
 }
 
-// INLINE CALLS PASSED TO PARSER VIA OPTIONS
+// BLOCK level elements are implemended, kind of mis-using the rendere
+// interface by using it to implemet the context parser, simply because there
+// is no other public api to imolement block level parsing.
 //
-// context definition inline parser [:]
+// to get output rendered, once the AST is evaluated, the renderer calls html
+// render by default, or latex if set in the options.
 //
-// gets called on the same byte encountered, as autolink [:]
-// 1. check if context definithion
-//  1.1.NO. call autolink, pass on orig params
-//  1.2.YES --> check if:
-//    1.2.1. value definition
-//	1.2.1.1. integer
-//	1.2.1.2. float
-//	1.2.1.3. string
-//	1.2.1.4. list (ul/ol)
-//	1.2.1.5. dectionary (definition list)
-//	1.2.1.6. matrix (table)
-//    1.2.2. function definition
-//	1.2.2.1. Parameter (Values)
-//	1.2.2.2. Procedure (nested context code)
-func contextDefinition(p *parser, out *bytes.Buffer, data []byte, offset int) int {
-	return autoLink(p, out, data, offset)
+//It doesn't generate any output by itselfe, but populates the AST, propagates
+//Values and backtracks references.
+//
+// DOCUMENT LEVEL BLOCKS
+//
+// TITLE BLOCK
+func (c *Context) TitleBlock(out *bytes.Buffer, text []byte) {
 }
 
-// context reference inline parser [@]
-// gets called on [@]. resolves refrences to variables and evaluates function
-// calls
-func contextReference(p *parser, out *bytes.Buffer, data []byte, offset int) int {
-	return autoLink(p, out, data, offset)
+//
+// DOCUMENT HEADER AND FOOTER
+func (c *Context) DocumentHeader(out *bytes.Buffer) {
+}
+func (c *Context) DocumentFooter(out *bytes.Buffer) {
+}
+
+// SECTION (identifyed by header tag, or slug of title)
+func (c *Context) Header(out *bytes.Buffer, text func() bool, level int, id string) {
+}
+func (c *Context) Paragraph(out *bytes.Buffer, text func() bool) {
+}
+
+// LIST
+func (c *Context) List(out *bytes.Buffer, text func() bool, flags int) {
+}
+func (c *Context) ListItem(out *bytes.Buffer, text []byte, flags int) {
+}
+
+// TABLE
+func (c *Context) Table(out *bytes.Buffer, header []byte, body []byte, columnData []int) {
+}
+func (c *Context) TableRow(out *bytes.Buffer, text []byte) {
+}
+func (c *Context) TableHeaderCell(out *bytes.Buffer, text []byte, flags int) {
+}
+func (c *Context) TableCell(out *bytes.Buffer, text []byte, flags int) {
+}
+
+// BLOCKS OF UNIFORM CONTENT
+func (c *Context) BlockCode(out *bytes.Buffer, text []byte, lang string) {
+}
+func (c *Context) BlockQuote(out *bytes.Buffer, text []byte) {
+}
+func (c *Context) BlockHtml(out *bytes.Buffer, text []byte) {
+}
+func (c *Context) HRule(out *bytes.Buffer) {
+}
+
+// FOOTNOTES
+func (c *Context) Footnotes(out *bytes.Buffer, text func() bool) {
+}
+func (c *Context) FootnoteItem(out *bytes.Buffer, name, text []byte, flags int) {
+}
+func (c *Context) FootnoteRef(out *bytes.Buffer, ref []byte, id int) {
+}
+
+// DOCUMENT-AUTOLINKER (basicly tunnel through
+func (c *Context) AutoLink(out *bytes.Buffer, link []byte, kind int) {
+}
+func (c *Context) GetFlags() int {
+	return c.flags
 }

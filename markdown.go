@@ -68,6 +68,20 @@ const (
 		EXTENSION_HEADER_IDS |
 		EXTENSION_BACKSLASH_LINE_BREAK |
 		EXTENSION_DEFINITION_LISTS
+
+	contextExtensions = 0 |
+		EXTENSION_CTX_VAR_DEFINITIONS |
+		EXTENSION_CTX_VAR_REFERENCES |
+		EXTENSION_CTX_FNC_DEFINITIONS |
+		EXTENSION_CTX_FNC_CALLS
+
+	contextDefinitions = 0 |
+		EXTENSION_CTX_VAR_DEFINITIONS |
+		EXTENSION_CTX_FNC_DEFINITIONS
+
+	contextReferences = 0 |
+		EXTENSION_CTX_VAR_REFERENCES |
+		EXTENSION_CTX_FNC_CALLS
 )
 
 // for simple projects, context may be chosen to be flat. Given that case, each
@@ -103,18 +117,34 @@ const (
 // the dot concatenated chane of its ancestor elements names, beginning with
 // the upmost level of section headings, right below the „document-root”.
 const (
-	CTX_TYPE_INT       = 1 << iota // single integer
-	CTX_TYPE_FLOAT                 // single float
-	CTX_TYPE_STRING                // arbitrary piece of string
-	CTX_TYPE_LIST                  // list of values
-	CTX_TYPE_HASH                  // definition list that maps values on to keys
-	CTX_TYPE_MATRIX                // twodimensional array of values
-	CTX_TYPE_PARAGRAPH             // piece of text undivided by a linebreak
-	CTX_TYPE_BLOCK                 // block not explicitly handled by context renderer (made addressable)
-	CTX_TYPE_SECTION               // section header and its contained elements (addressed by section id)
-	CTX_TYPE_REFERENCE             // reference to a context variable (expands to value when evaluated)
-	CTX_TYPE_FUNCTION              // define a function, possibly expecting parameters and/or returning a value
-	CTX_TYPE_CALL                  // call of a context function (may evaluate to return value, or trigger side effect)
+	/////////////// BASE TYPES ///
+	// terminal values to actually store data in an appropriate type
+	CTX_TYPE_INT    = 1 << iota // single integer
+	CTX_TYPE_FLOAT              // single float
+	CTX_TYPE_STRING             // arbitrary piece of string
+	CTX_TYPE_VECTOR             // list, deflist, or map of values
+	CTX_TYPE_MATRIX             // twodimensional array of vectors
+	//////////////// DOC TYPES BLOCK LEVEL ///
+	// complex types that represent semantic block level nodes of the document tree
+	CTX_TYPE_SECTION   // reoresents all parts of document, contained by a section
+	CTX_TYPE_PARAGRAPH // a block of text divided by newlines
+	CTX_TYPE_LIST      // either unordered, ordered, or definition list
+	CTX_TYPE_TABLE     // table is a list of lists
+	CTX_TYPE_QUOTE     // represents quotet text
+	CTX_TYPE_CODE      // represents a code block
+	CTX_TYPE_FUNC      // type to store a function (possibly args & rets)
+	CTX_TYPE_BLOCK     // handles all other blocks for now.
+	//////////////// DOC TYPES INLINE ///
+	// complex types that represent semantic inline nodes of the document tree
+	CTX_TYPE_LINK   // type representing a link
+	CTX_TYPE_FIGURE // type to provide figure inclusion
+	CTX_FUNC_DEF    // define a function, possibly expecting parameters and/or returning a value
+	CTX_TYPE_REF    // reference to a context variable (expands to value when evaluated)
+	CTX_FUNC_CALL   // call of a context function (may evaluate to return value, or trigger side effect)
+	CTX_TYPE_SPAN   // parse all other inline  elements for now.
+	//////////////// OPERATORS
+	CTX_TYPE_UNOP  // called when a unary operator is encountered
+	CTX_TYPE_BINOP // called when a binary operator is encountered
 )
 
 // These are the possible flag values for the link renderer.
@@ -423,8 +453,41 @@ func MarkdownOptions(input []byte, renderer Renderer, opts Options) []byte {
 	p.inlineCallback['\\'] = escape
 	p.inlineCallback['&'] = entity
 
+	// CONTEXT EXTENSION
+	//
+	// The context extension implements the abstract syntax tree of the
+	// parsed document and enables:
+	//
+	// 1. definition of (propagation of values to)...
+	// 2. reference to (resolving values from)...
+	// 3. abstract syntax tree (AST), representing the parsed document.
+	// 4. definition and evaluation of functions
+	// 5..Backtracking of resulting values to the AST
+	// 6. Rendering of AST back to markdown, or one of the output formats
+	//
+	// Context forms an abstract syntax tree of the document, taking its
+	// semantic elements as combined variables of the vector (all lists),
+	// and/or matrix (table) base type.
+	//
+	// It expands the markdow syntax to define single value variables
+	// inline, and reference
+	//
+	// It further epands it, by references to those defined values.
+	p.inlineCallback['$'] = contextReference
+
+	// definition of values uses colon as symbol, which is also the
+	// entrypoint for link parsing...
+	//
+	// if the context extension is set, it searches for context defs and
+	// refs. If none are found, data will be passed unchanged to autoLink.
 	if extensions&EXTENSION_AUTOLINK != 0 {
-		p.inlineCallback[':'] = autoLink
+		if extensions&contextExtensions != 0 {
+			// !!!DON'T FORGET TO CALL AUTOLINK!!!
+			// in case it's not a context ref, or def.
+			p.inlineCallback[':'] = contextDefinition
+		} else {
+			p.inlineCallback[':'] = autoLink
+		}
 	}
 
 	if extensions&EXTENSION_FOOTNOTES != 0 {

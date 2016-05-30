@@ -2,7 +2,7 @@ package blackfriday
 
 import "bytes"
 
-// Element Types as passed to the context renderer by the parser.
+// Document Element Types
 const (
 	ROOT     = 0
 	AUTOLINK = 1 << iota
@@ -38,88 +38,6 @@ const (
 	TRIPLEEMPHASIS
 )
 
-// All node implementations need to implement the node interface to be
-// applicable as element of a tree.
-type Node interface {
-	parent() *Tree
-	Type() int
-	Content() []byte
-}
-
-// Element ist the broughtest implementation of the node interface. It is
-// capable of representing every document, all nested Elements included. by
-// representing the content in a private function.
-type Element struct {
-	typ     int           // node type
-	content func() []byte //
-	parent  func() *Tree  // function returning a link to the containing node
-}
-
-func (e *Element) Type() int { return (*e).typ }
-
-func (n *Element) Content() []byte { return (*n).content() }
-
-// Tree Node contains a list of Node interface instances. Since Tree itself
-// implements the Node interface, this type is recursive.
-type Tree struct {
-	*Element        // identity and content of this tree of nodes
-	content  []Node // slice of contained nodes
-}
-
-func (t *Tree) Content() (c []byte) {
-	c = []byte{}
-	// call content function of all contained nodes and concatenate output
-	for _, n := range (*t).content {
-		c = append(c, n.Content()...)
-	}
-	return c
-}
-
-// List Node contains a list of references to plain  elements
-type List struct {
-	*Element            // identity and content of this tree of nodes
-	content  []*Element // slice of contained nodes
-}
-
-func (l *List) Content() (c []byte) {
-	c = []byte{}
-	// call content function of all contained nodes and concatenate output
-	for _, n := range (*l).content {
-		c = append(c, n.Content()...)
-	}
-	return c
-}
-
-func NewRoot() *Tree {
-	// allocate tree, leave node reference empty
-	t := Tree{
-		nil,
-		[]Node{},
-	}
-	// allocate node, set type to root, content to an empty byte slice and
-	// a function to return a reference to the tree instance
-	n := Element{
-		typ: 0,
-		content: func() (b []byte) {
-			b = []byte{}
-			for _, n := range (&t).content {
-				b = append(b, n.Content()...)
-			}
-			return b
-		},
-		parent: func() *Tree { return &t },
-	}
-
-	// set trees identity node referencing its own tree as its parent.
-	// !!! ENDLESS LOOP AHEAD, ALLWAYS CHECK NODE TYPE FOR ROOT !!!
-	t.Element = &n
-
-	// return  reference to the root tree
-	return &t
-}
-
-////////////////////////////////////////////////////////////////////////////
-
 // the value type contains the value as byte slice
 type Value []byte
 
@@ -139,66 +57,27 @@ type Variable interface {
 	ToType(int) bool     // check if can be castet as passed tyoe
 	CastAs(int) Variable // cast as other type
 }
-type valt struct {
+type tVal struct {
 	typ int
 	val []byte
 }
 
-//the context struct contains the symtab, that maps values to identity and
+// CONTEXT
+//
+//the context struct implements the symtab, that maps values to identity and
 //type. It implements the variable type for all types of variables alike,
 //Symtab key is a two field struct containing of the types identity and type.
 //The Value contains the raw value in a byte slice and can return itself.
-type Context struct {
-	flags  int
-	symtab map[string]valt
-}
+//
+type Context map[string]tVal
 
-func (c *Context) Lookup(id string) (v Variable) {
+func NewContext() Context { return make(map[string]tVal) }
+
+func (c Context) Lookup(id string) (v Variable) {
 	return v
 }
 
-///// IMPLEMENTING THE RENDERER API /////
-// block-level callbacks
-func (c *Context) BlockCode(out *bytes.Buffer, text []byte, lang string)                 {}
-func (c *Context) BlockQuote(out *bytes.Buffer, text []byte)                             {}
-func (c *Context) BlockHtml(out *bytes.Buffer, text []byte)                              {}
-func (c *Context) Header(out *bytes.Buffer, text func() bool, level int, id string)      {}
-func (c *Context) HRule(out *bytes.Buffer)                                               {}
-func (c *Context) List(out *bytes.Buffer, text func() bool, flags int)                   {}
-func (c *Context) ListItem(out *bytes.Buffer, text []byte, flags int)                    {}
-func (c *Context) Paragraph(out *bytes.Buffer, text func() bool)                         {}
-func (c *Context) Table(out *bytes.Buffer, header []byte, body []byte, columnData []int) {}
-func (c *Context) TableRow(out *bytes.Buffer, text []byte)                               {}
-func (c *Context) TableHeaderCell(out *bytes.Buffer, text []byte, flags int)             {}
-func (c *Context) TableCell(out *bytes.Buffer, text []byte, flags int)                   {}
-func (c *Context) Footnotes(out *bytes.Buffer, text func() bool)                         {}
-func (c *Context) FootnoteItem(out *bytes.Buffer, name, text []byte, flags int)          {}
-func (c *Context) TitleBlock(out *bytes.Buffer, text []byte)                             {}
-
-// Span-level callbacks
-func (c *Context) AutoLink(out *bytes.Buffer, link []byte, kind int)                 {}
-func (c *Context) CodeSpan(out *bytes.Buffer, text []byte)                           {}
-func (c *Context) DoubleEmphasis(out *bytes.Buffer, text []byte)                     {}
-func (c *Context) Emphasis(out *bytes.Buffer, text []byte)                           {}
-func (c *Context) Image(out *bytes.Buffer, link []byte, title []byte, alt []byte)    {}
-func (c *Context) LineBreak(out *bytes.Buffer)                                       {}
-func (c *Context) Link(out *bytes.Buffer, link []byte, title []byte, content []byte) {}
-func (c *Context) RawHtmlTag(out *bytes.Buffer, tag []byte)                          {}
-func (c *Context) TripleEmphasis(out *bytes.Buffer, text []byte)                     {}
-func (c *Context) StrikeThrough(out *bytes.Buffer, text []byte)                      {}
-func (c *Context) FootnoteRef(out *bytes.Buffer, ref []byte, id int)                 {}
-
-// Low-level callbacks
-func (c *Context) Entity(out *bytes.Buffer, entity []byte)   {}
-func (c *Context) NormalText(out *bytes.Buffer, text []byte) {}
-
-// Header and footer
-func (c *Context) DocumentHeader(out *bytes.Buffer) {}
-func (c *Context) DocumentFooter(out *bytes.Buffer) {}
-
-func (c *Context) GetFlags() int { return c.flags }
-
-// INLINE CALLS ADDED TO PARSER
+// INLINE CALLS PASSED TO PARSER VIA OPTIONS
 //
 // context definition inline parser [:]
 //

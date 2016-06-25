@@ -1,23 +1,5 @@
-Fork of Blackfriday [![Build Status](https://travis-ci.org/russross/blackfriday.svg?branch=master)](https://travis-ci.org/russross/blackfriday) [![GoDoc](https://godoc.org/github.com/russross/blackfriday?status.svg)](https://godoc.org/github.com/russross/blackfriday)
+Blackfriday [![Build Status](https://travis-ci.org/russross/blackfriday.svg?branch=master)](https://travis-ci.org/russross/blackfriday) [![GoDoc](https://godoc.org/github.com/russross/blackfriday?status.svg)](https://godoc.org/github.com/russross/blackfriday)
 ===========
-
-
-Intension of the Forked version:
---------------------------------
-
-* implement a context of variables, that are set initially from a datasource,
-  like a json, yaml, xml file, or database. 
-
-* implement definition and evaluation of user defined functions to manipulate
-  the context variables and the documents abstract syntax tree.
-
-* improve up on the LaTeX renderer
-
-  * implement templates
-  * implement expansion of context values in templates
-
-From the original README:
--------------------------
 
 Blackfriday is a [Markdown][1] processor implemented in [Go][2]. It
 is paranoid about its input (so you can safely feed it user-supplied

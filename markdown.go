@@ -46,14 +46,6 @@ const (
 	EXTENSION_AUTO_HEADER_IDS                        // Create the header ID from the text
 	EXTENSION_BACKSLASH_LINE_BREAK                   // translate trailing backslashes into line breaks
 	EXTENSION_DEFINITION_LISTS                       // render definition lists
-	EXTENSION_CTX_VARIABLES                          // define a context variable
-	EXTENSION_CTX_OPERATIONS
-	EXTENSION_CTX_FUNCTIONS
-
-	ctxExtensions = 0 |
-		EXTENSION_CTX_VARIABLES |
-		EXTENSION_CTX_OPERATIONS |
-		EXTENSION_CTX_FUNCTIONS
 
 	commonHtmlFlags = 0 |
 		HTML_USE_XHTML |
@@ -368,6 +360,7 @@ func MarkdownOptions(input []byte, renderer Renderer, opts Options) []byte {
 	p.insideLink = false
 
 	// register inline parsers
+	p.inlineCallback['*'] = emphasis
 	p.inlineCallback['_'] = emphasis
 	if extensions&EXTENSION_STRIKETHROUGH != 0 {
 		p.inlineCallback['~'] = emphasis
@@ -379,27 +372,8 @@ func MarkdownOptions(input []byte, renderer Renderer, opts Options) []byte {
 	p.inlineCallback['\\'] = escape
 	p.inlineCallback['&'] = entity
 
-	// CONTEXT EXTENSION
-	//
-	// INLINE CALLBACKS
-	if extensions&ctxExtensions != 0 {
-
-		// define ident, ((re)declare, if followed by a colon and evaluateable)
-		p.inlineCallback['('] = ctxBraces         // arithmetic, or grouping brace start delimiter
-		p.inlineCallback['{'] = ctxDef            // context identity definition
-		p.inlineCallback['$'] = ctxRef            // reference to a ctx variable
-		p.inlineCallback['*'] = ctxProdOrEmphasis // asterisk use is line context dependend
-		p.inlineCallback['+'] = ctxBinOpAdd       // addition
-		p.inlineCallback['-'] = ctxBinOpSubstract // substraction
-		p.inlineCallback['÷'] = ctxBinOpDivide    // division (fallback for /)
-		p.inlineCallback['·'] = ctxBinOpDot       // dot product (and fallback for '*')
-		p.inlineCallback['×'] = ctxBinOpCross     // cross product (another '*' fallback)
-		p.inlineCallback['='] = ctxBinOpEqual     // eval (prints the result after equal sign)
-
-	} else { // native inline callbacks concurring to context by trigger byte:
-		// get later called by the competing context function, when it didn't
-		// manage to parse the content itself,
-		p.inlineCallback['*'] = emphasis
+	if extensions&EXTENSION_AUTOLINK != 0 {
+		p.inlineCallback[':'] = autoLink
 	}
 
 	if extensions&EXTENSION_FOOTNOTES != 0 {
@@ -485,18 +459,12 @@ func secondPass(p *parser, input []byte) []byte {
 			for i := 0; i < len(p.notes); i += 1 {
 				ref := p.notes[i]
 				var buf bytes.Buffer
-				//
-				// !!!THIS IS THE MAIN CONTROL FLOW DIVERSION!!!
-				//
-				if ref.hasBlock { // BLOCK PARSING
+				if ref.hasBlock {
 					flags |= LIST_ITEM_CONTAINS_BLOCK
 					p.block(&buf, ref.title)
-				} else { // INLINE PARSING
+				} else {
 					p.inline(&buf, ref.title)
 				}
-				//
-				// !!!THIS IS THE MAIN CONTROL FLOW DIVERSION!!!
-				//
 				p.r.FootnoteItem(&output, ref.link, buf.Bytes(), flags)
 				flags &^= LIST_ITEM_BEGINNING_OF_LIST | LIST_ITEM_CONTAINS_BLOCK
 			}
@@ -657,10 +625,6 @@ func isReference(p *parser, data []byte, tabSize int) int {
 	id := string(bytes.ToLower(data[idOffset:idEnd]))
 
 	p.refs[id] = ref
-
-	// parser has done its thing and generated an instance of reference
-	// type. before call returns, pass instance on to the appropriate
-	// context function
 
 	return lineEnd
 }

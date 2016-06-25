@@ -6,119 +6,71 @@ import "bytes"
 
 // autoLink(p *parser, out *bytes.Buffer, data []byte, offset int) : int
 // context specific INLINE callbacks are methods of the parser struct
-func ctxBraces(p *parser, out *bytes.Buffer, data []byte, offset int) { // ['(']
-}
-func ctxDef(p *parser, out *bytes.Buffer, data []byte, offset int) { // ['{']
-}
-func ctxRef(p *parser, out *bytes.Buffer, data []byte, offset int) { // ['$']
-}
-func ctxColonOrAutoLink(p *parser, out *bytes.Buffer, data []byte, offset int) { // [':']
-}
-func ctxProdOrEmphasis(p *parser, out *bytes.Buffer, data []byte, offset int) { // ['*']
-}
-func ctxBinOpAdd(p *parser, out *bytes.Buffer, data []byte, offset int) { // ['+']
-}
-func ctxBinOpSubstract(p *parser, out *bytes.Buffer, data []byte, offset int) { // ['-']
-}
-func ctxBinOpDivide(p *parser, out *bytes.Buffer, data []byte, offset int) { // ['÷']
-}
-func ctxBinOpDot(p *parser, out *bytes.Buffer, data []byte, offset int) { // ['·']
-}
-func ctxBinOpCross(p *parser, out *bytes.Buffer, data []byte, offset int) { // ['×']
-}
-func ctxBinOpEqual(p *parser, out *bytes.Buffer, data []byte, offset int) { // ['=']
-}
+var (
+	ctxBraces          = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
+	ctxDef             = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
+	ctxRef             = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
+	ctxColonOrAutoLink = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
+	ctxProdOrEmphasis  = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
+	ctxBinOpAdd        = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
+	ctxBinOpSubstract  = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
+	ctxBinOpDivide     = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
+	ctxBinOpDot        = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
+	ctxBinOpCross      = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
+	ctxBinOpEqual      = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
+	// common INLINE CALLBACKS
+	CodeSpan       = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
+	DoubleEmphasis = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
+	Emphasis       = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
+	Image          = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
+	LineBreak      = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
+	Link           = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
+	RawHtmlTag     = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
+	TripleEmphasis = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
+	StrikeThrough  = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
+	Entity         = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
+	NormalText     = func(p *parser, out *bytes.Buffer, data []byte, offset int) int { return offset }
 
-// common INLINE CALLBACKS
-func (c *Context) CodeSpan(p *parser, out *bytes.Buffer, data []byte, offset int) {
-}
-func (c *Context) DoubleEmphasis(p *parser, out *bytes.Buffer, data []byte, offset int) {
-}
-func (c *Context) Emphasis(p *parser, out *bytes.Buffer, data []byte, offset int) {
-}
-func (c *Context) Image(p *parser, out *bytes.Buffer, data []byte, offset int) {
-}
-func (c *Context) LineBreak(p *parser, out *bytes.Buffer, data []byte, offset int) {
-}
-func (c *Context) Link(p *parser, out *bytes.Buffer, data []byte, offset int) {
-}
-func (c *Context) RawHtmlTag(p *parser, out *bytes.Buffer, data []byte, offset int) {
-}
-func (c *Context) TripleEmphasis(p *parser, out *bytes.Buffer, data []byte, offset int) {
-}
-func (c *Context) StrikeThrough(p *parser, out *bytes.Buffer, data []byte, offset int) {
-}
-func (c *Context) Entity(p *parser, out *bytes.Buffer, data []byte, offset int) {
-}
-func (c *Context) NormalText(p *parser, out *bytes.Buffer, data []byte, offset int) {
-}
-
-// BLOCK level elements are implemended, kind of mis-using the rendere
-// interface by using it to implemet the context parser, simply because there
-// is no other public api to imolement block level parsing.
-//
-// to get output rendered, once the AST is evaluated, the renderer calls html
-// render by default, or latex if set in the options.
-//
-//It doesn't generate any output by itselfe, but populates the AST, propagates
-//Values and backtracks references.
-//
-// DOCUMENT LEVEL BLOCKS
-//
-// TITLE BLOCK
-func (c *Context) TitleBlock(out *bytes.Buffer, text []byte) {
-}
-
-//
-// DOCUMENT HEADER AND FOOTER
-func (c *Context) DocumentHeader(out *bytes.Buffer) {
-}
-func (c *Context) DocumentFooter(out *bytes.Buffer) {
-}
-
-// SECTION (identifyed by header tag, or slug of title)
-func (c *Context) Header(out *bytes.Buffer, text func() bool, level int, id string) {
-}
-func (c *Context) Paragraph(out *bytes.Buffer, text func() bool) {
-}
-
-// LIST
-func (c *Context) List(out *bytes.Buffer, text func() bool, flags int) {
-}
-func (c *Context) ListItem(out *bytes.Buffer, text []byte, flags int) {
-}
-
-// TABLE
-func (c *Context) Table(out *bytes.Buffer, header []byte, body []byte, columnData []int) {
-}
-func (c *Context) TableRow(out *bytes.Buffer, text []byte) {
-}
-func (c *Context) TableHeaderCell(out *bytes.Buffer, text []byte, flags int) {
-}
-func (c *Context) TableCell(out *bytes.Buffer, text []byte, flags int) {
-}
-
-// BLOCKS OF UNIFORM CONTENT
-func (c *Context) BlockCode(out *bytes.Buffer, text []byte, lang string) {
-}
-func (c *Context) BlockQuote(out *bytes.Buffer, text []byte) {
-}
-func (c *Context) BlockHtml(out *bytes.Buffer, text []byte) {
-}
-func (c *Context) HRule(out *bytes.Buffer) {
-}
-
-// FOOTNOTES
-func (c *Context) Footnotes(out *bytes.Buffer, text func() bool) {
-}
-func (c *Context) FootnoteItem(out *bytes.Buffer, name, text []byte, flags int) {
-}
-func (c *Context) FootnoteRef(out *bytes.Buffer, ref []byte, id int) {
-}
-
-// DOCUMENT-AUTOLINKER (basicly tunnel through
-func (c *Context) AutoLink(out *bytes.Buffer, link []byte, kind int) {
-}
-func (c *Context) GetFlags() int {
-	return c.flags
-}
+	// BLOCK level elements are implemended, kind of mis-using the rendere
+	// interface by using it to implemet the context parser, simply because there
+	// is no other public api to imolement block level parsing.
+	//
+	// to get output rendered, once the AST is evaluated, the renderer calls html
+	// render by default, or latex if set in the options.
+	//
+	//It doesn't generate any output by itselfe, but populates the AST, propagates
+	//Values and backtracks references.
+	//
+	// DOCUMENT LEVEL BLOCKS
+	//
+	// TITLE BLOCK
+	TitleBlock = func(p *parser, out *bytes.Buffer, text []byte, offset int) int { return offset }
+	// DOCUMENT HEADER AND FOOTER
+	DocumentHeader = func(p *parser, out *bytes.Buffer, offset int) int { return offset }
+	DocumentFooter = func(p *parser, out *bytes.Buffer, offset int) int { return offset }
+	// SECTION (identifyed by header tag, or slug of title)
+	Header    = func(p *parser, out *bytes.Buffer, text []byte, id string, offset int) int { return offset }
+	Paragraph = func(p *parser, out *bytes.Buffer, text []byte, offset int) int { return offset }
+	// LIST
+	List     = func(p *parser, out *bytes.Buffer, text []byte, flags int, offset int) int { return offset }
+	ListItem = func(p *parser, out *bytes.Buffer, text []byte, flags int, offset int) int { return offset }
+	// TABLE
+	Table = func(p *parser, out *bytes.Buffer, header []byte, body []byte, columnData []int, offset int) int {
+		return offset
+	}
+	TableRow        = func(p *parser, out *bytes.Buffer, text []byte, offset int) int { return offset }
+	TableHeaderCell = func(p *parser, out *bytes.Buffer, text []byte, flags int, offset int) int { return offset }
+	TableCell       = func(p *parser, out *bytes.Buffer, text []byte, flags int, offset int) int { return offset }
+	// BLOCKS OF UNIFORM CONTENT
+	BlockCode  = func(p *parser, out *bytes.Buffer, text []byte, lang string, offset int) int { return offset }
+	BlockQuote = func(p *parser, out *bytes.Buffer, text []byte, offset int) int { return offset }
+	BlockHtml  = func(p *parser, out *bytes.Buffer, text []byte, offset int) int { return offset }
+	HRule      = func(p *parser, out *bytes.Buffer, text []byte, offset int) int { return offset }
+	// FOOTNOTES
+	Footnotes    = func(p *parser, out *bytes.Buffer, text []byte, offset int) int { return offset }
+	FootnoteItem = func(p *parser, out *bytes.Buffer, text []byte, offset int) int { return offset }
+	FootnoteRef  = func(p *parser, out *bytes.Buffer, text []byte, offset int) int { return offset }
+	// DOCUMENT-AUTOLINKER (basicly tunnel through
+	AutoLink = func(p *parser, out *bytes.Buffer, link []byte, offset int) int { return offset }
+	GetFlags = func(p *parser, out *bytes.Buffer, link []byte, offset int) int { return offset }
+)

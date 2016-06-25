@@ -219,7 +219,6 @@ type parser struct {
 	r              Renderer
 	refOverride    ReferenceOverrideFunc
 	refs           map[string]*reference
-	ctx            *Context
 	inlineCallback [256]inlineParser
 	flags          int
 	nesting        int
@@ -386,23 +385,21 @@ func MarkdownOptions(input []byte, renderer Renderer, opts Options) []byte {
 	if extensions&ctxExtensions != 0 {
 
 		// define ident, ((re)declare, if followed by a colon and evaluateable)
-		p.inlineCallback['('] = ctxBraces          // arithmetic, or grouping brace start delimiter
-		p.inlineCallback['{'] = ctxDef             // context identity definition
-		p.inlineCallback['$'] = ctxRef             // reference to a ctx variable
-		p.inlineCallback[':'] = ctxColonOrAutoLink // colon use depends on line context
-		p.inlineCallback['*'] = ctxProdOrEmphasis  // asterisk use is line context dependend
-		p.inlineCallback['+'] = ctxBinOpAdd        // addition
-		p.inlineCallback['-'] = ctxBinOpSubstract  // substraction
-		p.inlineCallback['÷'] = ctxBinOpDivide     // division (fallback for /)
-		p.inlineCallback['·'] = ctxBinOpDot        // dot product (and fallback for '*')
-		p.inlineCallback['×'] = ctxBinOpCross      // cross product (another '*' fallback)
-		p.inlineCallback['='] = ctxBinOpEqual      // eval (prints the result after equal sign)
+		p.inlineCallback['('] = ctxBraces         // arithmetic, or grouping brace start delimiter
+		p.inlineCallback['{'] = ctxDef            // context identity definition
+		p.inlineCallback['$'] = ctxRef            // reference to a ctx variable
+		p.inlineCallback['*'] = ctxProdOrEmphasis // asterisk use is line context dependend
+		p.inlineCallback['+'] = ctxBinOpAdd       // addition
+		p.inlineCallback['-'] = ctxBinOpSubstract // substraction
+		p.inlineCallback['÷'] = ctxBinOpDivide    // division (fallback for /)
+		p.inlineCallback['·'] = ctxBinOpDot       // dot product (and fallback for '*')
+		p.inlineCallback['×'] = ctxBinOpCross     // cross product (another '*' fallback)
+		p.inlineCallback['='] = ctxBinOpEqual     // eval (prints the result after equal sign)
 
 	} else { // native inline callbacks concurring to context by trigger byte:
 		// get later called by the competing context function, when it didn't
 		// manage to parse the content itself,
 		p.inlineCallback['*'] = emphasis
-		p.inlineCallback[':'] = autoLink
 	}
 
 	if extensions&EXTENSION_FOOTNOTES != 0 {
@@ -664,7 +661,6 @@ func isReference(p *parser, data []byte, tabSize int) int {
 	// parser has done its thing and generated an instance of reference
 	// type. before call returns, pass instance on to the appropriate
 	// context function
-	(*p.ctx)
 
 	return lineEnd
 }

@@ -26,9 +26,9 @@ import (
 type (
 	/// VALUE TYPES// {{{
 	// all values are wrapped in a struct. that doesent add overhead, but gives the
-	// oportunity to implement the interface at the baseVar struct type, which makes
-	// all structs values of type baseVar per default.
-	baseVar  struct{}
+	// oportunity to implement the interface at the emptyVar struct type, which makes
+	// all structs values of type emptyVar per default.
+	emptyVar struct{}
 	boolVal  struct{ bool }
 	intVal   struct{ *big.Int }
 	floatVal struct{ *big.Float }
@@ -62,15 +62,15 @@ type (
 	// particular funciton.  There is one type-function for each type to be
 	// returned. A Type function will get instanciated for every instance of a type
 	// that can be converted to the functions type.
-	baseVarFn func(Value) baseVar // baseVar value to return for baseVar, or unconvertable
-	boolFn    func(Value) boolVal
-	intFn     func(Value) intVal
-	floatFn   func(Value) floatVal
-	byteFn    func(Value) byteVal
-	bytesFn   func(Value) bytesVal
-	strFn     func(Value) strVal
-	vecFn     func(Value) vecVal
-	mtxFn     func(Value) mtxVal // }}}
+	emptyVarFn func(Value) emptyVar // emptyVar value to return for emptyVar, or unconvertable
+	boolFn     func(Value) boolVal
+	intFn      func(Value) intVal
+	floatFn    func(Value) floatVal
+	byteFn     func(Value) byteVal
+	bytesFn    func(Value) bytesVal
+	strFn      func(Value) strVal
+	vecFn      func(Value) vecVal
+	mtxFn      func(Value) mtxVal // }}}
 ) // }}}
 
 //// GENERIC FUNCTION IMPLEMENTATIONS// {{{
@@ -84,13 +84,15 @@ var (
 	// NEW VALUE FUNCTION (instance from a previously unknown type)// {{{
 	NewVal = func(v interface{}) Value {
 		switch v.(type) {
+		case struct{}:
+			return emptyVar{}
 		case bool:
 			return boolVal{
 				v.(bool),
 			}
 		case int, int8, int16, int32, int64:
-			return strVal{
-				v.(string),
+			return intVal{
+				big.NewInt(int64(v.(int))),
 			}
 		case float32, float64:
 			return floatVal{
@@ -175,13 +177,15 @@ var (
 			}
 			return ret
 		}
-		return baseVar{}
+		return emptyVar{}
 	} // }}}
 
 	// NEW EMPTY VALUE FUNCTION (returns empty value of passed type)// {{{
 	// returnes an empty instance of a designated type.
-	NewemptyConvertVal = func(v valueType) Value {
+	NewemptyConvertVal = func(v ValueType) Value {
 		switch v {
+		case EMPTY:
+			return emptyVar{}
 		case BOOL:
 			return boolVal{false}
 		case INTEGER:
@@ -202,7 +206,7 @@ var (
 				[2]int{0, 0},
 			}
 		default:
-			return baseVar{}
+			return emptyVar{}
 		}
 	} // }}}
 
@@ -252,7 +256,7 @@ var (
 	// the designated conversion.
 
 	// RETURN EMPTY TYPE// {{{
-	emptyConvert = func(Value) baseVar { return baseVar{} } // now for the tricky part...// }}}
+	emptyConvert = func(Value) emptyVar { return emptyVar{} } // now for the tricky part...// }}}
 
 	// RETURN BOOL TYPE// {{{
 	// (if value set, or in case of string, if its reading "true" return true)
@@ -448,10 +452,10 @@ var (
 	//  arguments.
 	//
 	// if the value fails to have a type, a new value instance will be defined
-	toType = func(t valueType, v Value) Value {
+	toType = func(t ValueType, v Value) Value {
 		switch t {
-		case EMPTY:
-			return emptyConvert(v)
+		//		case EMPTY:
+		//			return emptyConvert(v)
 		case BOOL:
 			return boolConvert(v)
 		case INTEGER:
@@ -490,31 +494,31 @@ var (
 /// TYPE FUNCTIONS (one per type)// {{{
 //
 // One method per type to return the Type of this particular methods receiver value
-func (baseVar) Type() valueType  { return EMPTY }
-func (boolVal) Type() valueType  { return BOOL }
-func (intVal) Type() valueType   { return INTEGER }
-func (floatVal) Type() valueType { return FLOAT }
-func (byteVal) Type() valueType  { return BYTE }
-func (bytesVal) Type() valueType { return BYTES }
-func (strVal) Type() valueType   { return STRING }
-func (vecVal) Type() valueType   { return VECTOR }
-func (mtxVal) Type() valueType   { return MATRIX } // }}}
+func (emptyVar) Type() ValueType { return 0 }
+func (boolVal) Type() ValueType  { return BOOL }
+func (intVal) Type() ValueType   { return INTEGER }
+func (floatVal) Type() ValueType { return FLOAT }
+func (byteVal) Type() ValueType  { return BYTE }
+func (bytesVal) Type() ValueType { return BYTES }
+func (strVal) Type() ValueType   { return STRING }
+func (vecVal) Type() ValueType   { return VECTOR }
+func (mtxVal) Type() ValueType   { return MATRIX } // }}}
 
 /// TO-TYPE FUNCTIONS (one per type)// {{{
 // map one to-type function per type to the generic implementation
-func (v baseVar) ToType(t valueType) Value  { return toType(t, v) }
-func (v boolVal) ToType(t valueType) Value  { return toType(t, v) }
-func (v intVal) ToType(t valueType) Value   { return toType(t, v) }
-func (v floatVal) ToType(t valueType) Value { return toType(t, v) }
-func (v byteVal) ToType(t valueType) Value  { return toType(t, v) }
-func (v bytesVal) ToType(t valueType) Value { return toType(t, v) }
-func (v strVal) ToType(t valueType) Value   { return toType(t, v) }
-func (v vecVal) ToType(t valueType) Value   { return toType(t, v) }
-func (v mtxVal) ToType(t valueType) Value   { return toType(t, v) } // }}}
+func (v emptyVar) ToType(t ValueType) Value { return toType(t, v) }
+func (v boolVal) ToType(t ValueType) Value  { return toType(t, v) }
+func (v intVal) ToType(t ValueType) Value   { return toType(t, v) }
+func (v floatVal) ToType(t ValueType) Value { return toType(t, v) }
+func (v byteVal) ToType(t ValueType) Value  { return toType(t, v) }
+func (v bytesVal) ToType(t ValueType) Value { return toType(t, v) }
+func (v strVal) ToType(t ValueType) Value   { return toType(t, v) }
+func (v vecVal) ToType(t ValueType) Value   { return toType(t, v) }
+func (v mtxVal) ToType(t ValueType) Value   { return toType(t, v) } // }}}
 
 /// EVAL FUNCTIONS (one per type)// {{{
 // map one eval function per type to the generic implementation
-func (v baseVar) Eval() []byte  { return eval(v) }
+func (v emptyVar) Eval() []byte { return eval(v) }
 func (v boolVal) Eval() []byte  { return eval(v) }
 func (v intVal) Eval() []byte   { return eval(v) }
 func (v floatVal) Eval() []byte { return eval(v) }

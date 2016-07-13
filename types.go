@@ -7,7 +7,7 @@ import (
 	//bf "github.com/russross/blackfriday"
 )
 
-//// GENERAL VALUE TYPE AND FUNCTION DEFINITIONS// {{{
+//// GENERIC VALUE TYPE AND FUNCTION DEFINITIONS// {{{
 ///
 // represent actual values of a given type.
 //
@@ -19,45 +19,24 @@ import (
 //
 //- slice of booleans get represented by a big Int
 //
-//- Vector type is a slice of values of arbitrary kind
+//- vecConvert type is a slice of values of arbitrary kind
 //
-//- Matrix is a vector to, but also carrys to ints to define it's shape
+//- mtxConvert is a vector to, but also carrys to ints to define it's shape
 //
 type (
 	/// VALUE TYPES// {{{
 	// all values are wrapped in a struct. that doesent add overhead, but gives the
 	// oportunity to implement the interface at the baseVar struct type, which makes
 	// all structs values of type baseVar per default.
-	baseVar struct{}
-	boolVal struct {
-		*baseVar
-		bool
-	}
-	intVal struct {
-		*baseVar
-		*big.Int
-	}
-	floatVal struct {
-		*baseVar
-		*big.Float
-	}
-	byteVal struct {
-		*baseVar
-		byte
-	}
-	bytesVal struct {
-		*baseVar
-		bytes []byte
-	}
-	strVal struct {
-		*baseVar
-		string
-	}
-	vecVal struct {
-		*baseVar
-		vec []Value
-	}
-	mtxVal struct {
+	baseVar  struct{}
+	boolVal  struct{ bool }
+	intVal   struct{ *big.Int }
+	floatVal struct{ *big.Float }
+	byteVal  struct{ byte }
+	bytesVal struct{ bytes []byte }
+	strVal   struct{ string }
+	vecVal   struct{ vec []Value }
+	mtxVal   struct {
 		*vecVal
 		shape [2]int
 	} // }}}
@@ -94,7 +73,7 @@ type (
 	mtxFn     func(Value) mtxVal // }}}
 ) // }}}
 
-//// GENERAL FUNCTION IMPLEMENTATIONS// {{{
+//// GENERIC FUNCTION IMPLEMENTATIONS// {{{
 ///
 // value functions implement methods on the funcrion level, that are supposed
 // to exist on all imlementations in one or another way. The first argument of
@@ -107,32 +86,26 @@ var (
 		switch v.(type) {
 		case bool:
 			return boolVal{
-				&baseVar{},
 				v.(bool),
 			}
 		case int, int8, int16, int32, int64:
 			return strVal{
-				&baseVar{},
 				v.(string),
 			}
 		case float32, float64:
 			return floatVal{
-				&baseVar{},
 				big.NewFloat(v.(float64)),
 			}
 		case byte:
 			return byteVal{
-				&baseVar{},
 				byte(v.(float64)),
 			}
 		case []byte:
 			return bytesVal{
-				&baseVar{},
 				v.([]byte),
 			}
 		case string:
 			return strVal{
-				&baseVar{},
 				v.(string),
 			}
 			// CASES TO BE READ AS MATRIX
@@ -142,7 +115,6 @@ var (
 			// slice of values, or interfaces
 		case []Value, []interface{}:
 			return vecVal{
-				&baseVar{},
 				v.([]Value),
 			}
 
@@ -153,7 +125,6 @@ var (
 			// flatten slice of vector values
 		case []vecVal:
 			vec := vecVal{
-				&baseVar{},
 				[]Value{},
 			}
 			ret := mtxVal{
@@ -181,7 +152,6 @@ var (
 			// flatten slice of slices of values or interfaces
 		case [][]Value, [][]interface{}:
 			vec := vecVal{
-				&baseVar{},
 				[]Value{},
 			}
 			ret := mtxVal{
@@ -210,49 +180,25 @@ var (
 
 	// NEW EMPTY VALUE FUNCTION (returns empty value of passed type)// {{{
 	// returnes an empty instance of a designated type.
-	NewEmptyVal = func(v valueType) Value {
+	NewemptyConvertVal = func(v valueType) Value {
 		switch v {
 		case BOOL:
-			return boolVal{
-				&baseVar{},
-				false,
-			}
+			return boolVal{false}
 		case INTEGER:
-			return strVal{
-				&baseVar{},
-				"",
-			}
+			return strVal{""}
 		case FLOAT:
-			return floatVal{
-				&baseVar{},
-				big.NewFloat(0),
-			}
+			return floatVal{big.NewFloat(0)}
 		case BYTE:
-			return byteVal{
-				&baseVar{},
-				byte(0),
-			}
+			return byteVal{byte(0)}
 		case BYTES:
-			return bytesVal{
-				&baseVar{},
-				[]byte{},
-			}
+			return bytesVal{[]byte{}}
 		case STRING:
-			return strVal{
-				&baseVar{},
-				"",
-			}
+			return strVal{""}
 		case VECTOR:
-			return vecVal{
-				&baseVar{},
-				[]Value{},
-			}
+			return vecVal{[]Value{}}
 		case MATRIX:
 			return mtxVal{
-				&vecVal{
-					&baseVar{},
-					[]Value{},
-				},
+				&vecVal{[]Value{}},
 				[2]int{0, 0},
 			}
 		default:
@@ -306,11 +252,11 @@ var (
 	// the designated conversion.
 
 	// RETURN EMPTY TYPE// {{{
-	Empty = func(Value) baseVar { return baseVar{} } // now for the tricky part...// }}}
+	emptyConvert = func(Value) baseVar { return baseVar{} } // now for the tricky part...// }}}
 
 	// RETURN BOOL TYPE// {{{
 	// (if value set, or in case of string, if its reading "true" return true)
-	Bool = func(v Value) boolVal {
+	boolConvert = func(v Value) boolVal {
 		ret := false
 		switch v.Type() {
 		case BOOL:
@@ -358,14 +304,14 @@ var (
 				ret = false
 			}
 		case VECTOR:
-			// if Vector Values are set -> true, else false
+			// if vecConvert Values are set -> true, else false
 			if Length(v) > 0 {
 				ret = true
 			} else {
 				ret = false
 			}
 		case MATRIX:
-			// if Matrix Fields are set -> true, else false
+			// if mtxConvert Fields are set -> true, else false
 			if Length(v) > 0 {
 				ret = true
 			} else {
@@ -373,13 +319,12 @@ var (
 			}
 		}
 		return boolVal{
-			&baseVar{},
 			ret,
 		}
 	} // }}}
 
 	// RETURN INTEGER TYPE// {{{
-	Integer = func(v Value) intVal {
+	intConvert = func(v Value) intVal {
 		var ret int64 = 0
 		switch v.Type() {
 		case BOOL:
@@ -392,13 +337,12 @@ var (
 		case MATRIX:
 		}
 		return intVal{
-			&baseVar{},
 			big.NewInt(ret),
 		}
 	} // }}}
 
 	// RETURN FLOAT TYPE// {{{
-	Float = func(v Value) floatVal {
+	floatConvert = func(v Value) floatVal {
 		var ret float64 = 0
 		switch v.Type() {
 		case BOOL:
@@ -411,13 +355,12 @@ var (
 		case MATRIX:
 		}
 		return floatVal{
-			&baseVar{},
 			big.NewFloat(ret),
 		}
 	} // }}}
 
 	// RETURN BYTE TYPE// {{{
-	Byte = func(v Value) byteVal {
+	byteConvert = func(v Value) byteVal {
 		var ret byte = 0
 		switch v.Type() {
 		case BOOL:
@@ -430,13 +373,12 @@ var (
 		case MATRIX:
 		}
 		return byteVal{
-			&baseVar{},
 			ret,
 		}
 	} // }}}
 
 	// RETURN BYTES TYPE// {{{
-	Bytes = func(v Value) bytesVal {
+	bytesConvert = func(v Value) bytesVal {
 		var ret []byte = []byte{}
 		switch v.Type() {
 		case BOOL:
@@ -448,14 +390,11 @@ var (
 		case VECTOR:
 		case MATRIX:
 		}
-		return bytesVal{
-			&baseVar{},
-			ret,
-		}
+		return bytesVal{ret}
 	} // }}}
 
 	// RETURN STRING TYPE// {{{
-	String = func(v Value) strVal {
+	strConvert = func(v Value) strVal {
 		var ret string = ""
 		switch v.Type() {
 		case BOOL:
@@ -467,14 +406,11 @@ var (
 		case VECTOR:
 		case MATRIX:
 		}
-		return strVal{
-			&baseVar{},
-			ret,
-		}
+		return strVal{ret}
 	} // }}}
 
 	// RETURN VECTOR TYPE// {{{
-	Vector = func(v Value) vecVal {
+	vecConvert = func(v Value) vecVal {
 		switch v.Type() {
 		case BOOL:
 		case INTEGER:
@@ -489,7 +425,7 @@ var (
 	} // }}}
 
 	// RETURN MATRIX TYPE// {{{
-	Matrix = func(v Value) mtxVal {
+	mtxConvert = func(v Value) mtxVal {
 		switch v.Type() {
 		case BOOL:
 		case INTEGER:
@@ -515,23 +451,23 @@ var (
 	toType = func(t valueType, v Value) Value {
 		switch t {
 		case EMPTY:
-			return Empty(v)
+			return emptyConvert(v)
 		case BOOL:
-			return Bool(v)
+			return boolConvert(v)
 		case INTEGER:
-			return Integer(v)
+			return intConvert(v)
 		case FLOAT:
-			return Float(v)
+			return floatConvert(v)
 		case BYTE:
-			return Byte(v)
+			return byteConvert(v)
 		case BYTES:
-			return Bytes(v)
+			return bytesConvert(v)
 		case STRING:
-			return String(v)
+			return strConvert(v)
 		case VECTOR:
-			return Vector(v)
+			return vecConvert(v)
 		case MATRIX:
-			return Matrix(v)
+			return mtxConvert(v)
 		}
 		// define new value and convert to given type
 		return NewVal(v).ToType(t)
@@ -539,12 +475,12 @@ var (
 
 	// GENERIC EVAL (second ring to rule them all... wait a minute!)// {{{
 	eval = func(v Value) []byte {
-		return Bytes(v).bytes
+		return bytesConvert(v).bytes
 
 	} // }}}
 ) // }}}
 
-//// MAPPING OF VALUE METHODS TO GENERIC FUNCTIONS
+//// MAPPING OF VALUE METHODS TO GENERIC FUNCTIONS// {{{
 ///
 // while data-/ and function-type definitions and generic implementations on
 // base of the value interface describe the general implementation, each
@@ -569,6 +505,7 @@ func (mtxVal) Type() valueType   { return MATRIX } // }}}
 func (v baseVar) ToType(t valueType) Value  { return toType(t, v) }
 func (v boolVal) ToType(t valueType) Value  { return toType(t, v) }
 func (v intVal) ToType(t valueType) Value   { return toType(t, v) }
+func (v floatVal) ToType(t valueType) Value { return toType(t, v) }
 func (v byteVal) ToType(t valueType) Value  { return toType(t, v) }
 func (v bytesVal) ToType(t valueType) Value { return toType(t, v) }
 func (v strVal) ToType(t valueType) Value   { return toType(t, v) }
@@ -580,8 +517,10 @@ func (v mtxVal) ToType(t valueType) Value   { return toType(t, v) } // }}}
 func (v baseVar) Eval() []byte  { return eval(v) }
 func (v boolVal) Eval() []byte  { return eval(v) }
 func (v intVal) Eval() []byte   { return eval(v) }
+func (v floatVal) Eval() []byte { return eval(v) }
 func (v byteVal) Eval() []byte  { return eval(v) }
 func (v bytesVal) Eval() []byte { return eval(v) }
 func (v strVal) Eval() []byte   { return eval(v) }
 func (v vecVal) Eval() []byte   { return eval(v) }
 func (v mtxVal) Eval() []byte   { return eval(v) } // }}}
+// }}}

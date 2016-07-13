@@ -1,276 +1,587 @@
 package agiledoc
 
 import (
-	"bytes"
 	// "fmt"
 	"math/big"
+	"strings"
 	//bf "github.com/russross/blackfriday"
 )
 
-type Value interface {
-	Type() valueType
-	ToType(valueType) (ok bool, val Value)
-	Eval() []byte
-}
-
+//// GENERAL VALUE TYPE AND FUNCTION DEFINITIONS// {{{
+///
+// represent actual values of a given type.
+//
+//- integers are represented by int instances from math/big
+//
+//- to do proper math, a float type is needed, taken from math/vbig as well
+//
+//- one boolean get's represented by a boolean
+//
+//- slice of booleans get represented by a big Int
+//
+//- Vector type is a slice of values of arbitrary kind
+//
+//- Matrix is a vector to, but also carrys to ints to define it's shape
+//
 type (
-	emptyValue  struct{ int } // special value -1
-	boolValue   struct{ bool }
-	intValue    struct{ *big.Int }
-	floatValue  struct{ *big.Float }
-	stringValue struct{ s []byte }
-	Vector      struct{ v []Value }
-	Matrix      struct{ Vector }
-)
-
-func (emptyValue) Type() valueType  { return EMPTY }
-func (boolValue) Type() valueType   { return BOOL }
-func (intValue) Type() valueType    { return INTEGER }
-func (floatValue) Type() valueType  { return FLOAT }
-func (stringValue) Type() valueType { return STRING }
-func (Vector) Type() valueType      { return VECTOR }
-func (Matrix) Type() valueType      { return MATRIX }
-
-func (emptyValue) ToType(t valueType) (ok bool, val Value)  { return false, nil }
-func (boolValue) ToType(t valueType) (ok bool, val Value)   { return false, nil }
-func (intValue) ToType(t valueType) (ok bool, val Value)    { return false, nil }
-func (floatValue) ToType(t valueType) (ok bool, val Value)  { return false, nil }
-func (stringValue) ToType(t valueType) (ok bool, val Value) { return false, nil }
-func (Vector) ToType(t valueType) (ok bool, val Value)      { return false, nil }
-func (Matrix) ToType(t valueType) (ok bool, val Value)      { return false, nil }
-
-func (v emptyValue) Eval() []byte { return []byte{} }
-func (v boolValue) Eval() []byte {
-	if v.bool {
-		return []byte{1}
-	} else {
-		return []byte{}
+	/// VALUE TYPES// {{{
+	// all values are wrapped in a struct. that doesent add overhead, but gives the
+	// oportunity to implement the interface at the baseVar struct type, which makes
+	// all structs values of type baseVar per default.
+	baseVar struct{}
+	boolVal struct {
+		*baseVar
+		bool
 	}
-}
-func (v intValue) Eval() []byte    { return v.Bytes() }
-func (v floatValue) Eval() []byte  { return []byte(v.String()) }
-func (v stringValue) Eval() []byte { return v.s }
-func (v Vector) Eval() []byte {
-
-	ret := make([]byte, len(v.v))
-
-	for _, val := range v.v {
-		val := val
-		ret = append(ret, val.Eval()...)
+	intVal struct {
+		*baseVar
+		*big.Int
 	}
-	return ret
-}
+	floatVal struct {
+		*baseVar
+		*big.Float
+	}
+	byteVal struct {
+		*baseVar
+		byte
+	}
+	bytesVal struct {
+		*baseVar
+		bytes []byte
+	}
+	strVal struct {
+		*baseVar
+		string
+	}
+	vecVal struct {
+		*baseVar
+		vec []Value
+	}
+	mtxVal struct {
+		*vecVal
+		shape [2]int
+	} // }}}
+	////
+	/// VALUE FUNCTION TYPES// {{{
+	// the base implementation of the value interface is identical for all types
+	// and defined in the form of function types. Each value type implementation
+	// will have to provide all of the public functions and may or may not provide
+	// implementations for any, maybe even all the type functions, depending on if
+	// they are convertable to the type returned by a given function, or not.
+	///
+	/// INTERFACE IMPLEMENTATION
+	// apart from being defined as an interface, there is also a funcion
+	// type signature to describes the interface. Since its taking a value
+	// interface as its first parameter, it suits to fit as method for
+	// every implemented tye, or instance method, for every instance
+	// instanciated..
+	evalFn func(Value) []byte
 
-func (v Matrix) Eval() []byte {
-	return v.Eval()
-}
+	/// TYPED RETURN FUNCTION TYPES
+	// A type function is a function-type. It returns the value instance contained
+	// in all types that implement the value interface, typed as.  given by the
+	// particular funciton.  There is one type-function for each type to be
+	// returned. A Type function will get instanciated for every instance of a type
+	// that can be converted to the functions type.
+	baseVarFn func(Value) baseVar // baseVar value to return for baseVar, or unconvertable
+	boolFn    func(Value) boolVal
+	intFn     func(Value) intVal
+	floatFn   func(Value) floatVal
+	byteFn    func(Value) byteVal
+	bytesFn   func(Value) bytesVal
+	strFn     func(Value) strVal
+	vecFn     func(Value) vecVal
+	mtxFn     func(Value) mtxVal // }}}
+) // }}}
 
-func newValue(t valueType, v interface{}) Value {
+//// GENERAL FUNCTION IMPLEMENTATIONS// {{{
+///
+// value functions implement methods on the funcrion level, that are supposed
+// to exist on all imlementations in one or another way. The first argument of
+// a value function is a value. The function calls its type function to
+// determin if and how to convert it. There is onw typed value return function
+// per tyoe that can be returned,
+var (
+	// NEW VALUE FUNCTION (instance from a previously unknown type)// {{{
+	NewVal = func(v interface{}) Value {
+		switch v.(type) {
+		case bool:
+			return boolVal{
+				&baseVar{},
+				v.(bool),
+			}
+		case int, int8, int16, int32, int64:
+			return strVal{
+				&baseVar{},
+				v.(string),
+			}
+		case float32, float64:
+			return floatVal{
+				&baseVar{},
+				big.NewFloat(v.(float64)),
+			}
+		case byte:
+			return byteVal{
+				&baseVar{},
+				byte(v.(float64)),
+			}
+		case []byte:
+			return bytesVal{
+				&baseVar{},
+				v.([]byte),
+			}
+		case string:
+			return strVal{
+				&baseVar{},
+				v.(string),
+			}
+			// CASES TO BE READ AS MATRIX
+			// cpt. obvious
+		case vecVal:
+			return v.(vecVal)
+			// slice of values, or interfaces
+		case []Value, []interface{}:
+			return vecVal{
+				&baseVar{},
+				v.([]Value),
+			}
 
-	var ret Value
+			// CASES TO BE READ AS MATRIX
+			// cpt. obvious
+		case mtxVal:
+			return v.(mtxVal)
+			// flatten slice of vector values
+		case []vecVal:
+			vec := vecVal{
+				&baseVar{},
+				[]Value{},
+			}
+			ret := mtxVal{
+				&vec,
+				[2]int{0, 0},
+			}
+			// range over contained vector instances
+			for n, i := range v.([]vecVal) {
+				// interface is allready converted to vecVal
+				// due to the range statement assertion
+				v := i
+				// get length of this row (column count)
+				m := Length(v)
+				// append this vectors fields to the new vector
+				vec.vec = append(vec.vec, v.vec...)
+				// if this row happens to be longer then the
+				// longest row, update column count
+				if m > ret.shape[0] {
+					ret.shape[0] = m
+				}
+				// update row count
+				ret.shape[1] = n
+			}
+			return ret
+			// flatten slice of slices of values or interfaces
+		case [][]Value, [][]interface{}:
+			vec := vecVal{
+				&baseVar{},
+				[]Value{},
+			}
+			ret := mtxVal{
+				&vec,
+				// set length of outer slice as row count
+				[2]int{0, len(v.([][]Value))},
+			}
+			for _, vals := range v.([][]Value) {
 
-	switch t {
-	case EMPTY:
-		ret = emptyValue{}
-
-	case BOOL:
-		if v.(bool) {
-			ret = boolValue{true}
-		} else {
-			ret = boolValue{false}
+				for n, v := range vals {
+					v := v
+					n := n
+					// append this vectors fields to the new vector
+					vec.vec = append(vec.vec, v)
+					// if this row happens to be longer then the
+					// longest row, update column count
+					if n > ret.shape[0] {
+						ret.shape[0] = n
+					}
+				}
+			}
+			return ret
 		}
+		return baseVar{}
+	} // }}}
 
-	case INTEGER:
-		ret = intValue{big.NewInt(v.(int64))}
+	// NEW EMPTY VALUE FUNCTION (returns empty value of passed type)// {{{
+	// returnes an empty instance of a designated type.
+	NewEmptyVal = func(v valueType) Value {
+		switch v {
+		case BOOL:
+			return boolVal{
+				&baseVar{},
+				false,
+			}
+		case INTEGER:
+			return strVal{
+				&baseVar{},
+				"",
+			}
+		case FLOAT:
+			return floatVal{
+				&baseVar{},
+				big.NewFloat(0),
+			}
+		case BYTE:
+			return byteVal{
+				&baseVar{},
+				byte(0),
+			}
+		case BYTES:
+			return bytesVal{
+				&baseVar{},
+				[]byte{},
+			}
+		case STRING:
+			return strVal{
+				&baseVar{},
+				"",
+			}
+		case VECTOR:
+			return vecVal{
+				&baseVar{},
+				[]Value{},
+			}
+		case MATRIX:
+			return mtxVal{
+				&vecVal{
+					&baseVar{},
+					[]Value{},
+				},
+				[2]int{0, 0},
+			}
+		default:
+			return baseVar{}
+		}
+	} // }}}
 
-	case FLOAT:
-		ret = floatValue{big.NewFloat(v.(float64))}
-
-	case STRING:
-
-	case VECTOR:
-
-	case MATRIX:
+	// HELPER FUNCTIONS (length, width, heigth)// {{{
+	// length function to return total length of vector and/or matrix type
+	Length = func(v Value) int {
+		if v.Type()&VECTOR != 0 {
+			return len(v.(vecVal).vec)
+		}
+		if v.Type()&MATRIX != 0 {
+			return v.(mtxVal).shape[0] * v.(mtxVal).shape[1]
+		}
+		return -1
 	}
 
-	return ret
-}
-
-type pos [2]int
-
-type Token struct {
-	ttype     tokenType
-	position  pos
-	content   []byte
-	flags     int
-	parameter []param
-}
-
-type (
-	tokenType uint32
-	valueType uint8
-)
-
-const (
-	EMPTY valueType = 0
-	BOOL            = 1 << iota
-	INTEGER
-	FLOAT
-	STRING
-	VECTOR
-	MATRIX
-
-	termVTypes = BOOL | INTEGER | FLOAT | STRING
-	combVTypes = VECTOR | MATRIX
-
-	// BLOCK LEVEL
-	DOCUMENT tokenType = 0
-	D_HEADER           = 1 << iota // header
-	D_FOOTER
-	SECTION
-	TITLE
-	PARAGRAPH
-	CODE
-	QUOTE
-	HTML
-	HRULE
-	LIST
-	L_ITEM
-	TABLE
-	T_HEADER_CELL
-	T_ROW
-	T_CELL
-	FOOTNOTES
-	F_ITEM
-	//SPAN_LEVEL
-	AUTO_LINK
-	CODE_SPAN
-	LINE_BREAK
-	EMPHASIS
-	DOUBLE_EMPHASIS
-	TRIPLE_EMPHASIS
-	STRIKE_THROUGHT
-	RAW_HTML_TAG
-	LINK
-	IMAGE
-	F_REF // footnote reference
-	// LOW LEVEL
-	ENTITY
-	TEXT
-
-	blockElements = DOCUMENT | D_HEADER | D_FOOTER | SECTION | TITLE | PARAGRAPH | CODE | QUOTE | HTML | HRULE | LIST | L_ITEM | TABLE | T_HEADER_CELL | T_ROW | T_CELL | FOOTNOTES | F_ITEM
-
-	spanElements = AUTO_LINK | CODE_SPAN | LINE_BREAK | EMPHASIS | DOUBLE_EMPHASIS | TRIPLE_EMPHASIS | STRIKE_THROUGHT | RAW_HTML_TAG | LINK | IMAGE | F_REF
-
-	lowLevelElements = ENTITY | TEXT
-)
-
-type param struct {
-	name  string
-	value Value
-}
-
-type tokenizer struct {
-	name    string
-	flags   int
-	lastPos int
-	queue   chan Token
-}
-
-// newToken is called by all methods implementing the blackfriday renderer
-// interface, to generate a token and propagate it to the caller
-func (t *tokenizer) newToken(typ tokenType, content []byte, flags int, parms ...param) {
-
-	// instanciate a new token
-	tok := Token{
-		ttype: typ, // determined by each callback
-		position: pos{ // instanciate pos from last position to lp plus elements length
-			(*t).lastPos + 1,                // starts one byte after end of last tag
-			(*t).lastPos + 1 + len(content), // ends at (start + length of content)
-		},
-		content:   content, // byte slice
-		flags:     flags,   // OR concatenated ints
-		parameter: parms,   // slice of name/value pairs
+	// WIDTH returns the number of columns a matrix contains
+	Width = func(v Value) int {
+		if v.Type()&MATRIX != 0 {
+			return v.(mtxVal).shape[0]
+		}
+		return -1
 	}
 
-	// update tokeniers last position of to end of new token
-	(*t).lastPos = tok.position[1]
+	// HEIGTH returns the number of rows a matrix contains
+	Heigth = func(v Value) int {
+		if v.Type()&MATRIX != 0 {
+			return v.(mtxVal).shape[1]
+		}
+		return -1
+	} // }}}
 
-	// send token to queue
-	(*t).queue <- tok
-}
+	//// GENERIC CONVERSION FUNCTIONS (implements all possible return types, per type)// {{{
+	///
+	// functions to return arbitrary type as the designated return type.
+	// the typed return functions are defined on the value interface and
+	// therefore apply to all possible values. Each of the typed return
+	// functions implements a type switch, to split by passed type
+	// initially and then defines the appropriate conversion function to
+	// the passed type within the switches cases.
+	//
+	// the designated returned value is initiated as value of the
+	// appropriate contained type right above the type switch. The
+	// conversion function assigns the appropriate value to that
+	// preinitialized return variable.
+	//
+	// The switch cases may call other typed return functions to perform
+	// the designated conversion.
 
-// Header and footer
-func (t *tokenizer) DocumentHeader(out *bytes.Buffer) {
-	(*t).newToken(D_HEADER, out.Bytes(), 0)
-}
+	// RETURN EMPTY TYPE// {{{
+	Empty = func(Value) baseVar { return baseVar{} } // now for the tricky part...// }}}
 
-func (t *tokenizer) DocumentFooter(out *bytes.Buffer) {
-	(*t).newToken(D_FOOTER, out.Bytes(), 0)
-}
+	// RETURN BOOL TYPE// {{{
+	// (if value set, or in case of string, if its reading "true" return true)
+	Bool = func(v Value) boolVal {
+		ret := false
+		switch v.Type() {
+		case BOOL:
+			// just pass on, contained value as a new instance
+			ret = v.(boolVal).bool
+		case INTEGER:
+			// if contained integer is greater than zero, return true,
+			// false for zero and all negative values
+			if v.(intVal).Int64() > 0 {
+				ret = true
+			} else {
+				ret = false
+			}
+		case FLOAT:
+			// if contained float is greater than zero, return true,
+			// false for zero and all negative values
+			val, _ := v.(floatVal).Float64()
+			if val > 0 {
+				ret = true
+			} else {
+				ret = false
+			}
+		case BYTE:
+			// if zero, return false, for each other value return true
+			if v.(byteVal).byte&byte(0) != 0 {
+				ret = false
+			} else {
+				ret = true
+			}
+		case BYTES:
+			// if len is zero, then "bytes" returns false. If there
+			// are any bytes, then its return value is true
+			if len(v.(bytesVal).bytes) > 0 {
+				ret = false
+			} else {
+				ret = true
+			}
+		case STRING:
+			// when the contained value turns out to be a string, try to
+			// parse it, by comparing it to the word "true"
+			cmp := v.(strVal).string
+			if strings.Compare(cmp, "true") == 1 || strings.Compare(cmp, "TRUE") == 1 || strings.Compare(cmp, "True") == 1 {
+				ret = true
+			} else {
+				ret = false
+			}
+		case VECTOR:
+			// if Vector Values are set -> true, else false
+			if Length(v) > 0 {
+				ret = true
+			} else {
+				ret = false
+			}
+		case MATRIX:
+			// if Matrix Fields are set -> true, else false
+			if Length(v) > 0 {
+				ret = true
+			} else {
+				ret = false
+			}
+		}
+		return boolVal{
+			&baseVar{},
+			ret,
+		}
+	} // }}}
 
-// Document Blocks
-func (t *tokenizer) Header(out *bytes.Buffer, text func() bool, level int, id string) { // header as in headline as in section
-	var parms []param = []param{}
-	parms = append(parms, param{"level", newValue(INTEGER, level)})
-	parms = append(parms, param{"id", newValue(STRING, id)})
+	// RETURN INTEGER TYPE// {{{
+	Integer = func(v Value) intVal {
+		var ret int64 = 0
+		switch v.Type() {
+		case BOOL:
+		case INTEGER:
+		case FLOAT:
+		case BYTE:
+		case BYTES:
+		case STRING:
+		case VECTOR:
+		case MATRIX:
+		}
+		return intVal{
+			&baseVar{},
+			big.NewInt(ret),
+		}
+	} // }}}
 
-	if text() { // call callback to generate byteslice and writes it to the buffer
-		(*t).newToken( // generates a new token and sends it to the callers queue
-			SECTION,
-			out.Bytes(),
-			0,
-			parms...,
-		)
-	}
-}
-func (t *tokenizer) BlockCode(out *bytes.Buffer, text []byte, lang string)                 {}
-func (t *tokenizer) BlockQuote(out *bytes.Buffer, text []byte)                             {}
-func (t *tokenizer) BlockHtml(out *bytes.Buffer, text []byte)                              {}
-func (t *tokenizer) HRule(out *bytes.Buffer)                                               {}
-func (t *tokenizer) List(out *bytes.Buffer, text func() bool, flags int)                   {}
-func (t *tokenizer) ListItem(out *bytes.Buffer, text []byte, flags int)                    {}
-func (t *tokenizer) Paragraph(out *bytes.Buffer, text func() bool)                         {}
-func (t *tokenizer) Table(out *bytes.Buffer, header []byte, body []byte, columnData []int) {}
-func (t *tokenizer) TableRow(out *bytes.Buffer, text []byte)                               {}
-func (t *tokenizer) TableHeaderCell(out *bytes.Buffer, text []byte, flags int)             {}
-func (t *tokenizer) TableCell(out *bytes.Buffer, text []byte, flags int)                   {}
-func (t *tokenizer) Footnotes(out *bytes.Buffer, text func() bool)                         {}
-func (t *tokenizer) FootnoteItem(out *bytes.Buffer, name, text []byte, flags int)          {}
-func (t *tokenizer) TitleBlock(out *bytes.Buffer, text []byte)                             {}
+	// RETURN FLOAT TYPE// {{{
+	Float = func(v Value) floatVal {
+		var ret float64 = 0
+		switch v.Type() {
+		case BOOL:
+		case INTEGER:
+		case FLOAT:
+		case BYTE:
+		case BYTES:
+		case STRING:
+		case VECTOR:
+		case MATRIX:
+		}
+		return floatVal{
+			&baseVar{},
+			big.NewFloat(ret),
+		}
+	} // }}}
 
-// Span-level callbacks
-func (t *tokenizer) AutoLink(out *bytes.Buffer, link []byte, kind int)                 {}
-func (t *tokenizer) CodeSpan(out *bytes.Buffer, text []byte)                           {}
-func (t *tokenizer) DoubleEmphasis(out *bytes.Buffer, text []byte)                     {}
-func (t *tokenizer) Emphasis(out *bytes.Buffer, text []byte)                           {}
-func (t *tokenizer) Image(out *bytes.Buffer, link []byte, title []byte, alt []byte)    {}
-func (t *tokenizer) LineBreak(out *bytes.Buffer)                                       {}
-func (t *tokenizer) Link(out *bytes.Buffer, link []byte, title []byte, content []byte) {}
-func (t *tokenizer) RawHtmlTag(out *bytes.Buffer, tag []byte)                          {}
-func (t *tokenizer) TripleEmphasis(out *bytes.Buffer, text []byte)                     {}
-func (t *tokenizer) StrikeThrough(out *bytes.Buffer, text []byte)                      {}
-func (t *tokenizer) FootnoteRef(out *bytes.Buffer, ref []byte, id int)                 {}
+	// RETURN BYTE TYPE// {{{
+	Byte = func(v Value) byteVal {
+		var ret byte = 0
+		switch v.Type() {
+		case BOOL:
+		case INTEGER:
+		case FLOAT:
+		case BYTE:
+		case BYTES:
+		case STRING:
+		case VECTOR:
+		case MATRIX:
+		}
+		return byteVal{
+			&baseVar{},
+			ret,
+		}
+	} // }}}
 
-// Low-level callbacks
-func (t *tokenizer) Entity(out *bytes.Buffer, entity []byte)   {}
-func (t *tokenizer) NormalText(out *bytes.Buffer, text []byte) {}
+	// RETURN BYTES TYPE// {{{
+	Bytes = func(v Value) bytesVal {
+		var ret []byte = []byte{}
+		switch v.Type() {
+		case BOOL:
+		case INTEGER:
+		case FLOAT:
+		case BYTE:
+		case BYTES:
+		case STRING:
+		case VECTOR:
+		case MATRIX:
+		}
+		return bytesVal{
+			&baseVar{},
+			ret,
+		}
+	} // }}}
 
-func (t *tokenizer) GetFlags() int { return (*t).flags }
+	// RETURN STRING TYPE// {{{
+	String = func(v Value) strVal {
+		var ret string = ""
+		switch v.Type() {
+		case BOOL:
+		case INTEGER:
+		case FLOAT:
+		case BYTE:
+		case BYTES:
+		case STRING:
+		case VECTOR:
+		case MATRIX:
+		}
+		return strVal{
+			&baseVar{},
+			ret,
+		}
+	} // }}}
 
-func newTokenizer(queue chan Token, name string, flags ...int) *tokenizer {
+	// RETURN VECTOR TYPE// {{{
+	Vector = func(v Value) vecVal {
+		switch v.Type() {
+		case BOOL:
+		case INTEGER:
+		case FLOAT:
+		case BYTE:
+		case BYTES:
+		case STRING:
+		case VECTOR:
+		case MATRIX:
+		}
+		return NewVal(VECTOR).(vecVal)
+	} // }}}
 
-	var nf int = 0
+	// RETURN MATRIX TYPE// {{{
+	Matrix = func(v Value) mtxVal {
+		switch v.Type() {
+		case BOOL:
+		case INTEGER:
+		case FLOAT:
+		case BYTE:
+		case BYTES:
+		case STRING:
+		case VECTOR:
+		case MATRIX:
+		}
+		return NewVal(MATRIX).(mtxVal)
+	} // }}}
+	// }}}
 
-	for _, f := range flags {
-		f := f
-		nf = nf | f
-	}
+	//// GENERIC TO-TYPE (one ring to rule them all)// {{{
+	///
+	//  to-type is defined at the value interface level to apply on all
+	//  value implementations. It calls the appropriate conversion function
+	//  and passes it's receiver and the passed designated type as its
+	//  arguments.
+	//
+	// if the value fails to have a type, a new value instance will be defined
+	toType = func(t valueType, v Value) Value {
+		switch t {
+		case EMPTY:
+			return Empty(v)
+		case BOOL:
+			return Bool(v)
+		case INTEGER:
+			return Integer(v)
+		case FLOAT:
+			return Float(v)
+		case BYTE:
+			return Byte(v)
+		case BYTES:
+			return Bytes(v)
+		case STRING:
+			return String(v)
+		case VECTOR:
+			return Vector(v)
+		case MATRIX:
+			return Matrix(v)
+		}
+		// define new value and convert to given type
+		return NewVal(v).ToType(t)
+	} // }}}
 
-	return &tokenizer{
-		name:    name,
-		flags:   nf,
-		lastPos: 0,
-		queue:   queue,
-	}
-}
+	// GENERIC EVAL (second ring to rule them all... wait a minute!)// {{{
+	eval = func(v Value) []byte {
+		return Bytes(v).bytes
+
+	} // }}}
+) // }}}
+
+//// MAPPING OF VALUE METHODS TO GENERIC FUNCTIONS
+///
+// while data-/ and function-type definitions and generic implementations on
+// base of the value interface describe the general implementation, each
+// data-type needs to provide its customized implementation of the interface
+// method types.
+//
+/// TYPE FUNCTIONS (one per type)// {{{
+//
+// One method per type to return the Type of this particular methods receiver value
+func (baseVar) Type() valueType  { return EMPTY }
+func (boolVal) Type() valueType  { return BOOL }
+func (intVal) Type() valueType   { return INTEGER }
+func (floatVal) Type() valueType { return FLOAT }
+func (byteVal) Type() valueType  { return BYTE }
+func (bytesVal) Type() valueType { return BYTES }
+func (strVal) Type() valueType   { return STRING }
+func (vecVal) Type() valueType   { return VECTOR }
+func (mtxVal) Type() valueType   { return MATRIX } // }}}
+
+/// TO-TYPE FUNCTIONS (one per type)// {{{
+// map one to-type function per type to the generic implementation
+func (v baseVar) ToType(t valueType) Value  { return toType(t, v) }
+func (v boolVal) ToType(t valueType) Value  { return toType(t, v) }
+func (v intVal) ToType(t valueType) Value   { return toType(t, v) }
+func (v byteVal) ToType(t valueType) Value  { return toType(t, v) }
+func (v bytesVal) ToType(t valueType) Value { return toType(t, v) }
+func (v strVal) ToType(t valueType) Value   { return toType(t, v) }
+func (v vecVal) ToType(t valueType) Value   { return toType(t, v) }
+func (v mtxVal) ToType(t valueType) Value   { return toType(t, v) } // }}}
+
+/// EVAL FUNCTIONS (one per type)// {{{
+// map one eval function per type to the generic implementation
+func (v baseVar) Eval() []byte  { return eval(v) }
+func (v boolVal) Eval() []byte  { return eval(v) }
+func (v intVal) Eval() []byte   { return eval(v) }
+func (v byteVal) Eval() []byte  { return eval(v) }
+func (v bytesVal) Eval() []byte { return eval(v) }
+func (v strVal) Eval() []byte   { return eval(v) }
+func (v vecVal) Eval() []byte   { return eval(v) }
+func (v mtxVal) Eval() []byte   { return eval(v) } // }}}

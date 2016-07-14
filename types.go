@@ -177,33 +177,10 @@ var ConversionFunctions = map[ValueType]map[ValueType]func(Value) Value{
 			}
 		},
 		INTEGER: func(v Value) Value {
-			f, _ := v.(floatVal).Int64()
-			if f > -1 {
-				return floatVal{big.NewFloat(1)}
-			} else {
-				return floatVal{big.NewFloat(-1)}
-			}
-		},
-		BYTE: func(v Value) Value {
-			if uint8(v.(byteVal)) > 0 {
-				return floatVal{big.NewFloat(1)}
-			} else {
-				return floatVal{big.NewFloat(0)}
-			}
-		},
-		BYTESLICE: func(v Value) Value {
-			if len(v.(byteSlice)) > -1 {
-				return floatVal{big.NewFloat(1)}
-			} else {
-				return floatVal{big.NewFloat(-1)}
-			}
+			i, _ := v.(floatVal).Int64()
+			return intVal{big.NewInt(i)}
 		},
 		STRING: func(v Value) Value {
-			if strings.Compare(string(v.(strVal)), "true") > -1 {
-				return floatVal{big.NewFloat(1)}
-			} else {
-				return floatVal{big.NewFloat(-1)}
-			}
 		},
 	},
 	// return byte
@@ -213,10 +190,6 @@ var ConversionFunctions = map[ValueType]map[ValueType]func(Value) Value{
 			return r
 		},
 		INTEGER: func(v Value) Value {
-			var r byteVal = 0
-			return r
-		},
-		FLOAT: func(v Value) Value {
 			var r byteVal = 0
 			return r
 		},
@@ -233,16 +206,12 @@ var ConversionFunctions = map[ValueType]map[ValueType]func(Value) Value{
 	BYTESLICE: map[ValueType]func(Value) Value{
 		BOOL:    func(v Value) (r Value) { return r },
 		INTEGER: func(v Value) (r Value) { return r },
-		FLOAT:   func(v Value) (r Value) { return r },
-		BYTE:    func(v Value) (r Value) { return r },
 		STRING:  func(v Value) (r Value) { return r },
 	},
 	// return string
 	STRING: map[ValueType]func(Value) Value{
 		BOOL:      func(v Value) (r Value) { return r },
 		INTEGER:   func(v Value) (r Value) { return r },
-		FLOAT:     func(v Value) (r Value) { return r },
-		BYTE:      func(v Value) (r Value) { return r },
 		BYTESLICE: func(v Value) (r Value) { return r },
 	},
 }

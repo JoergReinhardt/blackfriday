@@ -2,216 +2,80 @@ package agiledoc
 
 import (
 	"math/big"
-	"strings"
-	//bf "github.com/russross/blackfriday"
 )
 
-type (
-	TokenType uint32
-	ValueType uint8
-)
+type Val interface {
+	Type() ValType
+}
 
-//go:generate -command stringer -type ValueType ./
+type ValType uint
+
+//go:generate -command stringer -type ValType
 const (
-	// BASIC VALUE TYPES
-	EMPTY ValueType = 0
-	BOOL  ValueType = 1 << iota
-	INTEGER
-	FLOAT
-	BYTE
-	BYTESLICE
-	STRING
-	CHAR
+	NIL ValType = 0
+	FLG ValType = 1 << iota
+	INT
+	FLT
+	BYT
+	STR
 )
 
-//// VALUE INTERFACE
-///
-type Value interface {
-	Type() ValueType
-}
+//
 type (
-	/// VALUE TYPES
-	emptyVar  struct{}
-	boolVal   bool
-	intVal    struct{ *big.Int }
-	floatVal  struct{ *big.Float }
-	byteVal   byte
-	byteSlice []byte
-	strVal    string
+	emptyVal struct{} // emptyValue
+	flagVal  struct{ *big.Int }
+	intVal   struct{ *big.Int }
+	floatVal struct{ *big.Float }
+	byteVal  []byte
+	strVal   string
 )
 
-func (emptyVar) Type() ValueType  { return EMPTY }
-func (boolVal) Type() ValueType   { return BOOL }
-func (intVal) Type() ValueType    { return INTEGER }
-func (floatVal) Type() ValueType  { return FLOAT }
-func (byteVal) Type() ValueType   { return BYTE }
-func (byteSlice) Type() ValueType { return BYTESLICE }
-func (strVal) Type() ValueType    { return STRING }
+//
+type typeFunc func(Val) ValType
 
-type ( // FUNCTION TYPES (first passed type replaces receiver)
-	parseFunc       func(Value, interface{}) Value // parse arbitrary typed value to value type
-	convertToFunc   func(Value, ValueType) Value   // convert passed value instance to its receiver type
-	convertFromFunc func(Value, Value) Value       // convert passed value instance to its receiver type
-)
+func (emptyVal) Type() ValType { return NIL }
+func (flagVal) Type() ValType  { return FLG }
+func (intVal) Type() ValType   { return INT }
+func (floatVal) Type() ValType { return FLT }
+func (byteVal) Type() ValType  { return BYT }
+func (strVal) Type() ValType   { return STR }
 
-// generate value from arbitrary value
-func Parse(v Value, i interface{}) (r Value) {
+func (emptyVal) Empty() emptyVal { return emptyVal{} }
+func (v flagVal) Flag() uint     { return uint(v.Int64()) }
+func (v intVal) Integer() int    { return int(v.Int64()) }
+func (v floatVal) Flt() float64  { f, _ := v.Float64(); return float64(f) }
+func (v byteVal) Byte() []byte   { return v }
+func (v strVal) String() string  { return string(v) }
+
+func NewTypedVal(t ValType, i interface{}) Val {
+	var v Val
+	switch t {
+	case NIL:
+		v = emptyVal{}
+	case FLG:
+		v = flagVal{big.NewInt(int64(i.(int)))}
+	case INT:
+		v = intVal{big.NewInt(int64(i.(int)))}
+	case FLT:
+		v = floatVal{big.NewFloat(i.(float64))}
+	case BYT:
+		v = byteVal(i.([]byte))
+	case STR:
+		v = strVal(i.(string))
+	}
+	return v
+}
+func NewVal(i interface{}) Val {
+	var v Val
 	switch i.(type) {
-	case bool:
 	case int, int8, int16, int32, int64, *big.Int:
+		v = NewTypedVal(INT, i)
 	case float32, float64, *big.Float:
-	case byte:
+		v = NewTypedVal(FLT, i)
 	case []byte:
+		v = NewTypedVal(BYT, i)
 	case string:
+		v = NewTypedVal(STR, i)
 	}
-	return r
-}
-
-// convert to value of a certain type
-func ConvertToFunc(v Value, t ValueType) func() Value {
-
-	var fnc func() Value
-
-	// switch on receiver type
-	switch v.Type() {
-	case BOOL:
-	case INTEGER:
-	case FLOAT:
-	case BYTE:
-	case BYTESLICE:
-	case STRING:
-	}
-	return fnc
-}
-
-var ConversionFunctions = map[ValueType]map[ValueType]func(Value) Value{
-	// return bool
-	BOOL: map[ValueType]func(Value) Value{
-		INTEGER: func(v Value) Value {
-			i := v.(intVal).Int // assert integer
-			if v.(intVal).Cmp(i) > 0 {
-				return boolVal(true)
-			} else {
-				return boolVal(false)
-			}
-		},
-		FLOAT: func(v Value) Value {
-			i := v.(floatVal).Float // assert float
-			if v.(floatVal).Cmp(i) > 0 {
-				return boolVal(true)
-			} else {
-				return boolVal(false)
-			}
-		},
-		BYTE: func(v Value) Value {
-			u := uint8(v.(byteVal)) // assert uint8
-			if u > 0 {
-				return boolVal(true)
-			} else {
-				return boolVal(false)
-			}
-		},
-		BYTESLICE: func(v Value) Value {
-			s := v.(byteSlice) // assert byte slice
-			if len(s) > 0 {
-				return boolVal(true)
-			} else {
-				return boolVal(false)
-			}
-		},
-		STRING: func(v Value) Value {
-			s := string(v.(strVal))
-			if strings.Compare(s, "true") > 0 {
-				return boolVal(true)
-			} else {
-				return boolVal(false)
-			}
-		},
-	},
-	// return *big.Int
-	INTEGER: map[ValueType]func(Value) Value{
-		BOOL: func(v Value) Value {
-			if v.(boolVal) {
-				return intVal{big.NewInt(1)}
-			} else {
-				return intVal{big.NewInt(-1)}
-			}
-		},
-		FLOAT: func(v Value) Value {
-			f, _ := v.(floatVal).Int64()
-			if f > -1 {
-				return intVal{big.NewInt(1)}
-			} else {
-				return intVal{big.NewInt(-1)}
-			}
-		},
-		BYTE: func(v Value) Value {
-			if uint8(v.(byteVal)) > 0 {
-				return intVal{big.NewInt(1)}
-			} else {
-				return intVal{big.NewInt(0)}
-			}
-		},
-		BYTESLICE: func(v Value) Value {
-			if len(v.(byteSlice)) > -1 {
-				return intVal{big.NewInt(1)}
-			} else {
-				return intVal{big.NewInt(-1)}
-			}
-		},
-		STRING: func(v Value) Value {
-			if strings.Compare(string(v.(strVal)), "true") > -1 {
-				return intVal{big.NewInt(1)}
-			} else {
-				return intVal{big.NewInt(-1)}
-			}
-		},
-	},
-	// return *big.Float
-	FLOAT: map[ValueType]func(Value) Value{
-		BOOL: func(v Value) Value {
-			if v.(boolVal) {
-				return floatVal{big.NewFloat(1)}
-			} else {
-				return floatVal{big.NewFloat(-1)}
-			}
-		},
-		INTEGER: func(v Value) Value {
-			i, _ := v.(floatVal).Int64()
-			return intVal{big.NewInt(i)}
-		},
-		STRING: func(v Value) Value {
-		},
-	},
-	// return byte
-	BYTE: map[ValueType]func(Value) Value{
-		BOOL: func(v Value) Value {
-			var r byteVal = 0
-			return r
-		},
-		INTEGER: func(v Value) Value {
-			var r byteVal = 0
-			return r
-		},
-		BYTESLICE: func(v Value) Value {
-			var r byteVal = 0
-			return r
-		},
-		STRING: func(v Value) Value {
-			var r byteVal = 0
-			return r
-		},
-	},
-	// return byte slice
-	BYTESLICE: map[ValueType]func(Value) Value{
-		BOOL:    func(v Value) (r Value) { return r },
-		INTEGER: func(v Value) (r Value) { return r },
-		STRING:  func(v Value) (r Value) { return r },
-	},
-	// return string
-	STRING: map[ValueType]func(Value) Value{
-		BOOL:      func(v Value) (r Value) { return r },
-		INTEGER:   func(v Value) (r Value) { return r },
-		BYTESLICE: func(v Value) (r Value) { return r },
-	},
+	return v
 }

@@ -1,530 +1,248 @@
 package agiledoc
 
 import (
-	// "fmt"
 	"math/big"
 	"strings"
 	//bf "github.com/russross/blackfriday"
 )
 
-//// GENERIC VALUE TYPE AND FUNCTION DEFINITIONS// {{{
-///
-// represent actual values of a given type.
-//
-//- integers are represented by int instances from math/big
-//
-//- to do proper math, a float type is needed, taken from math/vbig as well
-//
-//- one boolean get's represented by a boolean
-//
-//- slice of booleans get represented by a big Int
-//
-//- vecConvert type is a slice of values of arbitrary kind
-//
-//- mtxConvert is a vector to, but also carrys to ints to define it's shape
-//
 type (
-	/// VALUE TYPES// {{{
-	// all values are wrapped in a struct. that doesent add overhead, but gives the
-	// oportunity to implement the interface at the emptyVar struct type, which makes
-	// all structs values of type emptyVar per default.
-	emptyVar struct{}
-	boolVal  struct{ bool }
-	intVal   struct{ *big.Int }
-	floatVal struct{ *big.Float }
-	byteVal  struct{ byte }
-	bytesVal struct{ bytes []byte }
-	strVal   struct{ string }
-	vecVal   struct{ vec []Value }
-	mtxVal   struct {
-		*vecVal
-		shape [2]int
-	} // }}}
-	////
-	/// VALUE FUNCTION TYPES// {{{
-	// the base implementation of the value interface is identical for all types
-	// and defined in the form of function types. Each value type implementation
-	// will have to provide all of the public functions and may or may not provide
-	// implementations for any, maybe even all the type functions, depending on if
-	// they are convertable to the type returned by a given function, or not.
-	///
-	/// INTERFACE IMPLEMENTATION
-	// apart from being defined as an interface, there is also a funcion
-	// type signature to describes the interface. Since its taking a value
-	// interface as its first parameter, it suits to fit as method for
-	// every implemented tye, or instance method, for every instance
-	// instanciated..
-	evalFn func(Value) []byte
+	TokenType uint32
+	ValueType uint8
+)
 
-	/// TYPED RETURN FUNCTION TYPES
-	// A type function is a function-type. It returns the value instance contained
-	// in all types that implement the value interface, typed as.  given by the
-	// particular funciton.  There is one type-function for each type to be
-	// returned. A Type function will get instanciated for every instance of a type
-	// that can be converted to the functions type.
-	emptyVarFn func(Value) emptyVar // emptyVar value to return for emptyVar, or unconvertable
-	boolFn     func(Value) boolVal
-	intFn      func(Value) intVal
-	floatFn    func(Value) floatVal
-	byteFn     func(Value) byteVal
-	bytesFn    func(Value) bytesVal
-	strFn      func(Value) strVal
-	vecFn      func(Value) vecVal
-	mtxFn      func(Value) mtxVal // }}}
-) // }}}
+//go:generate -command stringer -type ValueType ./
+const (
+	// BASIC VALUE TYPES
+	EMPTY ValueType = 0
+	BOOL  ValueType = 1 << iota
+	INTEGER
+	FLOAT
+	BYTE
+	BYTESLICE
+	STRING
+	CHAR
+)
 
-//// GENERIC FUNCTION IMPLEMENTATIONS// {{{
+//// VALUE INTERFACE
 ///
-// value functions implement methods on the funcrion level, that are supposed
-// to exist on all imlementations in one or another way. The first argument of
-// a value function is a value. The function calls its type function to
-// determin if and how to convert it. There is onw typed value return function
-// per tyoe that can be returned,
-var (
-	// NEW VALUE FUNCTION (instance from a previously unknown type)// {{{
-	NewVal = func(v interface{}) Value {
-		switch v.(type) {
-		case struct{}:
-			return emptyVar{}
-		case bool:
-			return boolVal{
-				v.(bool),
-			}
-		case int, int8, int16, int32, int64:
-			return intVal{
-				big.NewInt(int64(v.(int))),
-			}
-		case float32, float64:
-			return floatVal{
-				big.NewFloat(v.(float64)),
-			}
-		case byte:
-			return byteVal{
-				byte(v.(float64)),
-			}
-		case []byte:
-			return bytesVal{
-				v.([]byte),
-			}
-		case string:
-			return strVal{
-				v.(string),
-			}
-			// CASES TO BE READ AS MATRIX
-			// cpt. obvious
-		case vecVal:
-			return v.(vecVal)
-			// slice of values, or interfaces
-		case []Value, []interface{}:
-			return vecVal{
-				v.([]Value),
-			}
+type Value interface {
+	Type() ValueType
+}
+type (
+	/// VALUE TYPES
+	emptyVar  struct{}
+	boolVal   bool
+	intVal    struct{ *big.Int }
+	floatVal  struct{ *big.Float }
+	byteVal   byte
+	byteSlice []byte
+	strVal    string
+)
 
-			// CASES TO BE READ AS MATRIX
-			// cpt. obvious
-		case mtxVal:
-			return v.(mtxVal)
-			// flatten slice of vector values
-		case []vecVal:
-			vec := vecVal{
-				[]Value{},
-			}
-			ret := mtxVal{
-				&vec,
-				[2]int{0, 0},
-			}
-			// range over contained vector instances
-			for n, i := range v.([]vecVal) {
-				// interface is allready converted to vecVal
-				// due to the range statement assertion
-				v := i
-				// get length of this row (column count)
-				m := Length(v)
-				// append this vectors fields to the new vector
-				vec.vec = append(vec.vec, v.vec...)
-				// if this row happens to be longer then the
-				// longest row, update column count
-				if m > ret.shape[0] {
-					ret.shape[0] = m
-				}
-				// update row count
-				ret.shape[1] = n
-			}
-			return ret
-			// flatten slice of slices of values or interfaces
-		case [][]Value, [][]interface{}:
-			vec := vecVal{
-				[]Value{},
-			}
-			ret := mtxVal{
-				&vec,
-				// set length of outer slice as row count
-				[2]int{0, len(v.([][]Value))},
-			}
-			for _, vals := range v.([][]Value) {
+func (emptyVar) Type() ValueType  { return EMPTY }
+func (boolVal) Type() ValueType   { return BOOL }
+func (intVal) Type() ValueType    { return INTEGER }
+func (floatVal) Type() ValueType  { return FLOAT }
+func (byteVal) Type() ValueType   { return BYTE }
+func (byteSlice) Type() ValueType { return BYTESLICE }
+func (strVal) Type() ValueType    { return STRING }
 
-				for n, v := range vals {
-					v := v
-					n := n
-					// append this vectors fields to the new vector
-					vec.vec = append(vec.vec, v)
-					// if this row happens to be longer then the
-					// longest row, update column count
-					if n > ret.shape[0] {
-						ret.shape[0] = n
-					}
-				}
-			}
-			return ret
-		}
-		return emptyVar{}
-	} // }}}
+type ( // FUNCTION TYPES (first passed type replaces receiver)
+	parseFunc       func(Value, interface{}) Value // parse arbitrary typed value to value type
+	convertToFunc   func(Value, ValueType) Value   // convert passed value instance to its receiver type
+	convertFromFunc func(Value, Value) Value       // convert passed value instance to its receiver type
+)
 
-	// NEW EMPTY VALUE FUNCTION (returns empty value of passed type)// {{{
-	// returnes an empty instance of a designated type.
-	NewemptyConvertVal = func(v ValueType) Value {
-		switch v {
-		case EMPTY:
-			return emptyVar{}
-		case BOOL:
-			return boolVal{false}
-		case INTEGER:
-			return strVal{""}
-		case FLOAT:
-			return floatVal{big.NewFloat(0)}
-		case BYTE:
-			return byteVal{byte(0)}
-		case BYTES:
-			return bytesVal{[]byte{}}
-		case STRING:
-			return strVal{""}
-		case VECTOR:
-			return vecVal{[]Value{}}
-		case MATRIX:
-			return mtxVal{
-				&vecVal{[]Value{}},
-				[2]int{0, 0},
-			}
-		default:
-			return emptyVar{}
-		}
-	} // }}}
-
-	// HELPER FUNCTIONS (length, width, heigth)// {{{
-	// length function to return total length of vector and/or matrix type
-	Length = func(v Value) int {
-		if v.Type()&VECTOR != 0 {
-			return len(v.(vecVal).vec)
-		}
-		if v.Type()&MATRIX != 0 {
-			return v.(mtxVal).shape[0] * v.(mtxVal).shape[1]
-		}
-		return -1
+// generate value from arbitrary value
+func Parse(v Value, i interface{}) (r Value) {
+	switch i.(type) {
+	case bool:
+	case int, int8, int16, int32, int64, *big.Int:
+	case float32, float64, *big.Float:
+	case byte:
+	case []byte:
+	case string:
 	}
+	return r
+}
 
-	// WIDTH returns the number of columns a matrix contains
-	Width = func(v Value) int {
-		if v.Type()&MATRIX != 0 {
-			return v.(mtxVal).shape[0]
-		}
-		return -1
+// convert to value of a certain type
+func ConvertToFunc(v Value, t ValueType) func() Value {
+
+	var fnc func() Value
+
+	// switch on receiver type
+	switch v.Type() {
+	case BOOL:
+	case INTEGER:
+	case FLOAT:
+	case BYTE:
+	case BYTESLICE:
+	case STRING:
 	}
+	return fnc
+}
 
-	// HEIGTH returns the number of rows a matrix contains
-	Heigth = func(v Value) int {
-		if v.Type()&MATRIX != 0 {
-			return v.(mtxVal).shape[1]
-		}
-		return -1
-	} // }}}
-
-	//// GENERIC CONVERSION FUNCTIONS (implements all possible return types, per type)// {{{
-	///
-	// functions to return arbitrary type as the designated return type.
-	// the typed return functions are defined on the value interface and
-	// therefore apply to all possible values. Each of the typed return
-	// functions implements a type switch, to split by passed type
-	// initially and then defines the appropriate conversion function to
-	// the passed type within the switches cases.
-	//
-	// the designated returned value is initiated as value of the
-	// appropriate contained type right above the type switch. The
-	// conversion function assigns the appropriate value to that
-	// preinitialized return variable.
-	//
-	// The switch cases may call other typed return functions to perform
-	// the designated conversion.
-
-	// RETURN EMPTY TYPE// {{{
-	emptyConvert = func(Value) emptyVar { return emptyVar{} } // now for the tricky part...// }}}
-
-	// RETURN BOOL TYPE// {{{
-	// (if value set, or in case of string, if its reading "true" return true)
-	boolConvert = func(v Value) boolVal {
-		ret := false
-		switch v.Type() {
-		case BOOL:
-			// just pass on, contained value as a new instance
-			ret = v.(boolVal).bool
-		case INTEGER:
-			// if contained integer is greater than zero, return true,
-			// false for zero and all negative values
-			if v.(intVal).Int64() > 0 {
-				ret = true
+var ConversionFunctions = map[ValueType]map[ValueType]func(Value) Value{
+	// return bool
+	BOOL: map[ValueType]func(Value) Value{
+		INTEGER: func(v Value) Value {
+			i := v.(intVal).Int // assert integer
+			if v.(intVal).Cmp(i) > 0 {
+				return boolVal(true)
 			} else {
-				ret = false
+				return boolVal(false)
 			}
-		case FLOAT:
-			// if contained float is greater than zero, return true,
-			// false for zero and all negative values
-			val, _ := v.(floatVal).Float64()
-			if val > 0 {
-				ret = true
+		},
+		FLOAT: func(v Value) Value {
+			i := v.(floatVal).Float // assert float
+			if v.(floatVal).Cmp(i) > 0 {
+				return boolVal(true)
 			} else {
-				ret = false
+				return boolVal(false)
 			}
-		case BYTE:
-			// if zero, return false, for each other value return true
-			if v.(byteVal).byte&byte(0) != 0 {
-				ret = false
+		},
+		BYTE: func(v Value) Value {
+			u := uint8(v.(byteVal)) // assert uint8
+			if u > 0 {
+				return boolVal(true)
 			} else {
-				ret = true
+				return boolVal(false)
 			}
-		case BYTES:
-			// if len is zero, then "bytes" returns false. If there
-			// are any bytes, then its return value is true
-			if len(v.(bytesVal).bytes) > 0 {
-				ret = false
+		},
+		BYTESLICE: func(v Value) Value {
+			s := v.(byteSlice) // assert byte slice
+			if len(s) > 0 {
+				return boolVal(true)
 			} else {
-				ret = true
+				return boolVal(false)
 			}
-		case STRING:
-			// when the contained value turns out to be a string, try to
-			// parse it, by comparing it to the word "true"
-			cmp := v.(strVal).string
-			if strings.Compare(cmp, "true") == 1 || strings.Compare(cmp, "TRUE") == 1 || strings.Compare(cmp, "True") == 1 {
-				ret = true
+		},
+		STRING: func(v Value) Value {
+			s := string(v.(strVal))
+			if strings.Compare(s, "true") > 0 {
+				return boolVal(true)
 			} else {
-				ret = false
+				return boolVal(false)
 			}
-		case VECTOR:
-			// if vecConvert Values are set -> true, else false
-			if Length(v) > 0 {
-				ret = true
+		},
+	},
+	// return *big.Int
+	INTEGER: map[ValueType]func(Value) Value{
+		BOOL: func(v Value) Value {
+			if v.(boolVal) {
+				return intVal{big.NewInt(1)}
 			} else {
-				ret = false
+				return intVal{big.NewInt(-1)}
 			}
-		case MATRIX:
-			// if mtxConvert Fields are set -> true, else false
-			if Length(v) > 0 {
-				ret = true
+		},
+		FLOAT: func(v Value) Value {
+			f, _ := v.(floatVal).Int64()
+			if f > -1 {
+				return intVal{big.NewInt(1)}
 			} else {
-				ret = false
+				return intVal{big.NewInt(-1)}
 			}
-		}
-		return boolVal{
-			ret,
-		}
-	} // }}}
-
-	// RETURN INTEGER TYPE// {{{
-	intConvert = func(v Value) intVal {
-		var ret int64 = 0
-		switch v.Type() {
-		case BOOL:
-		case INTEGER:
-		case FLOAT:
-		case BYTE:
-		case BYTES:
-		case STRING:
-		case VECTOR:
-		case MATRIX:
-		}
-		return intVal{
-			big.NewInt(ret),
-		}
-	} // }}}
-
-	// RETURN FLOAT TYPE// {{{
-	floatConvert = func(v Value) floatVal {
-		var ret float64 = 0
-		switch v.Type() {
-		case BOOL:
-		case INTEGER:
-		case FLOAT:
-		case BYTE:
-		case BYTES:
-		case STRING:
-		case VECTOR:
-		case MATRIX:
-		}
-		return floatVal{
-			big.NewFloat(ret),
-		}
-	} // }}}
-
-	// RETURN BYTE TYPE// {{{
-	byteConvert = func(v Value) byteVal {
-		var ret byte = 0
-		switch v.Type() {
-		case BOOL:
-		case INTEGER:
-		case FLOAT:
-		case BYTE:
-		case BYTES:
-		case STRING:
-		case VECTOR:
-		case MATRIX:
-		}
-		return byteVal{
-			ret,
-		}
-	} // }}}
-
-	// RETURN BYTES TYPE// {{{
-	bytesConvert = func(v Value) bytesVal {
-		var ret []byte = []byte{}
-		switch v.Type() {
-		case BOOL:
-		case INTEGER:
-		case FLOAT:
-		case BYTE:
-		case BYTES:
-		case STRING:
-		case VECTOR:
-		case MATRIX:
-		}
-		return bytesVal{ret}
-	} // }}}
-
-	// RETURN STRING TYPE// {{{
-	strConvert = func(v Value) strVal {
-		var ret string = ""
-		switch v.Type() {
-		case BOOL:
-		case INTEGER:
-		case FLOAT:
-		case BYTE:
-		case BYTES:
-		case STRING:
-		case VECTOR:
-		case MATRIX:
-		}
-		return strVal{ret}
-	} // }}}
-
-	// RETURN VECTOR TYPE// {{{
-	vecConvert = func(v Value) vecVal {
-		switch v.Type() {
-		case BOOL:
-		case INTEGER:
-		case FLOAT:
-		case BYTE:
-		case BYTES:
-		case STRING:
-		case VECTOR:
-		case MATRIX:
-		}
-		return NewVal(VECTOR).(vecVal)
-	} // }}}
-
-	// RETURN MATRIX TYPE// {{{
-	mtxConvert = func(v Value) mtxVal {
-		switch v.Type() {
-		case BOOL:
-		case INTEGER:
-		case FLOAT:
-		case BYTE:
-		case BYTES:
-		case STRING:
-		case VECTOR:
-		case MATRIX:
-		}
-		return NewVal(MATRIX).(mtxVal)
-	} // }}}
-	// }}}
-
-	//// GENERIC TO-TYPE (one ring to rule them all)// {{{
-	///
-	//  to-type is defined at the value interface level to apply on all
-	//  value implementations. It calls the appropriate conversion function
-	//  and passes it's receiver and the passed designated type as its
-	//  arguments.
-	//
-	// if the value fails to have a type, a new value instance will be defined
-	toType = func(t ValueType, v Value) Value {
-		switch t {
-		//		case EMPTY:
-		//			return emptyConvert(v)
-		case BOOL:
-			return boolConvert(v)
-		case INTEGER:
-			return intConvert(v)
-		case FLOAT:
-			return floatConvert(v)
-		case BYTE:
-			return byteConvert(v)
-		case BYTES:
-			return bytesConvert(v)
-		case STRING:
-			return strConvert(v)
-		case VECTOR:
-			return vecConvert(v)
-		case MATRIX:
-			return mtxConvert(v)
-		}
-		// define new value and convert to given type
-		return NewVal(v).ToType(t)
-	} // }}}
-
-	// GENERIC EVAL (second ring to rule them all... wait a minute!)// {{{
-	eval = func(v Value) []byte {
-		return bytesConvert(v).bytes
-
-	} // }}}
-) // }}}
-
-//// MAPPING OF VALUE METHODS TO GENERIC FUNCTIONS// {{{
-///
-// while data-/ and function-type definitions and generic implementations on
-// base of the value interface describe the general implementation, each
-// data-type needs to provide its customized implementation of the interface
-// method types.
-//
-/// TYPE FUNCTIONS (one per type)// {{{
-//
-// One method per type to return the Type of this particular methods receiver value
-func (emptyVar) Type() ValueType { return 0 }
-func (boolVal) Type() ValueType  { return BOOL }
-func (intVal) Type() ValueType   { return INTEGER }
-func (floatVal) Type() ValueType { return FLOAT }
-func (byteVal) Type() ValueType  { return BYTE }
-func (bytesVal) Type() ValueType { return BYTES }
-func (strVal) Type() ValueType   { return STRING }
-func (vecVal) Type() ValueType   { return VECTOR }
-func (mtxVal) Type() ValueType   { return MATRIX } // }}}
-
-/// TO-TYPE FUNCTIONS (one per type)// {{{
-// map one to-type function per type to the generic implementation
-func (v emptyVar) ToType(t ValueType) Value { return toType(t, v) }
-func (v boolVal) ToType(t ValueType) Value  { return toType(t, v) }
-func (v intVal) ToType(t ValueType) Value   { return toType(t, v) }
-func (v floatVal) ToType(t ValueType) Value { return toType(t, v) }
-func (v byteVal) ToType(t ValueType) Value  { return toType(t, v) }
-func (v bytesVal) ToType(t ValueType) Value { return toType(t, v) }
-func (v strVal) ToType(t ValueType) Value   { return toType(t, v) }
-func (v vecVal) ToType(t ValueType) Value   { return toType(t, v) }
-func (v mtxVal) ToType(t ValueType) Value   { return toType(t, v) } // }}}
-
-/// EVAL FUNCTIONS (one per type)// {{{
-// map one eval function per type to the generic implementation
-func (v emptyVar) Eval() []byte { return eval(v) }
-func (v boolVal) Eval() []byte  { return eval(v) }
-func (v intVal) Eval() []byte   { return eval(v) }
-func (v floatVal) Eval() []byte { return eval(v) }
-func (v byteVal) Eval() []byte  { return eval(v) }
-func (v bytesVal) Eval() []byte { return eval(v) }
-func (v strVal) Eval() []byte   { return eval(v) }
-func (v vecVal) Eval() []byte   { return eval(v) }
-func (v mtxVal) Eval() []byte   { return eval(v) } // }}}
-// }}}
+		},
+		BYTE: func(v Value) Value {
+			if uint8(v.(byteVal)) > 0 {
+				return intVal{big.NewInt(1)}
+			} else {
+				return intVal{big.NewInt(0)}
+			}
+		},
+		BYTESLICE: func(v Value) Value {
+			if len(v.(byteSlice)) > -1 {
+				return intVal{big.NewInt(1)}
+			} else {
+				return intVal{big.NewInt(-1)}
+			}
+		},
+		STRING: func(v Value) Value {
+			if strings.Compare(string(v.(strVal)), "true") > -1 {
+				return intVal{big.NewInt(1)}
+			} else {
+				return intVal{big.NewInt(-1)}
+			}
+		},
+	},
+	// return *big.Float
+	FLOAT: map[ValueType]func(Value) Value{
+		BOOL: func(v Value) Value {
+			if v.(boolVal) {
+				return floatVal{big.NewFloat(1)}
+			} else {
+				return floatVal{big.NewFloat(-1)}
+			}
+		},
+		INTEGER: func(v Value) Value {
+			f, _ := v.(floatVal).Int64()
+			if f > -1 {
+				return floatVal{big.NewFloat(1)}
+			} else {
+				return floatVal{big.NewFloat(-1)}
+			}
+		},
+		BYTE: func(v Value) Value {
+			if uint8(v.(byteVal)) > 0 {
+				return floatVal{big.NewFloat(1)}
+			} else {
+				return floatVal{big.NewFloat(0)}
+			}
+		},
+		BYTESLICE: func(v Value) Value {
+			if len(v.(byteSlice)) > -1 {
+				return floatVal{big.NewFloat(1)}
+			} else {
+				return floatVal{big.NewFloat(-1)}
+			}
+		},
+		STRING: func(v Value) Value {
+			if strings.Compare(string(v.(strVal)), "true") > -1 {
+				return floatVal{big.NewFloat(1)}
+			} else {
+				return floatVal{big.NewFloat(-1)}
+			}
+		},
+	},
+	// return byte
+	BYTE: map[ValueType]func(Value) Value{
+		BOOL: func(v Value) Value {
+			var r byteVal = 0
+			return r
+		},
+		INTEGER: func(v Value) Value {
+			var r byteVal = 0
+			return r
+		},
+		FLOAT: func(v Value) Value {
+			var r byteVal = 0
+			return r
+		},
+		BYTESLICE: func(v Value) Value {
+			var r byteVal = 0
+			return r
+		},
+		STRING: func(v Value) Value {
+			var r byteVal = 0
+			return r
+		},
+	},
+	// return byte slice
+	BYTESLICE: map[ValueType]func(Value) Value{
+		BOOL:    func(v Value) (r Value) { return r },
+		INTEGER: func(v Value) (r Value) { return r },
+		FLOAT:   func(v Value) (r Value) { return r },
+		BYTE:    func(v Value) (r Value) { return r },
+		STRING:  func(v Value) (r Value) { return r },
+	},
+	// return string
+	STRING: map[ValueType]func(Value) Value{
+		BOOL:      func(v Value) (r Value) { return r },
+		INTEGER:   func(v Value) (r Value) { return r },
+		FLOAT:     func(v Value) (r Value) { return r },
+		BYTE:      func(v Value) (r Value) { return r },
+		BYTESLICE: func(v Value) (r Value) { return r },
+	},
+}

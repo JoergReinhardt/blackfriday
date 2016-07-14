@@ -55,7 +55,8 @@ func TestTypes(t *testing.T) {
 	}
 	(*t).Log("slice of values: "+" ", l)
 
-	// generate a vector from the values
+	// generate a vector from the valueInt64s
 	vec := NewVal(l)
 	(*t).Log("vector Value generated from slice of values ", vec.Type().String(), vec)
+	(*t).Log("evaluating vector value: ", vec.Eval())
 }

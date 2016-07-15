@@ -1,142 +1,108 @@
+// TOKENS
+//
+// Tokens map metainformation to the corresponding piece of text. It is
+// mandatory to know the position relative to the containing context, as well
+// as the text itself, or a refer to it. further meta information can be in the
+// form of tags to mark all sets the content is part of, or arbitrary other
+// parameters, to express parsed values and other information extracted.
 package agiledoc
 
 import (
 	"bytes"
+	i "github.com/emirpasic/gods/containers"
+	l "github.com/emirpasic/gods/lists/doublylinkedlist"
+	m "github.com/emirpasic/gods/maps/hashmap"
 	"sync"
 )
 
-// the position type provides byte indices of start and end of a token in the
+// the position type provides integer indices that reference the byte indecx of
+// the start and end point of a token relative to its containing context.
 // input
 type pos [2]int
 
-// a parameter has a name and a value
-// flags are considered a parameter
-type keyVal struct {
-	key string
-	val Value
+// the ident type is the string that expresses the name of a ident. idents can
+// be expressed as bit flags, or be string keys in a parameter
+type ident string
+
+// a parameter has an identifyer either in the form of a string, or uint
+// byteflag and carrys a value.
+type parm struct {
+	*ident
+	val Val
 }
 
-// token is of token type, references a start and end position in the input
-// stream and a slice of optional parameters
+// The token type combines a type with a position marker and a list of
+// parameters. The parameter list is implemented using the gods library to
+// profit from its enumerators and iterators. the list of parameters will be
+// implemented bu gods hashmap. While encapsulating the empty interface the god
+// interface has to expose being universal.
 type token struct {
-	ttype    tokenType
+	ttype    TType
 	position pos
-	params   []keyVal
+	params   i.Container // contains god hashmap
+}
+type TType uint
+
+func newToken() token {
+	return token{
+		0,
+		pos{},
+		m.New(), // implements god Container
+	}
 }
 
-func (t token) len() int { return t.position[1] - t.position[0] }
-
-//// BUFFER
+//// semaQueue
 ///
-// a lockable buffer that contains the document in form of a byte slice
-type buffer struct {
+// The parsers semaQueue will be implemented by gods doubly linked list. that keeps
+// the whole content serialized, manipulateable and accessable. Being universal
+// god has to expose the empty interface, the implementation will use the more
+// specific Val interface instead, encapsulating the empty interface by
+// assertion.
+//
+// A mutex keeps the implementation thread safe.
+type semaQueue struct {
+	*sync.RWMutex
+	i.Container
+}
+
+func newsemaQueue() *semaQueue {
+	return &semaQueue{
+		&sync.RWMutex{},
+		l.New(),
+	}
+}
+
+//// semaBuf
+///
+// a lockable semaBuf that contains the input stream.
+type semaBuf struct {
 	*sync.RWMutex
 	*bytes.Buffer
 }
 
-func newBuffer() *buffer {
-	return &buffer{
+func newsemaBuf() *semaBuf {
+	return &semaBuf{
 		&sync.RWMutex{},
 		bytes.NewBuffer([]byte{}),
-	}
-}
-
-//// QUEUE OF TOKENS
-///
-// the queue is concurrently write- and readable and provides the current
-// position in the token slice
-type queue struct {
-	*sync.RWMutex
-	curPos int
-	head   int
-	tail   int
-	queue  []token
-}
-
-// add token at current position
-func (q *queue) add(tok token) {
-	(*q).Lock()
-	defer (*q).Unlock()
-
-	// split head from tail
-	h, t := (*q).queue[:q.curPos], (*q).queue[q.curPos+1:]
-	(*q).queue = append(h, tok)
-	(*q).queue = append(q.queue, t...)
-	(*q).tail = q.tail + 1
-}
-
-// add token at current position
-func (q *queue) del() {
-	(*q).Lock()
-	defer (*q).Unlock()
-
-	// split head from tail and ommit current token
-	h, t := (*q).queue[:q.curPos-1], (*q).queue[q.curPos+1:]
-	(*q).queue = append(h, t...)
-	(*q).tail = q.tail - 1
-}
-
-// append token at the end of the queue
-func (q *queue) append(t token) {
-	(*q).Lock()
-	defer (*q).Unlock()
-
-	// advance position counter
-	(*q).curPos = (*q).curPos + t.len()
-	// append the token to the queue
-	(*q).queue = append(q.queue, t)
-}
-
-func newQueue() *queue {
-	return &queue{
-		&sync.RWMutex{},
-		0,
-		0,
-		0,
-		[]token{},
 	}
 }
 
 //// PARSER
 ///
 type parser struct {
-	*buffer // contains document as bute slice
-	*queue  // contains tokens to be parsed
+	*semaBuf   // contains document as bute slice
+	*semaQueue // contains tokens to be parsed
 }
 
 //// TOKENIZER
 ///
 // tokenizer implements blackfriday renderer. token content is written to
-// buffer, token instance is appended to queue
+// semaBuf, token instance is appended to semaQueue
 type tokenizer struct {
-	flags   int
-	curPos  int
-	*buffer // references parsers buffer
-	*queue  // references parsers queue
-}
-
-// newtoken is called by all methods implementing the blackfriday renderer
-// interface, to generate a token and propagate it to the caller
-func (t *tokenizer) newtoken(typ tokenType, content []byte, params ...keyVal) {
-
-	// instanciate a new token
-	tok := token{
-		ttype: typ, // determined by each callback
-		position: pos{ // instanciate pos from last position to lp plus elements length
-			(*t).curPos + 1,                // starts one byte after end of last tag
-			(*t).curPos + 1 + len(content), // ends at (start + length of content)
-		},
-		params: params, // slice of name/value pairs
-	}
-
-	// update tokeniers last position of to end of new token
-	(*t).curPos = tok.position[1]
-
-	// send token to queue
-	(*t).queue.append(tok)
-
-	// write content to buffer
-	(*t).Read(content)
+	flags      int
+	curPos     int
+	*semaBuf   // references parsers semaBuf
+	*semaQueue // references parsers semaQueue
 }
 
 // Header and footer
@@ -154,8 +120,8 @@ func (t *tokenizer) Header(out *bytes.Buffer, text func() bool, level int, id st
 	// 	params = append(params, keyVal{"level", newVal(INTEGER, level)})
 	// 	params = append(params, keyVal{"id", newVal(STRING, id)})
 	//
-	// 	if text() { // call callback to generate byteslice and writes it to the buffer
-	// 		(*t).newtoken( // generates a new token and sends it to the callers queue
+	// 	if text() { // call callback to generate byteslice and writes it to the semaBuf
+	// 		(*t).newtoken( // generates a new token and sends it to the callers semaQueue
 	// 			SECTION,
 	// 			out.Bytes(),
 	// 			params...,
@@ -196,7 +162,7 @@ func (t *tokenizer) NormalText(out *bytes.Buffer, text []byte) {}
 
 func (t *tokenizer) GetFlags() int { return (*t).flags }
 
-func newtokenizer(queue chan token, name string, flags ...int) *tokenizer {
+func newtokenizer(semaQueue chan token, name string, flags ...int) *tokenizer {
 
 	var nf int = 0
 
@@ -206,8 +172,8 @@ func newtokenizer(queue chan token, name string, flags ...int) *tokenizer {
 	}
 
 	return &tokenizer{
-		flags:  nf,
-		curPos: 0,
-		buffer: newBuffer(),
+		flags:   nf,
+		curPos:  0,
+		semaBuf: newsemaBuf(),
 	}
 }

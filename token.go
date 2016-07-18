@@ -1,5 +1,34 @@
 // TOKENS
 //
+// agiledoc emulates the token format of bleve search, to enshure compability
+// and ability to make use of bleves analysing and indexing capabilitys.
+//
+// type Token struct {
+// 	// Start specifies the byte offset of the beginning of the term in the
+// 	// field.
+// 	Start int `json:"start"`
+//
+// 	// End specifies the byte offset of the end of the term in the field.
+// 	End  int    `json:"end"`
+// 	Term []byte `json:"term"`
+//
+// 	// Position specifies the 1-based index of the token in the sequence of
+// 	// occurrences of its term in the field.
+// 	Position int       `json:"position"`
+// 	Type     TokenType `json:"type"`
+// 	KeyWord  bool      `json:"keyword"`
+// }
+//
+// func (t *Token) String() string {
+// 	return fmt.Sprintf("Start: %d  End: %d  Position: %d  Token: %s  Type: %d", t.Start, t.End, t.Position, string(t.Term), t.Type)
+// }
+//
+// type TokenStream []*Token
+//
+// since the approach is different, position is stored in a more convenient way
+// but can be resolved to a start and endposition like expected and provided by
+// the bleve library.
+//
 // Tokens map metainformation to the corresponding piece of text. It is
 // mandatory to know the position relative to the containing context, as well
 // as the text itself, or a refer to it. further meta information can be in the
@@ -16,14 +45,25 @@ import (
 // input
 type pos [2]uint
 
+func (p pos) Start() uint { return p[0] }
+func (p pos) End() uint   { return p[1] }
+
+// Position instances calculate and return the length of the part they reference.
+func (p pos) SetLength(l int) { p[1] = p[0] + uint(l) }
+
+// An instance of position can allways return a new instance of position with
+// the next byte behind its end index as the start position for the new
+// position.
+func (p pos) GenNextPos() pos { return pos{p.End() + 1, p.End() + 1} }
+
 // a parameter has an identifyer either in the form of a string, or uint
 // byteflag and carrys a value.
-type parm struct {
+type variable struct {
 	Val
 	id string
 }
 
-func (p parm) Key() string { return string(p.id) }
+func (p variable) Key() string { return string(p.id) }
 
 // The token type combines a type with a position marker and a list of
 // parameters. The parameter list is implemented using the gods library to
@@ -83,15 +123,15 @@ type tokenizer struct {
 	out     chan token // returns tokens to the caller
 }
 
-func (tkz *tokenizer) newToken(t TType, raw []byte, parms ...parm) {
+func (tkz *tokenizer) newToken(t TType, raw []byte, parms ...variable) {
 	var o Container
 	// copy parameters
 	if len(parms) > 0 {
 		// allocate array to take parameters
 		o = newContainer(array).(*cont)
 
-		for _, parm := range parms {
-			o.(*cont).Add(parm)
+		for _, v := range parms {
+			o.(*cont).Add(v)
 		}
 	}
 	// calculate new position

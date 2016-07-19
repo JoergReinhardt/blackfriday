@@ -155,11 +155,11 @@ func (tkz *Tokenizer) newToken(t TType, raw []byte, flags uint, parms ...keyVal)
 }
 
 func NewTokenizer(flags ...uint) (*Tokenizer, chan Token) {
-	f := NewTypedVal(FLAG, 0).(flagVal)
+	f := NewTypedVal(FLAG, 0)
 	// XOR flags
 	for _, flag := range flags {
-		cmp := NewTypedVal(FLAG, flag).(flagVal)
-		f.Xor(f.Flag(), cmp.Flag())
+		cmp := NewTypedVal(FLAG, flag)
+		f.Value.Flag().Xor(f.Value.Flag(), cmp.Value.Flag())
 	}
 	o := make(chan Token, 1)
 	return &Tokenizer{f, Token{}, o}, o

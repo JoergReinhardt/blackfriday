@@ -19,6 +19,7 @@ import (
 	// "fmt"
 	"github.com/emirpasic/gods/containers"
 	"math/big"
+	"strconv"
 )
 
 // VALUE INTERFACE
@@ -127,6 +128,8 @@ const (
 // the source will be provided by blackfriday in form of a byte slice
 //
 // strings make the input handable as text.
+type ValType uint
+
 //go:generate -command stringer -type ValType
 const (
 	NIL  ValType = 0
@@ -138,8 +141,6 @@ const (
 	KEYVAL    // type to hold key value pairs like variables and parameters
 	CONTAINER // holds lists, sets, stacks, maps and trees
 )
-
-type ValType uint
 
 // TYPES
 type ( // are kept as close to the original types as possible
@@ -179,13 +180,19 @@ func (v strVal) Value() Val   { return v }
 func (v keyVal) Value() Val   { return v }
 func (v cntVal) Value() Val   { return v }
 
-// native type return functions
-func (v flagVal) Uint() uint          { return uint(v.Int.Uint64()) }
-func (v flagVal) Flag() *big.Int      { return v.Int }
-func (v intVal) BigInt() *big.Int     { return v.Int }
-func (v floatVal) BigFlt() *big.Float { return v.Float }
-func (v byteVal) Byte() []byte        { return v }
-func (v strVal) String() string       { return string(v) }
+// native type return functions are implemented as methods of the Value()
+// function. The value function as their receiver, either has or misses a
+// Method named after its return tyoe. if v.Value.String != nil for instance
+// checks, if the value has a string function.
+//
+type ValueFn func() Val
+
+func (vfn ValueFn) Uint() uint         { return uint(v.Int.Uint64()) }
+func (vfn ValueFn) Flag() *big.Int     { return v.Int }
+func (vfn ValueFn) BigInt() *big.Int   { return v.Int }
+func (vfn ValueFn) BigFlt() *big.Float { return v.Float }
+func (vfn ValueFn) Byte() []byte       { return v }
+func (vfn ValueFn) String() string     { return string(v) }
 
 // if the native tyoe is allready known at the time of initialization,
 // reflection can be omitted.
@@ -195,15 +202,100 @@ func NewTypedVal(t ValType, i interface{}) Val {
 	case NIL:
 		v = empty{}
 	case FLAG:
-		v = flagVal{big.NewInt(int64(i.(uint)))}
+		switch i.(type) {
+		case bool:
+			if i.(bool) {
+				v = flagVal{big.NewInt(1)}
+			} else {
+				v = flagVal{big.NewInt(0)}
+			}
+			// TODO catch error value
+		case string:
+			str, _ := strconv.ParseBool(i.(string))
+			v = intVal{str}
+		case int:
+			v = flagVal{big.NewInt(int64(i))}
+		case big.Int:
+			v = flagVal{big.NewInt(int64(i))}
+		case uint:
+			v = flagVal{big.NewInt(int64(i))}
+		case flagVal:
+			v = i.(flagVal)
+		case *flagVal:
+			v = *(i.(flagVal))
+		case floatVal:
+			v, _ = i.(floatVal).Float.Int64()
+		}
 	case INTEGER:
-		v = intVal{big.NewInt(int64(i.(int)))}
+		switch i.(type) {
+		case bool:
+			if i.(bool) {
+				v = intVal{big.NewInt(1)}
+			} else {
+				v = intVal{big.NewInt(0)}
+			}
+		case string:
+			// TODO catch error value
+			str, _ := strconv.Atoi(i.(string))
+			v = intVal{str}
+		case int:
+			v = intVal{big.NewInt(int64(i))}
+		case big.Int:
+			v = intVal{big.NewInt(int64(i))}
+		case uint:
+			v = intVal{big.NewInt(int64(i))}
+		case flagVal:
+			v = strconv.Atoi(int(i.(flagVal).Int.Int64()))
+		case *flagVal:
+			v = strconv.Atoi(int(*(i.(*flagVal).Int.Int64())))
+		}
 	case FLOAT:
-		v = floatVal{big.NewFloat(i.(float64))}
+		switch i.(type) {
+		case float32, float64:
+			v = floatVal{big.NewFloat(i.(float64))}
+		case floatVal:
+			v = i.(floatVal)
+		case *floatVal:
+			v = *(i.(*floatVal))
+		case string:
+			// TODO catch error value
+			flt, _ := strconv.ParseFloat(i.(string))
+			v = floatVal{flt}
+		case int:
+			v = floatVal{big.NewFloat(float64(i))}
+		case big.Int:
+			v = floatVal{big.NewFloat(float64(i))}
+		case uint:
+			v = floatVal{big.NewFloat(float64(i))}
+		case flagVal:
+			v = strconv.ParseFloat(float64(i.(flagVal).Int.Int64()))
+		case *flagVal:
+			v = strconv.ParseFloat(float64(*(i.(*flagVal).Int.Int64())))
+		}
 	case BYTE:
-		v = byteVal(i.([]byte))
+		switch i.(type) {
+		case string: // conv string to byte slice
+			v = byteVal([]byte{i.(string)})
+		case []byte: // return byte slice as is
+			v = byteVal(i.([]byte))
+		default: // everything else is converted to string first.
+			// and recursed over afterwards it may be further
+			// parseable
+			tmp := NewTypedVal(STRING, i)
+		}
 	case STRING:
-		v = strVal(i.(string))
+		switch i.(type) {
+		case string: // return string as is
+			v = strVal(i.(string))
+		case []byte: // return byte converted to string
+			v = strVal(string(i.([]byte)))
+		case uint, uint8, uint16, uint32, uint64:
+			v := NewTypedVal(FLAG, i.(uint64))
+		case int, int8, int16, int32, int64, *big.Int:
+			v := NewTypedVal(INTEGER, i.(int64))
+		case float32, float64, *big.Float:
+			v := NewTypedVal(FLOAT, i.(float64))
+		}
 	}
 	return v
 }
@@ -216,13 +308,13 @@ func NewVal(i interface{}) Val {
 	case uint, uint8, uint16, uint32, uint64:
 		v = NewTypedVal(FLAG, i)
 	case int, int8, int16, int32, int64, *big.Int:
-		v = NewTypedVal(INTEGER, i)
+		v = NewTypedVal(INTEGER, i.(int64))
 	case float32, float64, *big.Float:
-		v = NewTypedVal(FLOAT, i)
-	case []byte:
-		v = NewTypedVal(BYTE, i)
-	case string:
-		v = NewTypedVal(STRING, i)
+		v = NewTypedVal(FLOAT, i.(float64))
+	case string: // string values are just passed on
+		v = strVal{i.(string)}
+	case []byte: // byte slices are converted to string
+		v = byteVal{i.([]byte)}
 	}
 	return v
 }

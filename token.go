@@ -20,7 +20,8 @@
 // }
 //
 // func (t *Token) String() string {
-// 	return fmt.Sprintf("Start: %d  End: %d  Position: %d  Token: %s  Type: %d", t.Start, t.End, t.Position, string(t.Term), t.Type)
+// 	return fmt.Sprintf("Start: %d  End: %d  Position: %d  Token: %s  Type:
+// 	%d", t.Start, t.End, t.Position, string(t.Term), t.Type)
 // }
 //
 // type TokenStream []*Token
@@ -38,43 +39,48 @@ package agiledoc
 
 import (
 	"bytes"
+	"github.com/emirpasic/gods/maps/hashmap"
 )
 
 // the position type provides integer indices that reference the byte indecx of
 // the start and end point of a token relative to its containing context.
 // input
-type pos [2]uint
+type pos [2]int
 
-func (p pos) Start() uint { return p[0] }
-func (p pos) End() uint   { return p[1] }
+func (p pos) Start() int { return p[0] }
+func (p pos) End() int   { return p[1] }
 
 // Position instances calculate and return the length of the part they reference.
-func (p pos) SetLength(l int) { p[1] = p[0] + uint(l) }
+func (p pos) SetLength(l int) { p[1] = p[0] + l }
 
 // An instance of position can allways return a new instance of position with
 // the next byte behind its end index as the start position for the new
 // position.
-func (p pos) GenNextPos() pos { return pos{p.End() + 1, p.End() + 1} }
-
-// a parameter has an identifyer either in the form of a string, or uint
-// byteflag and carrys a value.
-type variable struct {
-	Val
-	id string
+func (p pos) genNextPos() pos { return pos{p.End() + 1, p.End() + 1} }
+func (p pos) GenNextToken(t TType, raw []byte, flags uint, parms ...Val) Token {
+	var pc Container
+	return Token{
+		t,
+		p.genNextPos(),
+		byteVal(raw),
+		flags,
+		pc,
+	}
 }
-
-func (p variable) Key() string { return string(p.id) }
 
 // The token type combines a type with a position marker and a list of
 // parameters. The parameter list is implemented using the gods library to
 // profit from its enumerators and iterators. the list of parameters will be
 // implemented bu gods hashmap. While encapsulating the empty interface the god
 // interface has to expose being universal.
-type token struct {
-	ttype     TType
-	position  pos
-	Container // contains god hashmap
+type Token struct {
+	ttype TType
+	pos
+	rawTxt byteVal
+	flags  uint
+	params Container // contains god hashmap
 }
+
 type TType uint32
 
 //go:generate -command stringer -type TType ./token.go
@@ -112,50 +118,51 @@ const (
 	TripleEmphasis
 )
 
-//// TOKENIZER
+//// Tokenizer
 /// TODO: evaluate if queue/semafore performs any better
-// tokenizer implements blackfriday renderer. token content is written to
+// Tokenizer implements blackfriday renderer. token content is written to
 // semaBuf, token instance is appended to semaQueue of the contained parser
-type tokenizer struct {
+type Tokenizer struct {
 	// options blackfriday.Options // parameters
-	flags   flagVal    // options
-	current uint       // current position
-	out     chan token // returns tokens to the caller
+	flags flagVal    // options
+	cur   Token      // current position
+	out   chan Token // returns tokens to the caller
 }
 
-func (tkz *tokenizer) newToken(t TType, raw []byte, parms ...variable) {
-	var o Container
-	// copy parameters
+func (tkz *Tokenizer) newToken(t TType, raw []byte, flags uint, parms ...keyVal) {
+	var c Container
+	// copy parameters, only if there are any
 	if len(parms) > 0 {
 		// allocate array to take parameters
-		o = newContainer(array).(*cont)
+		m := hashmap.New()
 
 		for _, v := range parms {
-			o.(*cont).Add(v)
+			(*m).Put(v.Key(), v.Value())
 		}
+
+		c = &cntVal{HASHMAP, m}
 	}
 	// calculate new position
-	pos := pos{(*tkz).current, (*tkz).current + uint(len(raw))}
-
-	// generate token of designated type, with calculated position and the options container
-	tok := token{t, pos, o}
+	ns := (*tkz).cur.End() + 1
+	pos := pos{ns, ns + len(raw)}
 
 	// put token into channel
-	(*tkz).out <- tok
+	(*tkz).out <- (*tkz).cur
 
-	// set new position only AFTER token is emitted
-	(*tkz).current = pos[1] + 1
+	// generate token of designated type, with calculated position and the options container
+	(*tkz).cur = Token{t, pos, raw, flags, c}
+
 }
 
-func NewTokenizer(flags ...uint) (*tokenizer, chan token) {
+func NewTokenizer(flags ...uint) (*Tokenizer, chan Token) {
 	f := NewTypedVal(FLAG, 0).(flagVal)
 	// XOR flags
 	for _, flag := range flags {
 		cmp := NewTypedVal(FLAG, flag).(flagVal)
 		f.Xor(f.Flag(), cmp.Flag())
 	}
-	c := make(chan token, 1)
-	return &tokenizer{f, 0, c}, c
+	o := make(chan Token, 1)
+	return &Tokenizer{f, Token{}, o}, o
 }
 
 //// BLACK FRIDAY INTERFACE IMPLEMENTATION
@@ -165,49 +172,49 @@ func NewTokenizer(flags ...uint) (*tokenizer, chan token) {
 // provided metadata, parsed and raw data.
 //
 // DOCUMENT METAINFO HEADER AND FOOTER
-func (t *tokenizer) DocumentHeader(out *bytes.Buffer) {
+func (t *Tokenizer) DocumentHeader(out *bytes.Buffer) {
 	raw := out.Bytes()
-	(*t).newToken(DocumentHeader, raw)
+	(*t).newToken(DocumentHeader, raw, 0)
 }
 
-func (t *tokenizer) DocumentFooter(out *bytes.Buffer) {
+func (t *Tokenizer) DocumentFooter(out *bytes.Buffer) {
 	raw := out.Bytes()
-	(*t).newToken(DocumentFooter, raw)
+	(*t).newToken(DocumentFooter, raw, 0)
 }
 
 // DOCUMENT BLOCKS
-func (t *tokenizer) Header(out *bytes.Buffer, text func() bool, level int, id string) { // header as in headline of a section
+func (t *Tokenizer) Header(out *bytes.Buffer, text func() bool, level int, id string) { // header as in headline of a section
 }
-func (t *tokenizer) BlockCode(out *bytes.Buffer, text []byte, lang string)                 {}
-func (t *tokenizer) BlockQuote(out *bytes.Buffer, text []byte)                             {}
-func (t *tokenizer) BlockHtml(out *bytes.Buffer, text []byte)                              {}
-func (t *tokenizer) HRule(out *bytes.Buffer)                                               {}
-func (t *tokenizer) List(out *bytes.Buffer, text func() bool, flags int)                   {}
-func (t *tokenizer) ListItem(out *bytes.Buffer, text []byte, flags int)                    {}
-func (t *tokenizer) Paragraph(out *bytes.Buffer, text func() bool)                         {}
-func (t *tokenizer) Table(out *bytes.Buffer, header []byte, body []byte, columnData []int) {}
-func (t *tokenizer) TableRow(out *bytes.Buffer, text []byte)                               {}
-func (t *tokenizer) TableHeaderCell(out *bytes.Buffer, text []byte, flags int)             {}
-func (t *tokenizer) TableCell(out *bytes.Buffer, text []byte, flags int)                   {}
-func (t *tokenizer) Footnotes(out *bytes.Buffer, text func() bool)                         {}
-func (t *tokenizer) FootnoteItem(out *bytes.Buffer, name, text []byte, flags int)          {}
-func (t *tokenizer) TitleBlock(out *bytes.Buffer, text []byte)                             {}
+func (t *Tokenizer) BlockCode(out *bytes.Buffer, text []byte, lang string)                 {}
+func (t *Tokenizer) BlockQuote(out *bytes.Buffer, text []byte)                             {}
+func (t *Tokenizer) BlockHtml(out *bytes.Buffer, text []byte)                              {}
+func (t *Tokenizer) HRule(out *bytes.Buffer)                                               {}
+func (t *Tokenizer) List(out *bytes.Buffer, text func() bool, flags int)                   {}
+func (t *Tokenizer) ListItem(out *bytes.Buffer, text []byte, flags int)                    {}
+func (t *Tokenizer) Paragraph(out *bytes.Buffer, text func() bool)                         {}
+func (t *Tokenizer) Table(out *bytes.Buffer, header []byte, body []byte, columnData []int) {}
+func (t *Tokenizer) TableRow(out *bytes.Buffer, text []byte)                               {}
+func (t *Tokenizer) TableHeaderCell(out *bytes.Buffer, text []byte, flags int)             {}
+func (t *Tokenizer) TableCell(out *bytes.Buffer, text []byte, flags int)                   {}
+func (t *Tokenizer) Footnotes(out *bytes.Buffer, text func() bool)                         {}
+func (t *Tokenizer) FootnoteItem(out *bytes.Buffer, name, text []byte, flags int)          {}
+func (t *Tokenizer) TitleBlock(out *bytes.Buffer, text []byte)                             {}
 
 // Span-level callbacks
-func (t *tokenizer) AutoLink(out *bytes.Buffer, link []byte, kind int)                 {}
-func (t *tokenizer) CodeSpan(out *bytes.Buffer, text []byte)                           {}
-func (t *tokenizer) DoubleEmphasis(out *bytes.Buffer, text []byte)                     {}
-func (t *tokenizer) Emphasis(out *bytes.Buffer, text []byte)                           {}
-func (t *tokenizer) Image(out *bytes.Buffer, link []byte, title []byte, alt []byte)    {}
-func (t *tokenizer) LineBreak(out *bytes.Buffer)                                       {}
-func (t *tokenizer) Link(out *bytes.Buffer, link []byte, title []byte, content []byte) {}
-func (t *tokenizer) RawHtmlTag(out *bytes.Buffer, tag []byte)                          {}
-func (t *tokenizer) TripleEmphasis(out *bytes.Buffer, text []byte)                     {}
-func (t *tokenizer) StrikeThrough(out *bytes.Buffer, text []byte)                      {}
-func (t *tokenizer) FootnoteRef(out *bytes.Buffer, ref []byte, id int)                 {}
+func (t *Tokenizer) AutoLink(out *bytes.Buffer, link []byte, kind int)                 {}
+func (t *Tokenizer) CodeSpan(out *bytes.Buffer, text []byte)                           {}
+func (t *Tokenizer) DoubleEmphasis(out *bytes.Buffer, text []byte)                     {}
+func (t *Tokenizer) Emphasis(out *bytes.Buffer, text []byte)                           {}
+func (t *Tokenizer) Image(out *bytes.Buffer, link []byte, title []byte, alt []byte)    {}
+func (t *Tokenizer) LineBreak(out *bytes.Buffer)                                       {}
+func (t *Tokenizer) Link(out *bytes.Buffer, link []byte, title []byte, content []byte) {}
+func (t *Tokenizer) RawHtmlTag(out *bytes.Buffer, tag []byte)                          {}
+func (t *Tokenizer) TripleEmphasis(out *bytes.Buffer, text []byte)                     {}
+func (t *Tokenizer) StrikeThrough(out *bytes.Buffer, text []byte)                      {}
+func (t *Tokenizer) FootnoteRef(out *bytes.Buffer, ref []byte, id int)                 {}
 
 // Low-level callbacks
-func (t *tokenizer) Entity(out *bytes.Buffer, entity []byte)   {}
-func (t *tokenizer) NormalText(out *bytes.Buffer, text []byte) {}
+func (t *Tokenizer) Entity(out *bytes.Buffer, entity []byte)   {}
+func (t *Tokenizer) NormalText(out *bytes.Buffer, text []byte) {}
 
-func (t *tokenizer) GetFlags() int { return int((*t).flags.Int64()) }
+func (t *Tokenizer) GetFlags() int { return int((*t).flags.Int64()) }

@@ -16,25 +16,6 @@
 package agiledoc
 
 import (
-	i "github.com/emirpasic/gods/containers"
-	l "github.com/emirpasic/gods/lists"
-	ar "github.com/emirpasic/gods/lists/arraylist"
-	do "github.com/emirpasic/gods/lists/doublylinkedlist"
-	si "github.com/emirpasic/gods/lists/singlylinkedlist"
-	m "github.com/emirpasic/gods/maps"
-	hbm "github.com/emirpasic/gods/maps/hashbidimap"
-	hm "github.com/emirpasic/gods/maps/hashmap"
-	// tbm "github.com/emirpasic/gods/maps/treebidimap"
-	// tm "github.com/emirpasic/gods/maps/treemap"
-	//s "github.com/emirpasic/gods/sets"
-	sh "github.com/emirpasic/gods/sets/hashset"
-	//st "github.com/emirpasic/gods/sets/treeset"
-	//s "github.com/emirpasic/gods/stacks"
-	sa "github.com/emirpasic/gods/stacks/arraystack"
-	sl "github.com/emirpasic/gods/stacks/linkedliststack"
-	//t "github.com/emirpasic/gods/trees"
-	//bh "github.com/emirpasic/gods/trees/binaryheap"
-	//rbt "github.com/emirpasic/gods/trees/redblacktree"
 	"math/big"
 )
 
@@ -43,115 +24,10 @@ type Val interface {
 	Type() ValType
 	Value() Val
 }
-
-// CONTAINER INTERFACE
-// interface to conceal god container values interface nature behind the val interface
-type Container interface {
-	// i.cont
-	Empty() bool
-	Size() int
-	Clear()
-	Values() []Val
+type KeyVal interface {
+	Val
+	Key() string
 }
-
-// CONTAINER IMPLEMENTATION
-// wraps the container in a struct
-type cont struct {
-	contType
-	i.Container
-}
-
-// replace god containers value method through a method that encapsulates the
-// empty value.
-func (c cont) Values() (r []Val) {
-	r = []Val{}
-	for _, v := range c.Values() {
-		v := v.(Val)
-		r = append(r, v)
-	}
-	return r
-}
-func (c *cont) Add(v ...Val) {
-	t := (*c).contType
-	switch {
-	case t&lists != 0:
-		c.Container.(l.List).Add(v)
-	case t&maps != 0:
-		for _, val := range v {
-			v := val.(parm)
-			(*c).Container.(m.Map).Put(v.Key(), v.Value())
-		}
-	case t&stacks != 0:
-		// c.Container.(sa.Stack).Push(v)
-	case t&sets != 0:
-		//(c.Container).(st.Set).Add(v)
-		//	case t&trees != 0:
-		//		if t&binheap != 0 {
-		//			(*c).Container.(t.Heap).Push(v)
-		//		} else {
-		//			(*c).Container.(t.Tree).Put(v)
-		//		}
-	}
-}
-
-// return an empty container of a given type
-func newContainer(t contType) Container {
-	switch t {
-	case array:
-		return &cont{t, ar.New()}
-	case double:
-		return &cont{t, do.New()}
-	case single:
-		return &cont{t, si.New()}
-	case hashbidi:
-		return &cont{t, hbm.New()}
-	case hash:
-		return &cont{t, hm.New()}
-	case treebidi:
-		// return &cont{t,tbm.New()}
-	case treemap:
-		// return &cont{t,tm.New()}
-	case hashset:
-		return &cont{t, sh.New()}
-	case treeset:
-		// return &cont{t,st.New()}
-	case arraystack:
-		return &cont{t, sa.New()}
-	case linkedstack:
-		return &cont{t, sl.New()}
-	case binheap:
-		// return &cont{t,bh.New()}
-	case redblack:
-		// return &cont{t,rbt.New()}
-	}
-	return &cont{}
-}
-
-// container type marks the type of container taken from the god library
-type contType uint16
-
-const (
-	array contType = 1 << iota
-	single
-	double
-	hash
-	hashbidi
-	tree
-	treebidi
-	treemap
-	hashset
-	treeset
-	arraystack
-	linkedstack
-	binheap
-	redblack
-
-	lists  = array | single | double
-	maps   = hash | hashbidi | tree | treebidi
-	sets   = hashset | treeset
-	stacks = arraystack | linkedstack
-	trees  = binheap | redblack
-)
 
 // the base types are kept as simple as possible.
 //

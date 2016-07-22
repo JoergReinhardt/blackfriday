@@ -39,37 +39,37 @@ type TType uint32
 
 //go:generate -command stringer -type TType ./token.go
 const (
-	AutoLink TType = 1 << iota
-	BlockCode
-	BlockHtml
-	BlockQuote
-	CodeSpan
-	DocumentFooter
-	DocumentHeader
-	DoubleEmphasis
-	Emphasis
-	Entity
-	FootnoteItem
-	FootnoteRef
-	Footnotes
-	GetFlags
-	HRule
-	Header
-	Image
-	LineBreak
-	Link
-	List
-	ListItem
-	NormalText
-	Paragraph
-	RawHtmlTag
-	StrikeThrough
-	Table
-	TableCell
-	TableHeaderCell
-	TableRow
-	TitleBlock
-	TripleEmphasis
+	MD_AutoLink TType = 1 << iota
+	MD_BlockCode
+	MD_BlockHtml
+	MD_BlockQuote
+	MD_CodeSpan
+	MD_DocumentFooter
+	MD_DocumentHeader
+	MD_DoubleEmphasis
+	MD_Emphasis
+	MD_Entity
+	MD_FootnoteItem
+	MD_FootnoteRef
+	MD_Footnotes
+	MD_GetFlags
+	MD_HRule
+	MD_Header
+	MD_Image
+	MD_LineBreak
+	MD_Link
+	MD_List
+	MD_ListItem
+	MD_NormalText
+	MD_Paragraph
+	MD_RawHtmlTag
+	MD_StrikeThrough
+	MD_Table
+	MD_TableCell
+	MD_TableHeaderCell
+	MD_TableRow
+	MD_TitleBlock
+	MD_TripleEmphasis
 )
 
 //// TOKENIZER

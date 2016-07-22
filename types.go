@@ -16,305 +16,248 @@
 package agiledoc
 
 import (
-	// "fmt"
-	"github.com/emirpasic/gods/containers"
+	"errors"
+	"fmt"
+	//"strconv"
+	//"github.com/emirpasic/gods/containers"
 	"math/big"
-	"strconv"
+	//"strconv"
 )
 
 // VALUE INTERFACE
-// exposes a type flag and it's content embedded in an instance of a value
-// type.
+//
+// to implement the interface a type must provide a type method to return a
+// uint based Type Flag of type ValueType.
+//
+// A Value function thet returns the contained value in a form that implements
+// the Val interface has to be provided.
+//
+// Finaly a method needs to be provided, that returns the contained type
+// converted to a given internal return type and throws an error in cases where
+// that's impossible.
 type Val interface {
 	Type() ValType
 	Value() Val
 }
 
-// KEYVAL INTERFACE
-// variable interface combines a value with an identifiyer
-type Var interface {
+// KEY-VAL INTERFACE
+// values that are part of a finite set, mapped to, or identifyed by a key,
+// need a type to store them including the key
+type KVal interface {
 	Val
-	Key() string
+	Ident() string
 }
 
-// CONTAINER INTERFACE (extends the gods container interface)
-// interface to conceal god container empty interface values behind the Val
-// interface, that provides a type function to inspect the nature of the contained value without using reflection.. Since containers themselves and there conained values both
-// implement the val interface, all container types are fully recursive. The Values returned from and passed to mapped containers and sets, also implement the Var interface, KeyVal identitys are taken as map keys to map their values on to.
-type Container interface {
-	Val // contVal imlements the value interface
-	Empty() bool
-	Size() int
-	Clear()
-	Values() []Val // might be keyed vars/params
-	ContType() CntType
+// type to return as error, when type casting failed
+type ConversionError error
+
+// generate a new type conversion error, providing information about what
+// actually went wrong
+func NewConvError(t ValType, v Val) ConversionError {
+	// pregenerate formated string
+	str := "Type Conversion Error:\n"
+	str = str + "tryed to convert Value\n"
+	str = str + "from Type %s to Type %s\n"
+	// instanciate error at runtime, substituting values by calling sprintf
+	err := errors.New(fmt.Sprintf(str, v.Type(), t))
+	// return as conversion error
+	return ConversionError(err)
 }
 
-// container type marks the type of container taken from the god library
-type CntType uint16
-
-const (
-	// liat of all container tupes imported from gods
-	// every type implements at least the container interface and one more
-	// specific interface that combines all types that share a common kind
-	// of data structure: lists, sets, maps, stacks and trees.
-	//
-	// some of those data structures can exist in indexed and/or mapped
-	// versions. Dependend from the type, they may implement additional
-	// interfaces, like iteratorWithKey, IteratorWithIndex... Comparators
-	// and so on (see gods documentation)
-	//
-	///////////// lists
-	ARRAYLIST CntType = 1 << iota
-	SINGLELIST
-	DOUBLELIST
-	///////////// sets
-	HASHSET
-	TREESET
-	///////////// stacks
-	LINKEDSTACK
-	ARRAYSTACK
-	///////////// maps
-	HASHMAP
-	HASHBIDIMAP
-	TREEMAP
-	TREEBIDIMAP
-	///////////// trees
-	REDBLACK
-	BINHEAP
-
-	// sets of containers that share a more specific interface than
-	// gods/containers and have other method signatures in common
-	LISTS  = ARRAYLIST | SINGLELIST | DOUBLELIST
-	SETS   = HASHSET | TREESET
-	STACKS = ARRAYSTACK | LINKEDSTACK
-	MAPS   = HASHMAP | HASHBIDIMAP | TREEMAP | TREEBIDIMAP
-	TREES  = BINHEAP | REDBLACK
-
-	INDEXED = LISTS | STACKS
-	MAPPED  = MAPS | TREES | SETS
-
-	ADD = LISTS | SETS
-
-	REVERSEABLE = DOUBLELIST | HASHBIDIMAP | TREEBIDIMAP
-)
-
-// the base types are kept as simple as possible.
-//
-// NIL
-//
-// while returning an error and/or boolean when values don't exist, or turn out
-// not to be converteable is one way of doing it, I think having a nil type to
-// return instead, makes things much easyer and there are lots of additional
-// reasons to have one anyway.
-//
-// FLAG
-//
-// since the type field is the essential difference to ordinary values, I
-// decided to have bitflags as a type, to make the type acsess-, compare- and
-// usable.
-//
-// INTEGER & FLOAT
-//
-// parsing values embedded in text and perform calculations on them is the main
-// goal of agiledocument, which makesnumbers are the essence of the agile
-// document. they are implemented by math librarys big.int / big.float types,
-// since those allready implement all nescessary type conversions, parsing from
-// string included and they are highly optimized to perform well. flag type is
-// another big.Int, since it also implements bitwise boolean operations.
-//
-// BYTE
-//
-// the source will be provided by blackfriday in form of a byte slice
-//
-// strings make the input handable as text.
+// internal value type identifyer is a uint bitflag
 type ValType uint
 
 //go:generate -command stringer -type ValType
 const (
-	NIL  ValType = 0
-	FLAG ValType = 1 << iota
+	NIL     ValType = 0
+	BOOLEAN ValType = 1 << iota
+	FLAG
 	INTEGER
-	FLOAT
-	BYTE
+	RATIONAL
+	BYTES
 	STRING
 	KEYVAL    // type to hold key value pairs like variables and parameters
 	CONTAINER // holds lists, sets, stacks, maps and trees
 )
 
-// TYPES
-type ( // are kept as close to the original types as possible
-	empty    struct{}
-	flagVal  struct{ *big.Int } // all big based types are enveloped
-	intVal   struct{ *big.Int } // by strings to encapsulate the pointer
-	floatVal struct{ *big.Float }
-	byteVal  []byte
-	strVal   string
-	keyVal   struct { // variable, map member and parameter type
-		id string
-		Val
+// FUNCTIONAL TYPES
+//
+// all internal types are defined as function types that return a natural type
+// representing the contained value(s). Function types are immutable and get
+// constructed dynamicaly by a constructor. All Methods except the type and val
+// methods are defined on the function instance. Type and Val Method of each
+// functional type are defined as methods on the function type.
+type (
+	empty    func() empty // the empty value is represented by the empty struct
+	boolVal  func() bool     // single boolen. Sets will be expressed as intVal
+	intVal   func() *big.Int // all integers are represented by big ints as well
+	ratVal   func() *big.Rat // floats will be represented as big rational
+	bytesVal func() []byte   // most input streams will be byte buffers
+	strVal   func() string   // since we're dealing with text, strings need to be represented
+	keyVal   func() struct { // variable, map member and parameter type
+		id  string // provides an string identifyer
+		Val        // wraps a typable value implementation
 	}
-	cntVal struct {
+	cntVal func() struct { // implements internal container, iterator
+		// and comparator interface by wrapping gods containers, iterators and
+		// comparators in its fields and methods.
 		CntType
-		containers.Container
+		Vals []Val
 	}
+	flagVal intVal // a bitflag stored in a big int
 )
 
-// INTERFACE METHODS
-// methods that share a name, need to be implemented once per receiving type
+// COMBINED TYPES METHODS
+// methods for combined tupes keyval and container
+func (k keyVal) Identity() string       { return k().id }
+func (k keyVal) Get() Val               { return k().Val }
+func (c cntVal) ContainerType() CntType { return c().CntType }
+func (c cntVal) Get() []Val             { return c().Vals }
+
+// INTERFACE TYPE METHODS
 func (empty) Type() ValType    { return NIL }
+func (boolVal) Type() ValType  { return BOOLEAN }
 func (flagVal) Type() ValType  { return FLAG }
 func (intVal) Type() ValType   { return INTEGER }
-func (floatVal) Type() ValType { return FLOAT }
-func (byteVal) Type() ValType  { return BYTE }
+func (ratVal) Type() ValType   { return RATIONAL }
+func (bytesVal) Type() ValType { return BYTES }
 func (strVal) Type() ValType   { return STRING }
 func (keyVal) Type() ValType   { return KEYVAL }
 func (cntVal) Type() ValType   { return CONTAINER }
 
-func (v empty) Value() Val    { return empty{} }
-func (v flagVal) Value() Val  { return v }
-func (v intVal) Value() Val   { return v }
-func (v floatVal) Value() Val { return v }
-func (v byteVal) Value() Val  { return v }
-func (v strVal) Value() Val   { return v }
-func (v keyVal) Value() Val   { return v }
-func (v cntVal) Value() Val   { return v }
-
-// native type return functions are implemented as methods of the Value()
-// function. The value function as their receiver, either has or misses a
-// Method named after its return tyoe. if v.Value.String != nil for instance
-// checks, if the value has a string function.
-//
-type ValueFn func() Val
-
-func (vfn ValueFn) Uint() uint         { return uint(v.Int.Uint64()) }
-func (vfn ValueFn) Flag() *big.Int     { return v.Int }
-func (vfn ValueFn) BigInt() *big.Int   { return v.Int }
-func (vfn ValueFn) BigFlt() *big.Float { return v.Float }
-func (vfn ValueFn) Byte() []byte       { return v }
-func (vfn ValueFn) String() string     { return string(v) }
-
-// if the native tyoe is allready known at the time of initialization,
-// reflection can be omitted.
-func NewTypedVal(t ValType, i interface{}) Val {
-	var v Val
-	switch t {
-	case NIL:
-		v = empty{}
-	case FLAG:
-		switch i.(type) {
-		case bool:
-			if i.(bool) {
-				v = flagVal{big.NewInt(1)}
-			} else {
-				v = flagVal{big.NewInt(0)}
-			}
-			// TODO catch error value
-		case string:
-			str, _ := strconv.ParseBool(i.(string))
-			v = intVal{str}
-		case int:
-			v = flagVal{big.NewInt(int64(i))}
-		case big.Int:
-			v = flagVal{big.NewInt(int64(i))}
-		case uint:
-			v = flagVal{big.NewInt(int64(i))}
-		case flagVal:
-			v = i.(flagVal)
-		case *flagVal:
-			v = *(i.(flagVal))
-		case floatVal:
-			v, _ = i.(floatVal).Float.Int64()
-		}
-	case INTEGER:
-		switch i.(type) {
-		case bool:
-			if i.(bool) {
-				v = intVal{big.NewInt(1)}
-			} else {
-				v = intVal{big.NewInt(0)}
-			}
-		case string:
-			// TODO catch error value
-			str, _ := strconv.Atoi(i.(string))
-			v = intVal{str}
-		case int:
-			v = intVal{big.NewInt(int64(i))}
-		case big.Int:
-			v = intVal{big.NewInt(int64(i))}
-		case uint:
-			v = intVal{big.NewInt(int64(i))}
-		case flagVal:
-			v = strconv.Atoi(int(i.(flagVal).Int.Int64()))
-		case *flagVal:
-			v = strconv.Atoi(int(*(i.(*flagVal).Int.Int64())))
-		}
-	case FLOAT:
-		switch i.(type) {
-		case float32, float64:
-			v = floatVal{big.NewFloat(i.(float64))}
-		case floatVal:
-			v = i.(floatVal)
-		case *floatVal:
-			v = *(i.(*floatVal))
-		case string:
-			// TODO catch error value
-			flt, _ := strconv.ParseFloat(i.(string))
-			v = floatVal{flt}
-		case int:
-			v = floatVal{big.NewFloat(float64(i))}
-		case big.Int:
-			v = floatVal{big.NewFloat(float64(i))}
-		case uint:
-			v = floatVal{big.NewFloat(float64(i))}
-		case flagVal:
-			v = strconv.ParseFloat(float64(i.(flagVal).Int.Int64()))
-		case *flagVal:
-			v = strconv.ParseFloat(float64(*(i.(*flagVal).Int.Int64())))
-		}
-	case BYTE:
-		switch i.(type) {
-		case string: // conv string to byte slice
-			v = byteVal([]byte{i.(string)})
-		case []byte: // return byte slice as is
-			v = byteVal(i.([]byte))
-		default: // everything else is converted to string first.
-			// and recursed over afterwards it may be further
-			// parseable
-			tmp := NewTypedVal(STRING, i)
-		}
-	case STRING:
-		switch i.(type) {
-		case string: // return string as is
-			v = strVal(i.(string))
-		case []byte: // return byte converted to string
-			v = strVal(string(i.([]byte)))
-		case uint, uint8, uint16, uint32, uint64:
-			v := NewTypedVal(FLAG, i.(uint64))
-		case int, int8, int16, int32, int64, *big.Int:
-			v := NewTypedVal(INTEGER, i.(int64))
-		case float32, float64, *big.Float:
-			v := NewTypedVal(FLOAT, i.(float64))
-		}
+// INTERFACE VALUE METHOD
+// the value method of a functional type calls its receiver to instanciate (a)
+// copy(s) of the returned value(s) and and wraps a closure literal around that
+// copy to get a new functional instance to return to the caller.
+func (v empty) Value() Val    { return func() Val { return v } }
+func (v boolVal) Value() Val  { return func() Val { return v } }
+func (v intVal) Value() Val   { return func() Val { return v } }
+func (v ratVal) Value() Val   { return func() Val { return v } }
+func (v bytesVal) Value() Val { return func() Val { return v } }
+func (v strVal) Value() Val   { return func() Val { return v } }
+func (v keyVal) Value() Val {
+	return func() Val {
+		return struct {
+			string
+			Val
+		}{v.Identity(), v.Get()}
 	}
-	return v
+}
+func (v cntVal) Value() Val {
+	v = v()
+	return func() Val {
+		return struct {
+			VecType
+			Vals []Val
+		}{v.ContainerType(), v.Get()}
+	}
+}
+func (f flagVal) Value() Val { return func() Val { return *big.Int(v()) } }
+
+// GENERALIZED CONVERSION METHODS
+//
+// the conversion functions are defined as methods on the value function type
+// and can therefore be called up on any Val implementing types value method
+// implementation.
+//
+// the to function type takes instances of Val and converts to arbitrary types
+type ToTypeFn func(Val) interface{}
+
+// the from type takes arbitrary types and returns Val instances
+type FromTypeFn func(Val interface{})
+
+// the Conversion function returns all conversion functions a value method provides
+type ConversionsFn func(Val) ([]FromTypeFn, []ToTypeFn)
+
+// DEDICATED TYPE METHOD TYPES
+// these types define functions that all implement the contained type, but
+// return a different type instead of the empty interface the contained type
+// defines. Which type to assert, is easy to recocnize given the function
+// names.
+type (
+	EmptyFn     func() empty
+	BoolValFn   func(Val) boolVal
+	IntValFn    func(Val) intVal
+	RatValFn    func(Val) ratVal
+	BytesValFn  func(Val) bytesVal
+	StrValFn    func(Val) strVal
+	KeyValFn    func(Val) (string, Val)
+	VecValFn    func(Val) (CntType, []Val)
+	BoolFn      func(Val) bool
+	IntFn       func(Val) int
+	BigIntFn    func(Val) *big.Int
+	RatFn       func(Val) (*big.Int, *big.Int)
+	BigRatFn    func(Val) *big.Rat
+	FloatFn     func(Val) float64
+	ByteSliceFn func(Val) []byte
+	StrFn       func(Val) string
+	FlagFn      BigIntFn
+	///////////////////////////
+	ValEmpty     func() Val
+	ValBoolVal   func(boolVal) Val
+	ValIntVal    func(intVal) Val
+	ValRatVal    func(ratVal) Val
+	ValBytesVal  func(bytesVal) Val
+	ValStrVal    func(strVal) Val
+	ValKeyVal    func(string Val) Val
+	ValVecVal    func(VecType ...Val) Val
+	ValBool      func(bool) Val
+	ValInt       func(int) Val
+	ValBigInt    func(*big.Int) Val
+	ValRat       func(counter *big.Int, denominator *big.Int) Val
+	ValBigRat    func(*big.Rat) Val
+	ValFloat     func(float64) Val
+	ValByteSlice func([]byte) Val
+	ValStr       func(string) Val
+	ValFlag      ValBigInt
+)
+
+const ( // all type identyfiers as unsigned integer constant
+	// internal types that implement the Val interface
+	Empty  uint = 0
+	IntVal      = iota << 1
+	RatVal
+	StrVal
+	ByteVal
+	KeyVal
+	VecVal
+	// native types returned by Val instances
+	Bool
+	Uint
+	Int
+	BigInt
+	Float
+	BigFloat
+	BigRat
+	ByteSlice
+	String
+	ValSlice
+
+	FlagVal  = IntVal
+	FloatVal = RatVal
+
+	Native = Bool | Uint | Int | BigInt | Float |
+		BigFloat | Bytes | String | ValSlice
+
+	Internal = Empty | FlagVal | IntVal | FloatVal |
+		RatVal | StrVal | ByteVal | KeyVal | VecVal
+)
+
+type TypeConversions struct {
+	From []FromTypeFn
+	To   []ToTypeFn
 }
 
-// arbitratry values will be performed to the appropriate type, or an empty
-// value will be returned.
-func NewVal(i interface{}) Val {
-	var v Val
-	switch i.(type) {
-	case uint, uint8, uint16, uint32, uint64:
-		v = NewTypedVal(FLAG, i)
-	case int, int8, int16, int32, int64, *big.Int:
-		v = NewTypedVal(INTEGER, i.(int64))
-	case float32, float64, *big.Float:
-		v = NewTypedVal(FLOAT, i.(float64))
-	case string: // string values are just passed on
-		v = strVal{i.(string)}
-	case []byte: // byte slices are converted to string
-		v = byteVal{i.([]byte)}
+var Conversions []TypeConversions
+
+func init() {
+	Conversions[Empty] = TypeConversions{
+		[]FromTypeFn{
+		  func(),
+		},
+		  []ToTypeFn{
+		  func() empty,
+		},
 	}
-	return v
+	Conversions[IntVal] = func(v Val) { return v.(IntVal) }
 }

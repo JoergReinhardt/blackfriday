@@ -39,7 +39,7 @@ package agiledoc
 
 import (
 	"bytes"
-	"github.com/emirpasic/gods/maps/hashmap"
+	// "github.com/emirpasic/gods/maps/hashmap"
 )
 
 // the position type provides integer indices that reference the byte indecx of
@@ -62,7 +62,7 @@ func (p pos) GenNextToken(t TType, raw []byte, flags uint, parms ...Val) Token {
 	return Token{
 		t,
 		p.genNextPos(),
-		byteVal(raw),
+		bytesVal(raw),
 		flags,
 		pc,
 	}
@@ -76,7 +76,7 @@ func (p pos) GenNextToken(t TType, raw []byte, flags uint, parms ...Val) Token {
 type Token struct {
 	ttype TType
 	pos
-	rawTxt byteVal
+	rawTxt bytesVal
 	flags  uint
 	params Container // contains god hashmap
 }
@@ -124,46 +124,46 @@ const (
 // semaBuf, token instance is appended to semaQueue of the contained parser
 type Tokenizer struct {
 	// options blackfriday.Options // parameters
-	flags flagVal    // options
+	flags intVal     // options
 	cur   Token      // current position
 	out   chan Token // returns tokens to the caller
 }
 
-func (tkz *Tokenizer) newToken(t TType, raw []byte, flags uint, parms ...keyVal) {
-	var c Container
-	// copy parameters, only if there are any
-	if len(parms) > 0 {
-		// allocate array to take parameters
-		m := hashmap.New()
+// func (tkz *Tokenizer) newToken(t TType, raw []byte, flags uint, parms ...keyVal) {
+// 	var c Container
+// 	// copy parameters, only if there are any
+// 	if len(parms) > 0 {
+// 		// allocate array to take parameters
+// 		m := hashmap.New()
+//
+// 		for _, v := range parms {
+// 			(*m).Put(v.Key(), v.Value())
+// 		}
+//
+// 		c = NewTypedVal(CONTAINER, m).(intVal)
+// 	}
+// 	// calculate new position
+// 	ns := (*tkz).cur.End() + 1
+// 	pos := pos{ns, ns + len(raw)}
+//
+// 	// put token into channel
+// 	(*tkz).out <- (*tkz).cur
+//
+// 	// generate token of designated type, with calculated position and the options container
+// 	(*tkz).cur = Token{t, pos, raw, flags, c}
+//
+// }
 
-		for _, v := range parms {
-			(*m).Put(v.Key(), v.Value())
-		}
-
-		c = &cntVal{HASHMAP, m}
-	}
-	// calculate new position
-	ns := (*tkz).cur.End() + 1
-	pos := pos{ns, ns + len(raw)}
-
-	// put token into channel
-	(*tkz).out <- (*tkz).cur
-
-	// generate token of designated type, with calculated position and the options container
-	(*tkz).cur = Token{t, pos, raw, flags, c}
-
-}
-
-func NewTokenizer(flags ...uint) (*Tokenizer, chan Token) {
-	f := NewTypedVal(FLAG, 0)
-	// XOR flags
-	for _, flag := range flags {
-		cmp := NewTypedVal(FLAG, flag)
-		f.Value.Flag().Xor(f.Value.Flag(), cmp.Value.Flag())
-	}
-	o := make(chan Token, 1)
-	return &Tokenizer{f, Token{}, o}, o
-}
+// func NewTokenizer(flags ...uint) (*Tokenizer, chan Token) {
+// 	f := NewTypedVal(FLAG, 0)
+// 	// XOR flags
+// 	for _, flag := range flags {
+// 		cmp := NewTypedVal(FLAG, flag)
+// 		f.Value.Flag().Xor(f.Value.Flag(), cmp.Value.Flag())
+// 	}
+// 	o := make(chan Token, 1)
+// 	return &Tokenizer{f, Token{}, o}, o
+// }
 
 //// BLACK FRIDAY INTERFACE IMPLEMENTATION
 ///
@@ -172,15 +172,15 @@ func NewTokenizer(flags ...uint) (*Tokenizer, chan Token) {
 // provided metadata, parsed and raw data.
 //
 // DOCUMENT METAINFO HEADER AND FOOTER
-func (t *Tokenizer) DocumentHeader(out *bytes.Buffer) {
-	raw := out.Bytes()
-	(*t).newToken(DocumentHeader, raw, 0)
-}
-
-func (t *Tokenizer) DocumentFooter(out *bytes.Buffer) {
-	raw := out.Bytes()
-	(*t).newToken(DocumentFooter, raw, 0)
-}
+// func (t *Tokenizer) DocumentHeader(out *bytes.Buffer) {
+// 	raw := out.Bytes()
+// 	(*t).newToken(DocumentHeader, raw, 0)
+// }
+//
+// func (t *Tokenizer) DocumentFooter(out *bytes.Buffer) {
+// 	raw := out.Bytes()
+// 	(*t).newToken(DocumentFooter, raw, 0)
+// }
 
 // DOCUMENT BLOCKS
 func (t *Tokenizer) Header(out *bytes.Buffer, text func() bool, level int, id string) { // header as in headline of a section
@@ -217,4 +217,4 @@ func (t *Tokenizer) FootnoteRef(out *bytes.Buffer, ref []byte, id int)          
 func (t *Tokenizer) Entity(out *bytes.Buffer, entity []byte)   {}
 func (t *Tokenizer) NormalText(out *bytes.Buffer, text []byte) {}
 
-func (t *Tokenizer) GetFlags() int { return int((*t).flags.Int64()) }
+// func (t *Tokenizer) GetFlags() int { return int((*t).flags.Int64()) }

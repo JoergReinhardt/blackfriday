@@ -31,6 +31,40 @@ import (
 // are fully recursive. The Values returned from and passed to mapped
 // containers and sets, also implement the Var interface, KeyVal identitys are
 // taken as map keys to map their values on to.
+type CntType uint16
+
+//go:generate -command stringer -type CntType
+const (
+	///////////// lists
+	LIST_ARRAY CntType = 1 << iota
+	LIST_SINGLE
+	LIST_DOUBLE
+	///////////// sets
+	SET_HASH
+	SET_TREE
+	///////////// stacks
+	STACK_LINKED
+	STACK_ARRAY
+	///////////// maps
+	MAP_HASH
+	MAP_HASHBIDI
+	MAP_TREE
+	MAP_TREEBIDI
+	///////////// trees
+	TREE_REDBLACK
+	TREE_BINHEAP
+	///////////// utils
+
+	// sets of containers that share a more specific interface than
+	// gods/containers and have other method signatures in common
+	LISTS  = LIST_ARRAY | LIST_SINGLE | LIST_DOUBLE
+	SETS   = SET_HASH | SET_TREE
+	STACKS = STACK_ARRAY | STACK_LINKED
+	MAPS   = MAP_HASH | MAP_HASHBIDI | MAP_TREE | MAP_TREEBIDI
+	TREES  = TREE_BINHEAP | TREE_REDBLACK
+)
+
+// CONTAINER INTERFACE
 type Container interface {
 	ContType() CntType
 	Empty() bool
@@ -39,17 +73,51 @@ type Container interface {
 	Values() []Val // might be keyed vars/params
 }
 
+// CONTAINER IMPLEMENTATION
 type cont struct {
 	ct CntType
 	containers.Container
 }
 
+// returns the container type
 func (c cont) ContType() CntType { return c.ct }
 
-func (c *cont) Values() []Val                                   { return interfaceSlice((*c).Container.Values()).Values() }
+// returns a slice of Values from a container instance
+func (c cont) Values() []Val { return interfaceSlice(c.Container.Values()).Values() }
+
+// CONTAINER WRAPPER
+// function to assign the nescessary interface methods to a god container, to
+// make it implement the internal container interface, containing Val instances
+// instead of empty interfaces.
 func wrapContainer(t CntType, c containers.Container) Container { return &cont{t, c} }
 
-// SLICE TYPES
+// COMPARATOR INTERFACES
+// gods comparators expect empty interfaces that are assertable to either
+// string, or int. The Val interface allows for much more complex types. the
+// comparator function can be set up on arbitratry types, methods, or fields of
+// complex types, as long as it is converted to the correct signature before
+// passed to god.
+type Comparator func(a, b Val) int
+type IntComparator func(a, b Val) int
+type StringComparator func(a, b Val) int
+
+func (c Comparator) Convert() utils.Comparator {
+	var r utils.Comparator = c.Convert()
+	return r
+}
+
+func ConstructComparator(t ValType) utils.Comparator {
+	var f utils.Comparator
+	switch t {
+	case STRING:
+		f = utils.StringComparator
+	case INTEGER:
+		f = utils.IntComparator
+	}
+	return f
+}
+
+// SLICE HELPER TYPES
 // these types exist, so that a slice of interfaces, as well as a slice of
 // Values implements a type, methods can be assigned to. That Way unwrapped
 // slices can allways be converted to those types and provide either the
@@ -74,39 +142,17 @@ func (v valSlice) Interfaces() []interface{} {
 	return is
 }
 
-// COMPARATOR INTERFACES
-type Comparator func(a, b Val) int
-
-func (c Comparator) Convert() utils.Comparator {
-	var r utils.Comparator = c.Convert()
-	return r
-}
-
-type IntComparator func(a, b Val) int
-type StringComparator func(a, b Val) int
-
-func ConstructComparator(t ValType) utils.Comparator {
-	var f utils.Comparator
-	switch t {
-	case STRING:
-		f = utils.StringComparator
-	case INTEGER:
-		f = utils.IntComparator
-	}
-	return f
-}
-
+// CUSTOMIZED CONTAINER INTERFACES AND IMPLEMENTATIONS
+//
 // LIST INTERFACE
 type List interface {
-	Get(index int) (Val, bool) //
+	Get(index int) (Val, bool)
 	Remove(index int)
-	Add(values ...Val)           //
-	Contains(values ...Val) bool //
-	Sort(comparator Comparator)  //
+	Add(values ...Val)
+	Contains(values ...Val) bool
+	Sort(comparator Comparator)
 	Swap(index1, index2 int)
-	Insert(index int, values ...Val) //
-
-	Container
+	Insert(index int, values ...Val)
 }
 
 // LIST IMPLEMENTATION
@@ -132,6 +178,10 @@ func (l *listCnt) Get(i int) (Val, bool) {
 func (l *listCnt) Sort(c Comparator) {
 	(*l).List.Sort(c.Convert())
 }
+
+// LIST CONSTRUCTOR
+// the list constructor only needs to know the dedicated type of the list
+// container to instanciate
 func newListContainer(t CntType) (c Container) {
 	switch t {
 	case LIST_ARRAY:
@@ -171,10 +221,14 @@ type BidiMap interface {
 	Map
 }
 
+// MAP CONSTRUCTOR
 // trees need one, or two comparators, while maps dont. Comparators can be of
 // different index type. apart from the designated container type, a variadic
-// idxType can be passed. The exact ammount of comparators needed per type:
-// hash, hashbidi = 0 | tree = 1 | treebidi = 2
+// idxType can optionaly be passed. The exact ammount of comparators needed, is
+// dependent on its type:
+//
+// | hash, hashbidi = 0 | tree = 1 | treebidi = 2 |
+//
 func newMapContainer(t CntType, idxType ...ValType) (m Container) {
 	switch t {
 	case MAP_HASH:
@@ -211,6 +265,9 @@ func (s *setCnt) Remove(e ...Val) {
 func (s *setCnt) Contains(e ...Val) bool {
 	return (*s).Set.Contains(valSlice(e).Interfaces())
 }
+
+// SET CONSTRUCTOR
+// the treeset needs a comparator closure
 func newSetContainer(t CntType, idxType ValType) (c Container) {
 	switch t {
 	case SET_HASH:
@@ -234,6 +291,7 @@ type stackCnt struct {
 	stacks.Stack
 }
 
+// STACK CONSTRUCTOR
 func newStackContainer(t CntType) (c Container) {
 	switch t {
 	case STACK_ARRAY:
@@ -244,17 +302,18 @@ func newStackContainer(t CntType) (c Container) {
 	return c
 }
 
-// STACK INTERFACE
+// TREE INTERFACE
 type Tree interface {
 	Container
 }
 
-// STACK IMPLEMENTATION
+// TREE IMPLEMENTATION
 type treeCnt struct {
 	*cont
 	trees.Tree
 }
 
+// TREE CONSTRUCTOR
 func newTreeContainer(t CntType, comp Comparator) (c Container) {
 	switch t {
 	case TREE_REDBLACK:
@@ -264,46 +323,3 @@ func newTreeContainer(t CntType, comp Comparator) (c Container) {
 	}
 	return c
 }
-
-// container type marks the type of container taken from the god library
-type CntType uint16
-
-const (
-	// liat of all container tupes imported from gods
-	// every type implements at least the container interface and one more
-	// specific interface that combines all types that share a common kind
-	// of data structure: lists, sets, maps, stacks and trees.
-	//
-	// some of those data structures can exist in indexed and/or mapped
-	// versions. Dependend from the type, they may implement additional
-	// interfaces, like iteratorWithKey, IteratorWithIndex... Comparators
-	// and so on (see gods documentation)
-	//
-	///////////// lists
-	LIST_ARRAY CntType = 1 << iota
-	LIST_SINGLE
-	LIST_DOUBLE
-	///////////// sets
-	SET_HASH
-	SET_TREE
-	///////////// stacks
-	STACK_LINKED
-	STACK_ARRAY
-	///////////// maps
-	MAP_HASH
-	MAP_HASHBIDI
-	MAP_TREE
-	MAP_TREEBIDI
-	///////////// trees
-	TREE_REDBLACK
-	TREE_BINHEAP
-	///////////// utils
-
-	// sets of containers that share a more specific interface than
-	// gods/containers and have other method signatures in common
-	LISTS  = LIST_ARRAY | LIST_SINGLE | LIST_DOUBLE
-	SETS   = SET_HASH | SET_TREE
-	STACKS = STACK_ARRAY | STACK_LINKED
-	MAPS   = MAP_HASH | MAP_HASHBIDI | MAP_TREE | MAP_TREEBIDI
-	TREES  = TREE_BINHEAP | TREE_REDBLACK
-)

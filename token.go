@@ -62,7 +62,7 @@ func (p pos) GenNextToken(t TType, raw []byte, flags uint, parms ...Val) Token {
 	return Token{
 		t,
 		p.genNextPos(),
-		byteVal(raw),
+		bytesVal(raw),
 		flags,
 		pc,
 	}
@@ -76,7 +76,7 @@ func (p pos) GenNextToken(t TType, raw []byte, flags uint, parms ...Val) Token {
 type Token struct {
 	ttype TType
 	pos
-	rawTxt byteVal
+	rawTxt bytesVal
 	flags  uint
 	params Container // contains god hashmap
 }

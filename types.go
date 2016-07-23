@@ -20,15 +20,7 @@ import (
 )
 
 // VALUE INTERFACE
-type Val interface {
-	Type() ValType
-	Value() Val
-}
-type KeyVal interface {
-	Val
-	Key() string
-}
-
+//
 // the base types are kept as simple as possible.
 //
 // NIL
@@ -53,10 +45,19 @@ type KeyVal interface {
 // string included and they are highly optimized to perform well. flag type is
 // another big.Int, since it also implements bitwise boolean operations.
 //
-// BYTE
+// BYTES
 //
 // the source will be provided by blackfriday in form of a byte slice
 //
+type Val interface {
+	Type() ValType
+	Value() Val
+}
+type KeyVal interface {
+	Val
+	Key() string
+}
+
 // strings make the input handable as text.
 //go:generate -command stringer -type ValType
 const (
@@ -65,7 +66,9 @@ const (
 	INTEGER
 	FLOAT
 	BYTE
+	BYTES
 	STRING
+	CONTAINER
 )
 
 type ValType uint
@@ -76,8 +79,10 @@ type ( // are kept as close to the original types as possible
 	flagVal  struct{ *big.Int } // all big based types are enveloped
 	intVal   struct{ *big.Int } // by strings to encapsulate the pointer
 	floatVal struct{ *big.Rat }
-	byteVal  []byte
+	byteVal  byte
+	bytesVal []byte
 	strVal   string
+	cntVal   struct{ *cont }
 )
 
 // funtion types that implement the interface
@@ -93,42 +98,80 @@ func (flagVal) Type() ValType  { return FLAG }
 func (intVal) Type() ValType   { return INTEGER }
 func (floatVal) Type() ValType { return FLOAT }
 func (byteVal) Type() ValType  { return BYTE }
+func (bytesVal) Type() ValType { return BYTES }
 func (strVal) Type() ValType   { return STRING }
+func (cntVal) Type() ValType   { return CONTAINER }
 
 func (v emptyVal) Value() Val { return v }
 func (v flagVal) Value() Val  { return v }
 func (v intVal) Value() Val   { return v }
 func (v floatVal) Value() Val { return v }
 func (v byteVal) Value() Val  { return v }
+func (v bytesVal) Value() Val { return v }
 func (v strVal) Value() Val   { return v }
+func (v cntVal) Value() Val   { return v }
 
 // tyoed return functions return values of generic type, each is implemented by
 // at least the types containing that native type, and all that can be
 // converted to it.
-func (emptyVal) Empty() emptyVal   { return emptyVal{} }
-func (v flagVal) Flag() *big.Int   { return v.Int }
-func (v intVal) Integer() *big.Int { return v.Int }
-func (v floatVal) Flt() *big.Rat   { return v.Rat }
-func (v byteVal) Byte() []byte     { return v }
-func (v strVal) String() string    { return string(v) }
+func (emptyVal) Empty() emptyVal { return emptyVal{} }
+
+func (v *flagVal) Flag() *flagVal   { return &flagVal{(*v).Int} }
+func (v *flagVal) Uint() uint64     { return (*v.Int).Uint64() }
+func (v *flagVal) Integer() int64   { return (*v.Int).Int64() }
+func (v *flagVal) BigInt() *big.Int { return v.Int }
+
+func (v *intVal) Flag() *flagVal       { return &flagVal{(*v).BigInt()} }
+func (v *intVal) Uint() uint64         { return (*v.Int).Uint64() }
+func (v *intVal) Integer() int64       { return (*v.Int).Int64() }
+func (v *intVal) Float() float64       { return float64((*v.Int).Int64()) }
+func (v *intVal) BigInt() *big.Int     { return (*v).Int }
+func (v *intVal) BigRat() *big.Rat     { return big.NewRat(1, 1).SetInt64((*v).Integer()) }
+func (v *intVal) BigFloat() *big.Float { return big.NewFloat(float64((*v).Int64())) }
+
+func (v *floatVal) Float() float64       { r, _ := (*v.Rat).Float64(); return r }
+func (v *floatVal) Integer() int64       { r, _ := (*v.Rat).Float64(); return int64(r) }
+func (v *floatVal) BigRat() *big.Rat     { return (*v).Rat }
+func (v *floatVal) BigInt() *big.Int     { f, _ := (*v).Float64(); return big.NewInt(int64(f)) }
+func (v *floatVal) BigFloat() *big.Float { f, _ := (*v).Float64(); return big.NewFloat(f) }
+
+func (v *bytesVal) Bytes() []byte    { return []byte(*v) }
+func (v *bytesVal) String() string   { return string(*v) }
+func (v *bytesVal) Uint() uint64     { return big.NewInt(0).SetBytes(*v).Uint64() }
+func (v *bytesVal) Flag() *flagVal   { return &flagVal{big.NewInt(0).SetBytes((*v).Bytes())} }
+func (v *bytesVal) BigInt() *big.Int { return big.NewInt(0).SetBytes((*v).Bytes()) }
+func (v *bytesVal) Uints() (r []uint8) {
+	r = []uint8{}
+	for _, val := range *v {
+		b := uint8(val)
+		r = append(r, b)
+	}
+	return r
+}
+
+func (v *strVal) Bytes() []byte  { return []byte(*v) }
+func (v *strVal) String() string { return string(*v) }
+
+func (v *cntVal) Vector() Container { return Container(v) }
 
 // if the native tyoe is allready known at the time of initialization,
 // reflection can be omitted.
-func NewTypedVal(t ValType, i interface{}) Val {
+func ConvertVal(t ValType, i Val) Val {
 	var v Val
 	switch t {
 	case NIL:
 		v = emptyVal{}
 	case FLAG:
-		v = flagVal{big.NewInt(int64(i.(int)))}
+		v = &flagVal{big.NewInt(i.(*flagVal).Integer())}
 	case INTEGER:
-		v = intVal{big.NewInt(int64(i.(int)))}
+		v = &intVal{big.NewInt(i.(*intVal).Int64())}
 	case FLOAT:
-		v = floatVal{big.NewRat(0, 0).SetFloat64(i.(float64))}
-	case BYTE:
-		v = byteVal(i.([]byte))
+		f, _ := i.(*floatVal).Float64()
+		v = &floatVal{big.NewRat(1, 1).SetFloat64(f)}
+	case BYTES:
+		v = bytesVal(i.(*bytesVal).Bytes())
 	case STRING:
-		v = strVal(i.(string))
+		v = strVal(i.(*strVal).String())
 	}
 	return v
 }
@@ -138,14 +181,24 @@ func NewTypedVal(t ValType, i interface{}) Val {
 func NewVal(i interface{}) Val {
 	var v Val
 	switch i.(type) {
+	case bool:
+		if i.(bool) {
+			return &flagVal{big.NewInt(1)}
+		} else {
+			return &flagVal{big.NewInt(1)}
+		}
+	case uint, uint16, uint32, uint64:
+		v = &flagVal{big.NewInt(int64(i.(uint)))}
 	case int, int8, int16, int32, int64, *big.Int:
-		v = NewTypedVal(INTEGER, i)
-	case float32, float64, *big.Float:
-		v = NewTypedVal(FLOAT, i)
+		v = &intVal{big.NewInt(int64(i.(int)))}
+	case float32, float64, *big.Rat, *big.Float:
+		v = &floatVal{big.NewRat(1, 1).SetInt64((int64(i.(float64))))}
+	case byte:
+		v = byteVal(i.(byte))
 	case []byte:
-		v = NewTypedVal(BYTE, i)
+		v = bytesVal(i.([]byte))
 	case string:
-		v = NewTypedVal(STRING, i)
+		v = strVal(i.(string))
 	}
 	return v
 }

@@ -1,6 +1,7 @@
 package agiledoc
 
 import (
+	//"fmt"
 	"github.com/emirpasic/gods/containers"
 	"github.com/emirpasic/gods/lists"
 	"github.com/emirpasic/gods/lists/arraylist"
@@ -21,6 +22,7 @@ import (
 	"github.com/emirpasic/gods/trees/binaryheap"
 	"github.com/emirpasic/gods/trees/redblacktree"
 	"github.com/emirpasic/gods/utils"
+	//"os"
 )
 
 // CONTAINER INTERFACE (extends the gods container interface)
@@ -35,7 +37,7 @@ type CntType uint16
 
 //go:generate -command stringer -type CntType
 const (
-	///////////// lists
+	///////////// listCnts
 	LIST_ARRAY CntType = 1 << iota
 	LIST_SINGLE
 	LIST_DOUBLE
@@ -96,7 +98,7 @@ func (c cont) Values() []Val { return interfaceSlice(c.Container.Values()).Value
 func NewContainer(t CntType, c ...Comparator) (r Container) {
 	switch {
 	case t&LISTS != 0:
-		r = newListContainer(t)
+		r = newlistCntContainer(t)
 	case t&MAPS != 0:
 		r = newMapContainer(t, c...)
 	case t&SETS != 0:
@@ -144,7 +146,48 @@ func ConstructComparator(t ValType) utils.Comparator {
 type interfaceSlice []interface{}
 type valSlice []Val
 type byteSlice []byte
+type boolSlice []bool
 
+func (b boolSlice) Bytes() []byte {
+
+	// bool-slice-integer array, combines up to 8 booleans in a slice to
+	// represent byte sized bitflags
+	var bsi [8]bool = [8]bool{}
+
+	// byte slice to concatenate all booleans in bitflag of arbitrary size
+	var bs = []byte{}
+
+	// split input into byte sized chunks and iterate over each of those chunks
+	for o := 0; o < (len(b)/8 + 1); o++ {
+
+		var u uint8 = 0 // allocate a new uint8 for each byte sized chunk
+
+		if o < len(b) { // if bool slice is not yet depleted
+
+			// iterate over each of the eight bits of the current chunk
+			for i := 0; i < 8; i++ {
+				i := i
+				// dereference bool at the current index
+				if bsi[i] { // if element is true, set a bit at the current index
+					u = 1 << uint(i)
+				}
+			}
+		} // end of chunk. since lenght check failed, another iteration is possibly needed.
+		// append the last produced chunk at the byte slice intended to return
+		bs = append(bs, u)
+
+	} // either iterate on, or return byte slice
+	// depending on the total number of chunks
+	return bs
+}
+func (b boolSlice) Values() []Val {
+	var vs = []Val{}
+	for _, v := range b {
+		v := NewVal(v)
+		vs = append(vs, v)
+	}
+	return vs
+}
 func (i byteSlice) Values() []Val {
 	var vs = []Val{}
 	for _, v := range i {
@@ -164,7 +207,7 @@ func (i interfaceSlice) Values() []Val {
 	var vs = []Val{}
 	for _, v := range i {
 		v := NewVal(v)
-		vs = append(vs, v)
+		(vs) = append(vs, v)
 	}
 	return vs
 }
@@ -178,7 +221,7 @@ func (v valSlice) Interfaces() []interface{} {
 
 // CUSTOMIZED CONTAINER INTERFACES AND IMPLEMENTATIONS
 //
-// LIST INTERFACE
+// listCnt INTERFACE
 type List interface {
 	Get(index int) (Val, bool)
 	Remove(index int)
@@ -191,42 +234,37 @@ type List interface {
 	Container
 }
 
-// LIST IMPLEMENTATION
-type list struct {
+// listCnt IMPLEMENTATION
+type listCnt struct {
 	CntType
 	lists.List
 }
 
-func (l list) ContType() CntType { return l.CntType }
-func (l *list) Add(v ...Val) {
-	(*l).List.Add(valSlice(v).Interfaces())
+func (l listCnt) ContType() CntType { return l.CntType }
+func (l *listCnt) Values() []Val    { s := (*l).List.Values(); return interfaceSlice(s).Values() }
+func (l *listCnt) Add(v ...Val) {
+	is := valSlice(v).Interfaces()
+	(*l).List.Add(is)
 }
-func (l *list) Insert(i int, v ...Val) {
-	(*l).List.Insert(i, valSlice(v).Interfaces())
-}
-func (l *list) Contains(v ...Val) bool {
-	return (*l).List.Contains(valSlice(v).Interfaces())
-}
-func (l *list) Get(i int) (Val, bool) {
+func (l *listCnt) Insert(i int, v ...Val) { (*l).List.Insert(i, valSlice(v).Interfaces()) }
+func (l *listCnt) Contains(v ...Val) bool { return (*l).List.Contains(valSlice(v).Interfaces()) }
+func (l *listCnt) Sort(c Comparator)      { (*l).List.Sort(c.Convert()) }
+func (l *listCnt) Get(i int) (Val, bool) {
 	v, ok := (*l).Get(i)
 	return v.(Val), ok
 }
-func (l list) Values() []Val { return interfaceSlice(l.List.Values()).Values() }
-func (l *list) Sort(c Comparator) {
-	(*l).List.Sort(c.Convert())
-}
 
-// LIST CONSTRUCTOR
-// the list constructor only needs to know the dedicated type of the list
+// listCnt CONSTRUCTOR
+// the listCnt constructor only needs to know the dedicated type of the listCnt
 // container to instanciate
-func newListContainer(t CntType) (l *list) {
+func newlistCntContainer(t CntType) (l *listCnt) {
 	switch t {
 	case LIST_ARRAY:
-		l = &list{t, arraylist.New()}
+		l = &listCnt{t, arraylist.New()}
 	case LIST_SINGLE:
-		l = &list{t, singlylinkedlist.New()}
+		l = &listCnt{t, singlylinkedlist.New()}
 	case LIST_DOUBLE:
-		l = &list{t, doublylinkedlist.New()}
+		l = &listCnt{t, doublylinkedlist.New()}
 	}
 	return l
 }
@@ -269,6 +307,7 @@ type BidiMap interface {
 }
 
 // MAP CONSTRUCTOR
+//
 // trees need one, or two comparators, while maps dont. Comparators can be of
 // different index type. apart from the designated container type, a variadic
 // idxType can optionaly be passed. The exact ammount of comparators needed, is
@@ -311,7 +350,8 @@ func (s *setCnt) Values() []Val {
 	return interfaceSlice((*s).Set.Values()).Values()
 }
 func (s *setCnt) Add(e ...Val) {
-	(*s).Set.Add(valSlice(e).Interfaces())
+	i := valSlice(e).Interfaces()
+	(*s).Set.Add(i...)
 }
 func (s *setCnt) Remove(e ...Val) {
 	(*s).Set.Remove(valSlice(e).Interfaces())

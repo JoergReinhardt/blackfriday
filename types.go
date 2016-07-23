@@ -74,11 +74,13 @@ const (
 type ValType uint
 
 // TYPES
+//
 type ( // are kept as close to the original types as possible
 	emptyVal struct{}           // emptyValue
 	flagVal  struct{ *big.Int } // all big based types are enveloped
 	intVal   struct{ *big.Int } // by strings to encapsulate the pointer
-	floatVal struct{ *big.Rat }
+	floatVal struct{ *big.Rat } // nature of the embedded type (otherwise
+	// methods get hard to define in a way that respects their signature)
 	byteVal  byte
 	bytesVal []byte
 	strVal   string
@@ -92,6 +94,7 @@ type (
 )
 
 // INTERFACE METHODS
+//
 // methods that share a name, need to be implemented once per receiving type
 func (emptyVal) Type() ValType { return NIL }
 func (flagVal) Type() ValType  { return FLAG }
@@ -114,7 +117,7 @@ func (v cntVal) Value() Val   { return v }
 // tyoed return functions return values of generic type, each is implemented by
 // at least the types containing that native type, and all that can be
 // converted to it.
-func (emptyVal) Empty() emptyVal { return emptyVal{} }
+func (*emptyVal) Empty() emptyVal { return emptyVal(struct{}{}) }
 
 func (v *flagVal) Flag() *flagVal   { return &flagVal{(*v).Int} }
 func (v *flagVal) Uint() uint64     { return (*v.Int).Uint64() }
@@ -126,14 +129,14 @@ func (v *intVal) Uint() uint64         { return (*v.Int).Uint64() }
 func (v *intVal) Integer() int64       { return (*v.Int).Int64() }
 func (v *intVal) Float() float64       { return float64((*v.Int).Int64()) }
 func (v *intVal) BigInt() *big.Int     { return (*v).Int }
-func (v *intVal) BigRat() *big.Rat     { return big.NewRat(1, 1).SetInt64((*v).Integer()) }
+func (v *intVal) BigRat() *big.Rat     { return big.NewRat(v.Integer(), 1) }
 func (v *intVal) BigFloat() *big.Float { return big.NewFloat(float64((*v).Int64())) }
 
 func (v *floatVal) Float() float64       { r, _ := (*v.Rat).Float64(); return r }
 func (v *floatVal) Integer() int64       { r, _ := (*v.Rat).Float64(); return int64(r) }
-func (v *floatVal) BigRat() *big.Rat     { return (*v).Rat }
-func (v *floatVal) BigInt() *big.Int     { f, _ := (*v).Float64(); return big.NewInt(int64(f)) }
-func (v *floatVal) BigFloat() *big.Float { f, _ := (*v).Float64(); return big.NewFloat(f) }
+func (v *floatVal) BigRat() *big.Rat     { return v.Rat }
+func (v *floatVal) BigInt() *big.Int     { f, _ := (*v.Rat).Float64(); return big.NewInt(int64(f)) }
+func (v *floatVal) BigFloat() *big.Float { f, _ := (*v.Rat).Float64(); return big.NewFloat(f) }
 
 func (v *bytesVal) Bytes() []byte    { return []byte(*v) }
 func (v *bytesVal) String() string   { return string(*v) }
@@ -189,10 +192,10 @@ func NewVal(i interface{}) Val {
 		}
 	case uint, uint16, uint32, uint64:
 		v = &flagVal{big.NewInt(int64(i.(uint)))}
-	case int, int8, int16, int32, int64, *big.Int:
+	case int, int8, int16, int32, int64:
 		v = &intVal{big.NewInt(int64(i.(int)))}
-	case float32, float64, *big.Rat, *big.Float:
-		v = &floatVal{big.NewRat(1, 1).SetInt64((int64(i.(float64))))}
+	case float32, float64:
+		v = &floatVal{big.NewRat(1, 1).SetFloat64(i.(float64))}
 	case byte:
 		v = byteVal(i.(byte))
 	case []byte:

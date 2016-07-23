@@ -4,19 +4,22 @@ import (
 	"testing"
 )
 
-var ValList = []Val{}
+func wrap(ct CntType, v [][]interface{}, t *testing.T) {
 
-func TestContainers(t *testing.T) {
-	for _, v := range TestVals {
-		val := NewVal(v)
-		ValList = append(ValList, val)
+	cal := NewContainer(LIST_ARRAY).(*listCnt)
+	st := NewVal("test addition")
+	(*cal).Add(st)
+
+	for o, s := range v {
+		o := o
+		s := s
+		for _, i := range s {
+			i := i
+			v := NewVal(i)
+			(*cal).Add(v)
+		}
+		(*t).Log("Nr.", o, "  ┄>  ", cal.Values())
 	}
-
-	t.Log("list of values: ", ValList)
-
-	cal := NewContainer(LIST_ARRAY).(List)
-	for _, v := range ValList {
-		cal.(List).Add(v)
-	}
-	t.Log("list Container after adding Values: ", cal, cal.Values(), "Size: ", cal.Size())
 }
+
+func TestContainers(t *testing.T) { wrap(LIST_ARRAY, InitValues(), t) }

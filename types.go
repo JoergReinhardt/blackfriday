@@ -75,7 +75,7 @@ type ( // are kept as close to the original types as possible
 	emptyVal struct{}           // emptyValue
 	flagVal  struct{ *big.Int } // all big based types are enveloped
 	intVal   struct{ *big.Int } // by strings to encapsulate the pointer
-	floatVal struct{ *big.Float }
+	floatVal struct{ *big.Rat }
 	byteVal  []byte
 	strVal   string
 )
@@ -108,7 +108,7 @@ func (v strVal) Value() Val   { return v }
 func (emptyVal) Empty() emptyVal   { return emptyVal{} }
 func (v flagVal) Flag() *big.Int   { return v.Int }
 func (v intVal) Integer() *big.Int { return v.Int }
-func (v floatVal) Flt() *big.Float { return v.Float }
+func (v floatVal) Flt() *big.Rat   { return v.Rat }
 func (v byteVal) Byte() []byte     { return v }
 func (v strVal) String() string    { return string(v) }
 
@@ -124,7 +124,7 @@ func NewTypedVal(t ValType, i interface{}) Val {
 	case INTEGER:
 		v = intVal{big.NewInt(int64(i.(int)))}
 	case FLOAT:
-		v = floatVal{big.NewFloat(i.(float64))}
+		v = floatVal{big.NewRat(0, 0).SetFloat64(i.(float64))}
 	case BYTE:
 		v = byteVal(i.([]byte))
 	case STRING:

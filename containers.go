@@ -14,12 +14,12 @@ import (
 	"github.com/emirpasic/gods/sets"
 	"github.com/emirpasic/gods/sets/hashset"
 	"github.com/emirpasic/gods/sets/treeset"
-	// 	"github.com/emirpasic/gods/stacks"
-	// 	"github.com/emirpasic/gods/stacks/arraystack"
-	// 	"github.com/emirpasic/gods/stacks/linkedliststack"
-	// 	"github.com/emirpasic/gods/trees"
-	// 	"github.com/emirpasic/gods/trees/binaryheap"
-	// 	"github.com/emirpasic/gods/trees/redblacktree"
+	"github.com/emirpasic/gods/stacks"
+	"github.com/emirpasic/gods/stacks/arraystack"
+	"github.com/emirpasic/gods/stacks/linkedliststack"
+	"github.com/emirpasic/gods/trees"
+	"github.com/emirpasic/gods/trees/binaryheap"
+	"github.com/emirpasic/gods/trees/redblacktree"
 	"github.com/emirpasic/gods/utils"
 )
 
@@ -217,6 +217,50 @@ func newSetContainer(t CntType, idxType ValType) (c Container) {
 		c = wrapContainer(t, hashset.New())
 	case SET_TREE:
 		c = wrapContainer(t, treeset.NewWith(ConstructComparator(idxType)))
+	}
+	return c
+}
+
+// STACK INTERFACE
+type Stack interface {
+	Push(value Val)
+	Pop() (value Val, ok bool)
+	Peek() (value Val, ok bool)
+}
+
+// STACK IMPLEMENTATION
+type stackCnt struct {
+	*cont
+	stacks.Stack
+}
+
+func newStackContainer(t CntType) (c Container) {
+	switch t {
+	case STACK_ARRAY:
+		c = wrapContainer(t, arraystack.New())
+	case STACK_LINKED:
+		c = wrapContainer(t, linkedliststack.New())
+	}
+	return c
+}
+
+// STACK INTERFACE
+type Tree interface {
+	Container
+}
+
+// STACK IMPLEMENTATION
+type treeCnt struct {
+	*cont
+	trees.Tree
+}
+
+func newTreeContainer(t CntType, comp Comparator) (c Container) {
+	switch t {
+	case TREE_REDBLACK:
+		c = wrapContainer(t, redblacktree.NewWith(comp.Convert()))
+	case TREE_BINHEAP:
+		c = wrapContainer(t, binaryheap.NewWith(comp.Convert()))
 	}
 	return c
 }

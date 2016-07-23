@@ -69,9 +69,31 @@ func (i interfaceSlice) Values() []Val {
 func (v valSlice) Interfaces() []interface{} {
 	var is = []interface{}{}
 	for _, i := range v {
-		is = append(is, v)
+		is = append(is, i)
 	}
 	return is
+}
+
+// COMPARATOR INTERFACES
+type Comparator func(a, b Val) int
+
+func (c Comparator) Convert() utils.Comparator {
+	var r utils.Comparator = c.Convert()
+	return r
+}
+
+type IntComparator func(a, b Val) int
+type StringComparator func(a, b Val) int
+
+func ConstructComparator(t ValType) utils.Comparator {
+	var f utils.Comparator
+	switch t {
+	case STRING:
+		f = utils.StringComparator
+	case INTEGER:
+		f = utils.IntComparator
+	}
+	return f
 }
 
 // LIST INTERFACE
@@ -241,161 +263,3 @@ const (
 	MAPS   = MAP_HASH | MAP_HASHBIDI | MAP_TREE | MAP_TREEBIDI
 	TREES  = TREE_BINHEAP | TREE_REDBLACK
 )
-
-var ContainerConstructors = []func() Container{}
-
-func InitializeContainers() {
-	// 	ContainerConstructors[LIST_ARRAY] = func() Container {}
-	// 	ContainerConstructors[LIST_SINGLE]
-	// 	ContainerConstructors[LIST_DOUBLE]
-	// 	ContainerConstructors[SET_HASH]
-	// 	ContainerConstructors[SET_TREE]
-	// 	ContainerConstructors[STACK_LINKED]
-	// 	ContainerConstructors[STACK_ARRAY]
-	// 	ContainerConstructors[MAP_HASH]
-	// 	ContainerConstructors[MAP_HASHBIDI]
-	// 	ContainerConstructors[MAP_TREE]
-	// 	ContainerConstructors[MAP_TREEBIDI]
-	// 	ContainerConstructors[TREE_REDBLACK]
-	// 	ContainerConstructors[TREE_BINHEAP]
-}
-
-// COMPARATOR INTERFACES
-type Comparator func(a, b Val) int
-
-func (c Comparator) Convert() utils.Comparator {
-	var r utils.Comparator = c.Convert()
-	return r
-}
-
-type IntComparator func(a, b Val) int
-type StringComparator func(a, b Val) int
-
-func ConstructComparator(t ValType) utils.Comparator {
-	var f utils.Comparator
-	switch t {
-	case STRING:
-		f = utils.StringComparator
-	case INTEGER:
-		f = utils.IntComparator
-	}
-	return f
-}
-
-// ENUMERABLE & ITERATOR INTERFACES
-type EnumerableWithIndex interface {
-	// Each calls the given function once for each element, passing that element's index and value.
-	Each(func(index int, value Val))
-
-	// Any passes each element of the container to the given function and
-	// returns true if the function ever returns true for any element.
-	Any(func(index int, value Val) bool) bool
-
-	// All passes each element of the container to the given function and
-	// returns true if the function returns true for all elements.
-	All(func(index int, value Val) bool) bool
-
-	// Find passes each element of the container to the given function and returns
-	// the first (index,value) for which the function is true or -1,nil otherwise
-	// if no element matches the criteria.
-	Find(func(index int, value Val) bool) (int, Val)
-}
-type EnumerableWithKey interface {
-	// Each calls the given function once for each element, passing that element's key and value.
-	Each(func(key Val, value Val))
-
-	// Any passes each element of the container to the given function and
-	// returns true if the function ever returns true for any element.
-	Any(func(key Val, value Val) bool) bool
-
-	// All passes each element of the container to the given function and
-	// returns true if the function returns true for all elements.
-	All(func(key Val, value Val) bool) bool
-
-	// Find passes each element of the container to the given function and returns
-	// the first (key,value) for which the function is true or nil,nil otherwise if no element
-	// matches the criteria.
-	Find(func(key Val, value Val) bool) (Val, Val)
-}
-type IteratorWithIndex interface {
-	// Next moves the iterator to the next element and returns true if there was a next element in the container.
-	// If Next() returns true, then next element's index and value can be retrieved by Index() and Value().
-	// If Next() was called for the first time, then it will point the iterator to the first element if it exists.
-	// Modifies the state of the iterator.
-	Next() bool
-
-	// Value returns the current element's value.
-	// Does not modify the state of the iterator.
-	Value() Val
-
-	// Index returns the current element's index.
-	// Does not modify the state of the iterator.
-	Index() int
-
-	// Begin resets the iterator to its initial state (one-before-first)
-	// Call Next() to fetch the first element if any.
-	Begin()
-
-	// First moves the iterator to the first element and returns true if there was a first element in the container.
-	// If First() returns true, then first element's index and value can be retrieved by Index() and Value().
-	// Modifies the state of the iterator.
-	First() bool
-}
-type IteratorWithKey interface {
-	// Next moves the iterator to the next element and returns true if there was a next element in the container.
-	// If Next() returns true, then next element's key and value can be retrieved by Key() and Value().
-	// If Next() was called for the first time, then it will point the iterator to the first element if it exists.
-	// Modifies the state of the iterator.
-	Next() bool
-
-	// Value returns the current element's value.
-	// Does not modify the state of the iterator.
-	Value() Val
-
-	// Key returns the current element's key.
-	// Does not modify the state of the iterator.
-	Key() Val
-
-	// Begin resets the iterator to its initial state (one-before-first)
-	// Call Next() to fetch the first element if any.
-	Begin()
-
-	// First moves the iterator to the first element and returns true if there was a first element in the container.
-	// If First() returns true, then first element's key and value can be retrieved by Key() and Value().
-	// Modifies the state of the iterator.
-	First() bool
-}
-type ReverseIteratorWithIndex interface {
-	// Prev moves the iterator to the previous element and returns true if there was a previous element in the container.
-	// If Prev() returns true, then previous element's index and value can be retrieved by Index() and Value().
-	// Modifies the state of the iterator.
-	Prev() bool
-
-	// End moves the iterator past the last element (one-past-the-end).
-	// Call Prev() to fetch the last element if any.
-	End()
-
-	// Last moves the iterator to the last element and returns true if there was a last element in the container.
-	// If Last() returns true, then last element's index and value can be retrieved by Index() and Value().
-	// Modifies the state of the iterator.
-	Last() bool
-
-	IteratorWithIndex
-}
-type ReverseIteratorWithKey interface {
-	// Prev moves the iterator to the previous element and returns true if there was a previous element in the container.
-	// If Prev() returns true, then previous element's key and value can be retrieved by Key() and Value().
-	// Modifies the state of the iterator.
-	Prev() bool
-
-	// End moves the iterator past the last element (one-past-the-end).
-	// Call Prev() to fetch the last element if any.
-	End()
-
-	// Last moves the iterator to the last element and returns true if there was a last element in the container.
-	// If Last() returns true, then last element's key and value can be retrieved by Key() and Value().
-	// Modifies the state of the iterator.
-	Last() bool
-
-	IteratorWithKey
-}

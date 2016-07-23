@@ -7,20 +7,17 @@ import (
 	"testing"
 )
 
-func parse(in []byte, t *tokenizer) []byte {
+func parse(in []byte, t *Tokenizer) []byte {
 	return bf.Markdown(in, t, 0)
 }
-func callback(t *tokenizer, c chan token, cb func(...interface{})) chan struct{} {
+func callback(t *Tokenizer, c chan Token, cb func(...interface{})) chan struct{} {
 	var quit chan struct{} = make(chan struct{})
 	go func() {
 		for quit == nil {
 			select {
 			case <-c:
 				tok := <-c
-				for _, v := range tok.Values() {
-					str := v.Value().(strVal).String()
-					cb(str)
-				}
+				cb(tok.rawTxt)
 			}
 		}
 	}()

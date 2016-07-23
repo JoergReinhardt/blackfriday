@@ -80,16 +80,34 @@ type cont struct {
 }
 
 // returns the container type
+//
 func (c cont) ContType() CntType { return c.ct }
 
 // returns a slice of Values from a container instance
+//
 func (c cont) Values() []Val { return interfaceSlice(c.Container.Values()).Values() }
 
 // CONTAINER WRAPPER
+//
 // function to assign the nescessary interface methods to a god container, to
 // make it implement the internal container interface, containing Val instances
 // instead of empty interfaces.
-func wrapContainer(t CntType, c containers.Container) Container { return &cont{t, c} }
+//
+func NewContainer(t CntType, c ...Comparator) (r Container) {
+	switch {
+	case t&LISTS != 0:
+		r = newListContainer(t)
+	case t&MAPS != 0:
+		r = newMapContainer(t, c...)
+	case t&SETS != 0:
+		r = newSetContainer(t, c...)
+	case t&STACKS != 0:
+		r = newStackContainer(t)
+	case t&TREES != 0:
+		r = newTreeContainer(t, c...)
+	}
+	return r
+}
 
 // COMPARATOR INTERFACES
 // gods comparators expect empty interfaces that are assertable to either
@@ -125,11 +143,27 @@ func ConstructComparator(t ValType) utils.Comparator {
 // slice type.
 type interfaceSlice []interface{}
 type valSlice []Val
+type byteSlice []byte
 
+func (i byteSlice) Values() []Val {
+	var vs = []Val{}
+	for _, v := range i {
+		v := NewVal(v)
+		vs = append(vs, v)
+	}
+	return vs
+}
+func (v byteSlice) Interfaces() []interface{} {
+	var is = []interface{}{}
+	for _, i := range v {
+		is = append(is, i)
+	}
+	return is
+}
 func (i interfaceSlice) Values() []Val {
 	var vs = []Val{}
 	for _, v := range i {
-		v := v.(Val)
+		v := NewVal(v)
 		vs = append(vs, v)
 	}
 	return vs
@@ -153,45 +187,48 @@ type List interface {
 	Sort(comparator Comparator)
 	Swap(index1, index2 int)
 	Insert(index int, values ...Val)
+
+	Container
 }
 
 // LIST IMPLEMENTATION
-type listCnt struct {
-	*cont
+type list struct {
+	CntType
 	lists.List
 }
 
-func (l *listCnt) Add(v ...Val) {
+func (l list) ContType() CntType { return l.CntType }
+func (l *list) Add(v ...Val) {
 	(*l).List.Add(valSlice(v).Interfaces())
 }
-func (l *listCnt) Insert(i int, v ...Val) {
+func (l *list) Insert(i int, v ...Val) {
 	(*l).List.Insert(i, valSlice(v).Interfaces())
 }
-func (l *listCnt) Contains(v ...Val) bool {
+func (l *list) Contains(v ...Val) bool {
 	return (*l).List.Contains(valSlice(v).Interfaces())
 }
-func (l *listCnt) Get(i int) (Val, bool) {
+func (l *list) Get(i int) (Val, bool) {
 	v, ok := (*l).Get(i)
 	return v.(Val), ok
 }
-
-func (l *listCnt) Sort(c Comparator) {
+func (l list) Values() []Val { return interfaceSlice(l.List.Values()).Values() }
+func (l *list) Sort(c Comparator) {
 	(*l).List.Sort(c.Convert())
 }
 
 // LIST CONSTRUCTOR
 // the list constructor only needs to know the dedicated type of the list
 // container to instanciate
-func newListContainer(t CntType) (c Container) {
+func newListContainer(t CntType) (l *list) {
 	switch t {
 	case LIST_ARRAY:
-		c = wrapContainer(t, arraylist.New())
+		l = &list{t, arraylist.New()}
 	case LIST_SINGLE:
-		c = wrapContainer(t, singlylinkedlist.New())
+		l = &list{t, singlylinkedlist.New()}
 	case LIST_DOUBLE:
-		c = wrapContainer(t, doublylinkedlist.New())
+		l = &list{t, doublylinkedlist.New()}
 	}
-	return c
+	return l
 }
 
 // MAP INTERFACE
@@ -204,16 +241,26 @@ type Map interface {
 
 // MAP IMPLEMENTATION
 type mapCnt struct {
-	*cont
+	CntType
 	maps.Map
 }
 
+func (m *mapCnt) ContType() CntType { return m.CntType }
 func (m *mapCnt) Values() []Val {
 	return interfaceSlice((*m).Map.Values()).Values()
 }
-
+func (m *mapCnt) Get(i Val) (Val, bool) {
+	v, ok := (*m).Map.Get(i)
+	return v.(Val), ok
+}
+func (m *mapCnt) Keys() []Val {
+	return interfaceSlice((*m).Map.Keys()).Values()
+}
 func (m *mapCnt) Put(k Val, v Val) {
 	(*m).Put(k, v)
+}
+func (m *mapCnt) Remove(k Val) {
+	(*m).Map.Remove(k)
 }
 
 type BidiMap interface {
@@ -229,18 +276,21 @@ type BidiMap interface {
 //
 // | hash, hashbidi = 0 | tree = 1 | treebidi = 2 |
 //
-func newMapContainer(t CntType, idxType ...ValType) (m Container) {
+func newMapContainer(t CntType, c ...Comparator) (m Container) {
 	switch t {
 	case MAP_HASH:
-		m = wrapContainer(t, hashmap.New())
+		m = &mapCnt{t, hashmap.New()}
 	case MAP_HASHBIDI:
-		m = wrapContainer(t, hashbidimap.New())
+		m = &mapCnt{t, hashbidimap.New()}
 	case MAP_TREE:
-		m = wrapContainer(t, treemap.NewWith(ConstructComparator(idxType[0])))
+		m = &mapCnt{t, treemap.NewWith(c[0].Convert())}
 	case MAP_TREEBIDI:
-		m = wrapContainer(t, treebidimap.NewWith(ConstructComparator(idxType[0]), ConstructComparator(idxType[1])))
+		m = &mapCnt{t, treebidimap.NewWith(c[0].Convert(), c[1].Convert())}
 	}
 	return m
+}
+func wrapMap(t CntType, m maps.Map) (r Map) {
+	return &mapCnt{t, m}
 }
 
 // SET INTERFACE
@@ -252,10 +302,14 @@ type Set interface {
 
 // SET IMPLEMENTATION
 type setCnt struct {
-	*cont
+	CntType
 	sets.Set
 }
 
+func (s *setCnt) ContType() CntType { return s.CntType }
+func (s *setCnt) Values() []Val {
+	return interfaceSlice((*s).Set.Values()).Values()
+}
 func (s *setCnt) Add(e ...Val) {
 	(*s).Set.Add(valSlice(e).Interfaces())
 }
@@ -268,14 +322,14 @@ func (s *setCnt) Contains(e ...Val) bool {
 
 // SET CONSTRUCTOR
 // the treeset needs a comparator closure
-func newSetContainer(t CntType, idxType ValType) (c Container) {
+func newSetContainer(t CntType, c ...Comparator) (r *setCnt) {
 	switch t {
 	case SET_HASH:
-		c = wrapContainer(t, hashset.New())
+		r = &setCnt{t, hashset.New()}
 	case SET_TREE:
-		c = wrapContainer(t, treeset.NewWith(ConstructComparator(idxType)))
+		r = &setCnt{t, treeset.NewWith(c[0].Convert())}
 	}
-	return c
+	return r
 }
 
 // STACK INTERFACE
@@ -283,23 +337,39 @@ type Stack interface {
 	Push(value Val)
 	Pop() (value Val, ok bool)
 	Peek() (value Val, ok bool)
+
+	Container
 }
 
 // STACK IMPLEMENTATION
 type stackCnt struct {
-	*cont
+	CntType
 	stacks.Stack
 }
 
+func (s *stackCnt) ContType() CntType { return s.CntType }
+func (s *stackCnt) Values() []Val {
+	return interfaceSlice((*s).Stack.Values()).Values()
+}
+func (s *stackCnt) Peek() (Val, bool) {
+	v, ok := (*s).Stack.Peek()
+	return v.(Val), ok
+}
+func (s *stackCnt) Pop() (Val, bool) {
+	v, ok := (*s).Stack.Pop()
+	return v.(Val), ok
+}
+func (s *stackCnt) Push(v Val) { (*s).Stack.Push(v) }
+
 // STACK CONSTRUCTOR
-func newStackContainer(t CntType) (c Container) {
+func newStackContainer(t CntType) (s Stack) {
 	switch t {
 	case STACK_ARRAY:
-		c = wrapContainer(t, arraystack.New())
+		s = &stackCnt{t, arraystack.New()}
 	case STACK_LINKED:
-		c = wrapContainer(t, linkedliststack.New())
+		s = &stackCnt{t, linkedliststack.New()}
 	}
-	return c
+	return s
 }
 
 // TREE INTERFACE
@@ -309,17 +379,22 @@ type Tree interface {
 
 // TREE IMPLEMENTATION
 type treeCnt struct {
-	*cont
+	CntType
 	trees.Tree
 }
 
+func (t *treeCnt) ContType() CntType { return (*t).CntType }
+func (t *treeCnt) Values() []Val {
+	return interfaceSlice((*t).Tree.Values()).Values()
+}
+
 // TREE CONSTRUCTOR
-func newTreeContainer(t CntType, comp Comparator) (c Container) {
+func newTreeContainer(t CntType, c ...Comparator) (r Container) {
 	switch t {
 	case TREE_REDBLACK:
-		c = wrapContainer(t, redblacktree.NewWith(comp.Convert()))
+		r = &treeCnt{t, redblacktree.NewWith(c[0].Convert())}
 	case TREE_BINHEAP:
-		c = wrapContainer(t, binaryheap.NewWith(comp.Convert()))
+		r = &treeCnt{t, binaryheap.NewWith(c[0].Convert())}
 	}
-	return c
+	return r
 }

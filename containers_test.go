@@ -18,7 +18,7 @@ func wrap(ct CntType, v [][]interface{}, t *testing.T) {
 			v := NewVal(i)
 			(*cal).Add(v)
 		}
-		(*t).Log("Nr.", o, "  ┄>  ", cal.Values())
+		(*t).Log("Nr.", o, "  ┄>  ", (*cal).Values())
 	}
 }
 

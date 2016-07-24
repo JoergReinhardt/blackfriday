@@ -57,6 +57,10 @@ const (
 	TREE_BINHEAP
 	///////////// utils
 
+	// generic container is the nil type of container types, since every
+	// container implementation is
+	CONTAINER CntType = 0
+
 	// sets of containers that share a more specific interface than
 	// gods/containers and have other method signatures in common
 	LISTS  = LIST_ARRAY | LIST_SINGLE | LIST_DOUBLE
@@ -107,6 +111,8 @@ func NewContainer(t CntType, c ...Comparator) (r Container) {
 		r = newStackContainer(t)
 	case t&TREES != 0:
 		r = newTreeContainer(t, c...)
+	default:
+		r = &vecVal{}
 	}
 	return r
 }

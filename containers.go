@@ -26,12 +26,12 @@ import (
 )
 
 // CONTAINER INTERFACE (extends the gods container interface)
-// interface to conceal god container empty interface values behind the Val
+// interface to conceal god container empty interface values behind the Values
 // interface, that provides a type function to inspect the nature of the
 // contained value without using reflection.. Since containers themselves and
 // there conained values both implement the val interface, all container types
 // are fully recursive. The Values returned from and passed to mapped
-// containers and sets, also implement the Var interface, KeyVal identitys are
+// containers and sets, also implement the Var interface, KeyValues identitys are
 // taken as map keys to map their values on to.
 type CntType uint16
 
@@ -57,8 +57,10 @@ const (
 	TREE_BINHEAP
 	///////////// utils
 
-	// generic container is the nil type of container types, since every
-	// container implementation is
+	// generic container is the nil type of container types, it wont get
+	// initialized much, since every container implementation also
+	// implements one of the more specific interfaces, that additionaly
+	// contain the container interface.
 	CONTAINER CntType = 0
 
 	// sets of containers that share a more specific interface than
@@ -76,7 +78,6 @@ type Container interface {
 	Empty() bool
 	Size() int
 	Clear()
-	Values() []Val // might be keyed vars/params
 }
 
 // CONTAINER IMPLEMENTATION
@@ -91,18 +92,18 @@ func (c cont) ContType() CntType { return c.ct }
 
 // returns a slice of Values from a container instance
 //
-func (c cont) Values() []Val { return interfaceSlice(c.Container.Values()).Values() }
+func (c cont) Values() []Value { return interfaceSlice(c.Container.Values()).Values() }
 
 // CONTAINER WRAPPER
 //
 // function to assign the nescessary interface methods to a god container, to
-// make it implement the internal container interface, containing Val instances
+// make it implement the internal container interface, containing Values instances
 // instead of empty interfaces.
 //
 func NewContainer(t CntType, c ...Comparator) (r Container) {
 	switch {
 	case t&LISTS != 0:
-		r = newlistCntContainer(t)
+		r = newlistContainer(t)
 	case t&MAPS != 0:
 		r = newMapContainer(t, c...)
 	case t&SETS != 0:
@@ -119,20 +120,20 @@ func NewContainer(t CntType, c ...Comparator) (r Container) {
 
 // COMPARATOR INTERFACES
 // gods comparators expect empty interfaces that are assertable to either
-// string, or int. The Val interface allows for much more complex types. the
+// string, or int. The Values interface allows for much more complex types. the
 // comparator function can be set up on arbitratry types, methods, or fields of
 // complex types, as long as it is converted to the correct signature before
 // passed to god.
-type Comparator func(a, b Val) int
-type IntComparator func(a, b Val) int
-type StringComparator func(a, b Val) int
+type Comparator func(a, b Value) int
+type IntComparator func(a, b Value) int
+type StringComparator func(a, b Value) int
 
 func (c Comparator) Convert() utils.Comparator {
 	var r utils.Comparator = c.Convert()
 	return r
 }
 
-func ConstructComparator(t ValType) utils.Comparator {
+func ConstructComparator(t ValueType) utils.Comparator {
 	var f utils.Comparator
 	switch t {
 	case STRING:
@@ -150,7 +151,7 @@ func ConstructComparator(t ValType) utils.Comparator {
 // Values(), or the Interfaces() method that converts them to the corredponding
 // slice type.
 type interfaceSlice []interface{}
-type valSlice []Val
+type valSlice []Value
 type byteSlice []byte
 type boolSlice []bool
 
@@ -186,19 +187,19 @@ func (b boolSlice) Bytes() []byte {
 	// depending on the total number of chunks
 	return bs
 }
-func (b boolSlice) Values() []Val {
-	var vs = []Val{}
+func (b boolSlice) Values() []Value {
+	var vs = []Value{}
 	for _, v := range b {
-		v := NewVal(v)
-		vs = append(vs, v)
+		v := v
+		vs = append(vs, Value().ToValue(v))
 	}
 	return vs
 }
-func (i byteSlice) Values() []Val {
-	var vs = []Val{}
+func (i byteSlice) Values() []Value {
+	var vs = []Value{}
 	for _, v := range i {
-		v := NewVal(v)
-		vs = append(vs, v)
+		v := v
+		vs = append(vs, byteVal(v))
 	}
 	return vs
 }
@@ -209,11 +210,11 @@ func (v byteSlice) Interfaces() []interface{} {
 	}
 	return is
 }
-func (i interfaceSlice) Values() []Val {
-	var vs = []Val{}
+func (i interfaceSlice) Values() []Value {
+	var vs = []Value{}
 	for _, v := range i {
-		v := NewVal(v)
-		(vs) = append(vs, v)
+		v := v
+		vs = append(vs, v.(byteVal))
 	}
 	return vs
 }
@@ -229,13 +230,13 @@ func (v valSlice) Interfaces() []interface{} {
 //
 // listCnt INTERFACE
 type List interface {
-	Get(index int) (Val, bool)
+	Get(index int) (Value, bool)
 	Remove(index int)
-	Add(values ...Val)
-	Contains(values ...Val) bool
+	Add(values ...Value)
+	Contains(values ...Value) bool
 	Sort(comparator Comparator)
 	Swap(index1, index2 int)
-	Insert(index int, values ...Val)
+	Insert(index int, values ...Value)
 
 	Container
 }
@@ -247,23 +248,23 @@ type listCnt struct {
 }
 
 func (l listCnt) ContType() CntType { return l.CntType }
-func (l *listCnt) Values() []Val    { s := (*l).List.Values(); return interfaceSlice(s).Values() }
-func (l *listCnt) Add(v ...Val) {
+func (l *listCnt) Values() []Value  { s := (*l).List.Values(); return interfaceSlice(s).Values() }
+func (l *listCnt) Add(v ...Value) {
 	is := valSlice(v).Interfaces()
 	(*l).List.Add(is)
 }
-func (l *listCnt) Insert(i int, v ...Val) { (*l).List.Insert(i, valSlice(v).Interfaces()) }
-func (l *listCnt) Contains(v ...Val) bool { return (*l).List.Contains(valSlice(v).Interfaces()) }
-func (l *listCnt) Sort(c Comparator)      { (*l).List.Sort(c.Convert()) }
-func (l *listCnt) Get(i int) (Val, bool) {
+func (l *listCnt) Insert(i int, v ...Value) { (*l).List.Insert(i, valSlice(v).Interfaces()) }
+func (l *listCnt) Contains(v ...Value) bool { return (*l).List.Contains(valSlice(v).Interfaces()) }
+func (l *listCnt) Sort(c Comparator)        { (*l).List.Sort(c.Convert()) }
+func (l *listCnt) Get(i int) (Value, bool) {
 	v, ok := (*l).Get(i)
-	return v.(Val), ok
+	return v.(Value), ok
 }
 
 // listCnt CONSTRUCTOR
 // the listCnt constructor only needs to know the dedicated type of the listCnt
 // container to instanciate
-func newlistCntContainer(t CntType) (l *listCnt) {
+func newlistContainer(t CntType) (l *listCnt) {
 	switch t {
 	case LIST_ARRAY:
 		l = &listCnt{t, arraylist.New()}
@@ -277,10 +278,12 @@ func newlistCntContainer(t CntType) (l *listCnt) {
 
 // MAP INTERFACE
 type Map interface {
-	Put(key Val, value Val)
-	Get(key Val) (value Val, found bool)
-	Remove(key Val)
-	Keys() []Val
+	Put(key Value, value Value)
+	Get(key Value) (value Value, found bool)
+	Remove(key Value)
+	Keys() []Value
+
+	Container
 }
 
 // MAP IMPLEMENTATION
@@ -290,26 +293,26 @@ type mapCnt struct {
 }
 
 func (m *mapCnt) ContType() CntType { return m.CntType }
-func (m *mapCnt) Values() []Val {
+func (m *mapCnt) Values() []Value {
 	return interfaceSlice((*m).Map.Values()).Values()
 }
-func (m *mapCnt) Get(i Val) (Val, bool) {
+func (m *mapCnt) Get(i Value) (Value, bool) {
 	v, ok := (*m).Map.Get(i)
-	return v.(Val), ok
+	return v.(Value), ok
 }
-func (m *mapCnt) Keys() []Val {
+func (m *mapCnt) Keys() []Value {
 	return interfaceSlice((*m).Map.Keys()).Values()
 }
-func (m *mapCnt) Put(k Val, v Val) {
+func (m *mapCnt) Put(k Value, v Value) {
 	(*m).Put(k, v)
 }
-func (m *mapCnt) Remove(k Val) {
+func (m *mapCnt) Remove(k Value) {
 	(*m).Map.Remove(k)
 }
 
 type BidiMap interface {
-	GetKey(value Val) (key Val, found bool)
-	Map
+	GetKey(value Value) (key Value, found bool)
+	Map // allready contains container
 }
 
 // MAP CONSTRUCTOR
@@ -340,9 +343,11 @@ func wrapMap(t CntType, m maps.Map) (r Map) {
 
 // SET INTERFACE
 type Set interface {
-	Add(elements ...Val)
-	Remove(elements ...Val)
-	Contains(elements ...Val) bool
+	Add(elements ...Value)
+	Remove(elements ...Value)
+	Contains(elements ...Value) bool
+
+	Container
 }
 
 // SET IMPLEMENTATION
@@ -352,17 +357,17 @@ type setCnt struct {
 }
 
 func (s *setCnt) ContType() CntType { return s.CntType }
-func (s *setCnt) Values() []Val {
+func (s *setCnt) Values() []Value {
 	return interfaceSlice((*s).Set.Values()).Values()
 }
-func (s *setCnt) Add(e ...Val) {
+func (s *setCnt) Add(e ...Value) {
 	i := valSlice(e).Interfaces()
 	(*s).Set.Add(i...)
 }
-func (s *setCnt) Remove(e ...Val) {
+func (s *setCnt) Remove(e ...Value) {
 	(*s).Set.Remove(valSlice(e).Interfaces())
 }
-func (s *setCnt) Contains(e ...Val) bool {
+func (s *setCnt) Contains(e ...Value) bool {
 	return (*s).Set.Contains(valSlice(e).Interfaces())
 }
 
@@ -380,9 +385,9 @@ func newSetContainer(t CntType, c ...Comparator) (r *setCnt) {
 
 // STACK INTERFACE
 type Stack interface {
-	Push(value Val)
-	Pop() (value Val, ok bool)
-	Peek() (value Val, ok bool)
+	Push(value Value)
+	Pop() (value Value, ok bool)
+	Peek() (value Value, ok bool)
 
 	Container
 }
@@ -394,18 +399,18 @@ type stackCnt struct {
 }
 
 func (s *stackCnt) ContType() CntType { return s.CntType }
-func (s *stackCnt) Values() []Val {
+func (s *stackCnt) Values() []Value {
 	return interfaceSlice((*s).Stack.Values()).Values()
 }
-func (s *stackCnt) Peek() (Val, bool) {
+func (s *stackCnt) Peek() (Value, bool) {
 	v, ok := (*s).Stack.Peek()
-	return v.(Val), ok
+	return v.(Value), ok
 }
-func (s *stackCnt) Pop() (Val, bool) {
+func (s *stackCnt) Pop() (Value, bool) {
 	v, ok := (*s).Stack.Pop()
-	return v.(Val), ok
+	return v.(Value), ok
 }
-func (s *stackCnt) Push(v Val) { (*s).Stack.Push(v) }
+func (s *stackCnt) Push(v Value) { (*s).Stack.Push(v) }
 
 // STACK CONSTRUCTOR
 func newStackContainer(t CntType) (s Stack) {
@@ -430,7 +435,7 @@ type treeCnt struct {
 }
 
 func (t *treeCnt) ContType() CntType { return (*t).CntType }
-func (t *treeCnt) Values() []Val {
+func (t *treeCnt) Values() []Value {
 	return interfaceSlice((*t).Tree.Values()).Values()
 }
 

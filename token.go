@@ -57,7 +57,7 @@ func (p pos) SetLength(l int) { p[1] = p[0] + l }
 // the next byte behind its end index as the start position for the new
 // position.
 func (p pos) genNextPos() pos { return pos{p.End() + 1, p.End() + 1} }
-func (p pos) GenNextToken(t TType, raw []byte, flags uint, parms ...Val) Token {
+func (p pos) GenNextToken(t TType, raw []byte, flags uint, parms ...Value) Token {
 	var pc Container
 	return Token{
 		t,
@@ -76,7 +76,7 @@ func (p pos) GenNextToken(t TType, raw []byte, flags uint, parms ...Val) Token {
 type Token struct {
 	ttype TType
 	pos
-	rawTxt bytesVal
+	rawTxt Value
 	flags  uint
 	params Container // contains god hashmap
 }
@@ -129,7 +129,7 @@ type Tokenizer struct {
 	out   chan Token // returns tokens to the caller
 }
 
-// func (tkz *Tokenizer) newToken(t TType, raw []byte, flags uint, parms ...keyVal) {
+// func (tkz *Tokenizer) newToken(t TType, raw []byte, flags uint, parms ...keyValue) {
 // 	var c Container
 // 	// copy parameters, only if there are any
 // 	if len(parms) > 0 {
@@ -137,10 +137,10 @@ type Tokenizer struct {
 // 		m := hashmap.New()
 //
 // 		for _, v := range parms {
-// 			(*m).Put(v.Key(), v.Value())
+// 			(*m).Put(v.Key(), v.Valueue())
 // 		}
 //
-// 		c = NewTypedVal(CONTAINER, m).(intVal)
+// 		c = NewTypedValue(CONTAINER, m).(intVal)
 // 	}
 // 	// calculate new position
 // 	ns := (*tkz).cur.End() + 1
@@ -155,11 +155,11 @@ type Tokenizer struct {
 // }
 
 // func NewTokenizer(flags ...uint) (*Tokenizer, chan Token) {
-// 	f := NewTypedVal(FLAG, 0)
+// 	f := NewTypedValue(FLAG, 0)
 // 	// XOR flags
 // 	for _, flag := range flags {
-// 		cmp := NewTypedVal(FLAG, flag)
-// 		f.Value.Flag().Xor(f.Value.Flag(), cmp.Value.Flag())
+// 		cmp := NewTypedValue(FLAG, flag)
+// 		f.Valueue.Flag().Xor(f.Valueue.Flag(), cmp.Valueue.Flag())
 // 	}
 // 	o := make(chan Token, 1)
 // 	return &Tokenizer{f, Token{}, o}, o

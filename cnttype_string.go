@@ -4,22 +4,23 @@ package agiledoc
 
 import "fmt"
 
-const _CntType_name = "LIST_ARRAYLIST_SINGLELIST_DOUBLESET_HASHSET_TREESTACK_LINKEDSTACK_ARRAYMAP_HASHMAP_HASHBIDIMAP_TREEMAP_TREEBIDITREE_REDBLACKTREE_BINHEAP"
+const _CntType_name = "CONTAINERLIST_ARRAYLIST_SINGLELIST_DOUBLESET_HASHSET_TREESTACK_LINKEDSTACK_ARRAYMAP_HASHMAP_HASHBIDIMAP_TREEMAP_TREEBIDITREE_REDBLACKTREE_BINHEAP"
 
 var _CntType_map = map[CntType]string{
-	1:    _CntType_name[0:10],
-	2:    _CntType_name[10:21],
-	4:    _CntType_name[21:32],
-	8:    _CntType_name[32:40],
-	16:   _CntType_name[40:48],
-	32:   _CntType_name[48:60],
-	64:   _CntType_name[60:71],
-	128:  _CntType_name[71:79],
-	256:  _CntType_name[79:91],
-	512:  _CntType_name[91:99],
-	1024: _CntType_name[99:111],
-	2048: _CntType_name[111:124],
-	4096: _CntType_name[124:136],
+	0:    _CntType_name[0:9],
+	1:    _CntType_name[9:19],
+	2:    _CntType_name[19:30],
+	4:    _CntType_name[30:41],
+	8:    _CntType_name[41:49],
+	16:   _CntType_name[49:57],
+	32:   _CntType_name[57:69],
+	64:   _CntType_name[69:80],
+	128:  _CntType_name[80:88],
+	256:  _CntType_name[88:100],
+	512:  _CntType_name[100:108],
+	1024: _CntType_name[108:120],
+	2048: _CntType_name[120:133],
+	4096: _CntType_name[133:145],
 }
 
 func (i CntType) String() string {

@@ -36,7 +36,7 @@ import (
 // decided to have bitflags as a type, to make the type acsess-, compare- and
 // usable.
 //
-// INTEGER & FLOAT
+// INTEGER, RATIONAL & FLOAT
 //
 // parsing values embedded in text and perform calculations on them is the main
 // goal of agiledocument, which makesnumbers are the essence of the agile
@@ -49,22 +49,29 @@ import (
 //
 // the source will be provided by blackfriday in form of a byte slice
 //
-type Val interface {
-	Type() ValType
-	Value() Val
+type Value interface {
+	Type() ValueType
+	Value() Value
+	ToValue(Value)
 }
-type KeyVal interface {
-	Val
-	Key() string
+type Values interface {
+	Value
+	Values() []Value
+	ToValues([]Value)
+}
+type KeyValue interface {
+	Ident() string
+	Value // Type() ValueType, Value() Value
 }
 
 // strings make the input handable as text.
-//go:generate -command stringer -type ValType
+//go:generate -command stringer -type ValueType
 const (
-	NIL  ValType = 0
-	BOOL ValType = 1 << iota
+	NIL  ValueType = 0
+	BOOL ValueType = 1 << iota
 	INTEGER
 	FLOAT
+	RATIONAL
 	FLAG
 	BYTE
 	BYTES
@@ -72,16 +79,16 @@ const (
 	VECTOR
 )
 
-type ValType uint
+type ValueType uint
 
 // TYPES
 //
-type ( // are kept as close to the original types as possible
-	emptyVal struct{}           // emptyValue
-	flagVal  struct{ *big.Int } // all big based types are enveloped
-	intVal   struct{ *big.Int } // by strings to encapsulate the pointer
-	floatVal struct{ *big.Rat } // nature of the embedded type (otherwise
-	// methods get hard to define in a way that respects their signature)
+type ( // are kept as close to the native types they are derived from, as possible
+	emptyVal struct{} // the empty struct is taken as emptyVal
+	flagVal  big.Int
+	intVal   big.Int
+	floatVal big.Float
+	ratVal   big.Rat
 	boolVal  bool
 	byteVal  byte
 	bytesVal []byte
@@ -91,169 +98,199 @@ type ( // are kept as close to the original types as possible
 
 // funtion types that implement the interface
 type (
-	typeFunc func(Val) ValType
-	valFunc  func(Val) Val
+	// for each interface method there is a function defined, representing it. By sharing it's type
+	// signature and using a Value instance as its first parameter and only return type.
+	//
+	ValueFnT func(Value) Value // TYPE CONVERTING & RETURN METHOD
+	TypeFnT  func(Value) ValueType
+	IdentFnT func(KeyValue) string
+	///
+	/// FUNCTIONAL TYPE REPRESENTATION
+	//
+	// to convert from each allowed type to every type a value can be
+	// converted to, without a lot of repeating, function types to
+	// represent the native types are needed.
+	//
+	// the type system makes A function type that gets an interface type as
+	// first parameter in it´s definition, acts like a method that works on
+	// all instances that implement its receiving Interface parameter.
+	BoolFnT     func(Value) bool
+	BigIntFnT   func(Value) big.Int
+	BigFloatFnT func(Value) big.Float
+	BigRatFnT   func(Value) big.Rat
+	ByteFnT     func(Value) byte
+	BytesFnT    func(Value) []byte
+	StringFnT   func(Value) string
+	IntegerFnT  func(Value) int64
+	FloatFnT    func(Value) float64
+	ValuesFnT   func(Value) []Value
 )
+
+func RetValue(v Value) Value                      { return v }
+func RetValues(v Values) Values                   { return v }
+func RetInterSlice(v []interface{}) []interface{} { return v }
 
 // INTERFACE METHODS
 //
 // methods that share a name, need to be implemented once per receiving type
-func (emptyVal) Type() ValType { return NIL }
-func (flagVal) Type() ValType  { return FLAG }
-func (intVal) Type() ValType   { return INTEGER }
-func (floatVal) Type() ValType { return FLOAT }
-func (boolVal) Type() ValType  { return BOOL }
-func (byteVal) Type() ValType  { return BYTE }
-func (bytesVal) Type() ValType { return BYTES }
-func (strVal) Type() ValType   { return STRING }
-func (vecVal) Type() ValType   { return VECTOR }
+func (emptyVal) Type() ValueType { return NIL }
+func (flagVal) Type() ValueType  { return FLAG }
+func (intVal) Type() ValueType   { return INTEGER }
+func (floatVal) Type() ValueType { return FLOAT }
+func (ratVal) Type() ValueType   { return RATIONAL }
+func (boolVal) Type() ValueType  { return BOOL }
+func (byteVal) Type() ValueType  { return BYTE }
+func (bytesVal) Type() ValueType { return BYTES }
+func (strVal) Type() ValueType   { return STRING }
+func (vecVal) Type() ValueType   { return VECTOR }
 
-func (v emptyVal) Value() Val { return v }
-func (v flagVal) Value() Val  { return v }
-func (v intVal) Value() Val   { return v }
-func (v floatVal) Value() Val { return v }
-func (v boolVal) Value() Val  { return v }
-func (v byteVal) Value() Val  { return v }
-func (v bytesVal) Value() Val { return v }
-func (v strVal) Value() Val   { return v }
-func (v vecVal) Value() Val   { return v }
+func (v emptyVal) Value() Value { return v }
+func (v flagVal) Value() Value  { return v }
+func (v intVal) Value() Value   { return v }
+func (v floatVal) Value() Value { return v }
+func (v ratVal) Value() Value   { return v }
+func (v boolVal) Value() Value  { return v }
+func (v byteVal) Value() Value  { return v }
+func (v bytesVal) Value() Value { return v }
+func (v strVal) Value() Value   { return v }
+func (v vecVal) Value() Value   { return v }
 
 // tyoed return functions return values of generic type, each is implemented by
 // at least the types containing that native type, and all that can be
 // converted to it.
-func (*emptyVal) Empty() emptyVal { return emptyVal(struct{}{}) }
+func (emptyVal) Empty() emptyVal { return emptyVal(struct{}{}) }
 
-func (b *boolVal) Boolean() bool { return bool(*b) }
-func (b *boolVal) Integer() int {
-	if *b {
+func (b boolVal) Boolean() bool { return bool(b) }
+func (b boolVal) Integer() int {
+	if b {
 		return 1
 	} else {
 		return 0
 	}
 }
 
-func (v *flagVal) Flag() *flagVal   { return &flagVal{(*v).Int} }
-func (v *flagVal) Uint() uint64     { return (*v.Int).Uint64() }
-func (v *flagVal) Integer() int64   { return (*v.Int).Int64() }
-func (v *flagVal) BigInt() *big.Int { return v.Int }
-func (v *flagVal) Boolean() bool {
-	if v.Int64() > 0.0 {
+func (v flagVal) Flag() flagVal   { return v }
+func (v flagVal) BigInt() big.Int { return big.Int(v) }
+func (v flagVal) Uint() uint64    { return v.Uint() }
+func (v flagVal) Integer() int64  { return v.Integer() }
+func (v flagVal) Boolean() bool {
+	if v.Integer() > 0 {
 		return true
 	} else {
 		return false
 	}
 }
 
-func (v *intVal) Flag() *flagVal       { return &flagVal{(*v).BigInt()} }
-func (v *intVal) Uint() uint64         { return (*v.Int).Uint64() }
-func (v *intVal) Integer() int64       { return (*v.Int).Int64() }
-func (v *intVal) Float() float64       { return float64((*v.Int).Int64()) }
-func (v *intVal) BigInt() *big.Int     { return (*v).Int }
-func (v *intVal) BigRat() *big.Rat     { return big.NewRat(v.Integer(), 1) }
-func (v *intVal) BigFloat() *big.Float { return big.NewFloat(float64((*v).Int64())) }
-func (v *intVal) Boolean() bool {
-	if (*v).Int64() > 0 {
+func (v intVal) BigInt() *big.Int     { r := big.Int(v); return &r }
+func (v intVal) BigRat() *big.Rat     { return big.NewRat(v.Integer(), 1) }
+func (v intVal) BigFloat() *big.Float { return big.NewFloat(v.Float()) }
+func (v intVal) Flag() flagVal        { return flagVal(*v.BigInt()) }
+func (v intVal) Uint() uint64         { return (v.BigInt()).Uint64() }
+func (v intVal) Integer() int64       { return v.BigInt().Int64() }
+func (v intVal) Float() float64       { return float64(v.BigInt().Int64()) }
+func (v intVal) Bytes() []byte        { return []byte(v.Bytes()) }
+func (v intVal) Boolean() bool {
+	if v.Integer() > 0 {
 		return true
 	} else {
 		return false
 	}
 }
 
-func (v *floatVal) Float() float64       { r, _ := (*v.Rat).Float64(); return r }
-func (v *floatVal) Integer() int64       { r, _ := (*v.Rat).Float64(); return int64(r) }
-func (v *floatVal) BigRat() *big.Rat     { return v.Rat }
-func (v *floatVal) BigInt() *big.Int     { f, _ := (*v.Rat).Float64(); return big.NewInt(int64(f)) }
-func (v *floatVal) BigFloat() *big.Float { f, _ := (*v.Rat).Float64(); return big.NewFloat(f) }
-func (v *floatVal) Boolean() bool {
-	f, _ := (*v).Float64()
-	if f > 0.0 {
+func (v ratVal) BigRat() *big.Rat     { r := big.Rat(v); return &r }
+func (v ratVal) BigInt() *big.Int     { return big.NewInt(v.Integer()) }
+func (v ratVal) BigFloat() *big.Float { return (v).BigFloat() }
+func (v ratVal) Float() float64       { f, _ := (v).BigFloat().Float64(); return f }
+func (v ratVal) Integer() int64       { return v.BigInt().Int64() }
+func (v ratVal) Boolean() bool {
+	if v.Float() > 0.0 {
 		return true
 	} else {
 		return false
 	}
 }
 
-func (v *bytesVal) Bytes() []byte    { return []byte(*v) }
-func (v *bytesVal) String() string   { return string(*v) }
-func (v *bytesVal) Uint() uint64     { return big.NewInt(0).SetBytes(*v).Uint64() }
-func (v *bytesVal) Flag() *flagVal   { return &flagVal{big.NewInt(0).SetBytes((*v).Bytes())} }
-func (v *bytesVal) BigInt() *big.Int { return big.NewInt(0).SetBytes((*v).Bytes()) }
-func (v *bytesVal) Uints() (r []uint8) {
+func (v bytesVal) Bytes() []byte    { return []byte(v) }
+func (v bytesVal) String() string   { return string(v) }
+func (v bytesVal) Uint() uint64     { return big.NewInt(0).SetBytes(v).Uint64() }
+func (v bytesVal) Flag() flagVal    { return flagVal(*big.NewInt(0).SetBytes(v.Bytes())) }
+func (v bytesVal) BigInt() *big.Int { return big.NewInt(0).SetBytes(v.Bytes()) }
+func (v bytesVal) Uints() (r []uint8) {
 	r = []uint8{}
-	for _, val := range *v {
+	for _, val := range v {
 		b := uint8(val)
 		r = append(r, b)
 	}
 	return r
 }
-func (v *bytesVal) Boolean() bool {
+func (v bytesVal) Boolean() bool {
 	// see if any bit is set and return
-	if len(*v) > 1 { // true, when set
+	if len(v) > 1 { // true, when set
 		return true
 	} else { // false, when no bits are set
 		return false
 	}
 }
 
-func (v *strVal) Bytes() []byte  { return []byte(*v) }
-func (v *strVal) String() string { return string(*v) }
+func (v strVal) Bytes() []byte  { return []byte(v) }
+func (v strVal) String() string { return string(v) }
 
 // convenience conversion functions
-func (v *vecVal) Vector() Val { return v }
+func (v vecVal) Vector() Value { return v }
 
 // TO-TYPE | FROM-TYPE
 //
 // if the native tyoe is allready known at the time of initialization,
 // reflection can be omitted.
-func toType(i Val, t ValType) (v Val) {
-	switch t {
-	case NIL:
-		v = emptyVal{}
-	case FLAG:
-		v = &flagVal{big.NewInt(i.(*flagVal).Integer())}
-	case INTEGER:
-		v = &intVal{big.NewInt(i.(*intVal).Int64())}
-	case FLOAT:
-		f, _ := i.(*floatVal).Float64()
-		v = &floatVal{big.NewRat(1, 1).SetFloat64(f)}
-	case BYTES:
-		v = bytesVal(i.(*bytesVal).Bytes())
-	case BYTE:
-		v = i.(byteVal)
-	case STRING:
-		v = strVal(i.(*strVal).String())
-	default:
-		v = emptyVal{}
-	}
-	return v
-}
-func fromType(r Val, v Val) {}
+//func toType(i Value, t ValueType) (v Value) {
+//	switch t {
+//	case NIL:
+//		v = emptyVal{}
+//	case FLAG:
+//		v = &flagVal{big.NewInt(i.(*flagVal).Integer())}
+//	case INTEGER:
+//		v = &intVal{big.NewInt(i.(*intVal).Int64())}
+//	case FLOAT:
+//		f, _ := i.(*floatVal).Float64()
+//		v = &floatVal{big.NewRat(1, 1).SetFloat64(f)}
+//	case BYTES:
+//		v = bytesVal(i.(*bytesVal).Bytes())
+//	case BYTE:
+//		v = i.(byteValue)
+//	case STRING:
+//		v = strValue(i.(*strValue).String())
+//	default:
+//		v = emptyVal{}
+//	}
+//	return v
+//}
+func fromType(r Value, v Value) {}
 
 // INSTANCIATE A NEW VALUE
 //
 // instanciate arbitratry values of native type and return instances
 // implementing the value interface.
-func NewVal(i interface{}) Val {
-	var v Val
-	switch i.(type) {
-	case bool:
-		if i.(bool) {
-			return &flagVal{big.NewInt(1)}
-		} else {
-			return &flagVal{big.NewInt(1)}
-		}
-	case uint, uint16, uint32, uint64:
-		v = &flagVal{big.NewInt(int64(i.(uint)))}
-	case int, int8, int16, int32, int64:
-		v = &intVal{big.NewInt(int64(i.(int)))}
-	case float32, float64:
-		v = &floatVal{big.NewRat(1, 1).SetFloat64(i.(float64))}
-	case byte:
-		v = byteVal(i.(byte))
-	case []byte:
-		v = bytesVal(i.([]byte))
-	case string:
-		v = strVal(i.(string))
-	}
-	return v
-}
+//func NewValue(i interface{}) Value {
+//	var v Value
+//	switch i.(type) {
+//	case bool:
+//		if i.(bool) {
+//			return &flagVal{big.NewInt(1)}
+//		} else {
+//			return &flagVal{big.NewInt(1)}
+//		}
+//	case uint, uint16, uint32, uint64:
+//		v = &flagVal{big.NewInt(int64(i.(uint)))}
+//	case int, int8, int16, int32, int64:
+//		v = &intVal{big.NewInt(int64(i.(int)))}
+//	case float32, float64:
+//		v = &floatVal{big.NewRat(1, 1).SetFloat64(i.(float64))}
+//	case byte:
+//		v = byteValue(i.(byte))
+//	case []byte:
+//		v = bytesVal(i.([]byte))
+//	case string:
+//		v = strValue(i.(string))
+//	}
+//	return v
+//}

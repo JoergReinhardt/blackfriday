@@ -7,7 +7,7 @@ import (
 func wrap(ct CntType, v [][]interface{}, t *testing.T) {
 
 	cal := NewContainer(LIST_ARRAY).(*listCnt)
-	st := NewVal("test addition")
+	st := Value("test addition")
 	(*cal).Add(st)
 
 	for o, s := range v {

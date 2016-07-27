@@ -9,11 +9,12 @@ const (
 	_ValueType_name_1 = "BOOL"
 	_ValueType_name_2 = "INTEGER"
 	_ValueType_name_3 = "FLOAT"
-	_ValueType_name_4 = "FLAG"
-	_ValueType_name_5 = "BYTE"
-	_ValueType_name_6 = "BYTES"
-	_ValueType_name_7 = "STRING"
-	_ValueType_name_8 = "VECTOR"
+	_ValueType_name_4 = "RATIONAL"
+	_ValueType_name_5 = "FLAG"
+	_ValueType_name_6 = "BYTE"
+	_ValueType_name_7 = "BYTES"
+	_ValueType_name_8 = "STRING"
+	_ValueType_name_9 = "VECTOR"
 )
 
 var (
@@ -21,11 +22,12 @@ var (
 	_ValueType_index_1 = [...]uint8{0, 4}
 	_ValueType_index_2 = [...]uint8{0, 7}
 	_ValueType_index_3 = [...]uint8{0, 5}
-	_ValueType_index_4 = [...]uint8{0, 4}
+	_ValueType_index_4 = [...]uint8{0, 8}
 	_ValueType_index_5 = [...]uint8{0, 4}
-	_ValueType_index_6 = [...]uint8{0, 5}
-	_ValueType_index_7 = [...]uint8{0, 6}
+	_ValueType_index_6 = [...]uint8{0, 4}
+	_ValueType_index_7 = [...]uint8{0, 5}
 	_ValueType_index_8 = [...]uint8{0, 6}
+	_ValueType_index_9 = [...]uint8{0, 6}
 )
 
 func (i ValueType) String() string {
@@ -48,6 +50,8 @@ func (i ValueType) String() string {
 		return _ValueType_name_7
 	case i == 256:
 		return _ValueType_name_8
+	case i == 512:
+		return _ValueType_name_9
 	default:
 		return fmt.Sprintf("ValueType(%d)", i)
 	}

@@ -16,7 +16,6 @@
 package agiledoc
 
 import (
-	"fmt"
 	"math/big"
 )
 
@@ -53,8 +52,6 @@ import (
 type Value interface {
 	Type() ValueType
 	Value() Value
-	Bytes() []byte
-	String() string
 	ToType(ValueType) Value
 }
 type Values interface {
@@ -94,10 +91,7 @@ type ( // are kept as close to the native types they are derived from, as possib
 	byteVal  byte
 	bytesVal []byte
 	strVal   string
-	vecVal   struct {
-		CntType
-		Container
-	}
+	vecVal   struct{ Container }
 )
 
 // funtion types that implement the interface
@@ -170,16 +164,13 @@ func (v vecVal) Value() Value   { return v }
 func (emptyVal) Type() ValueType         { return NIL }
 func (emptyVal) Empty() emptyVal         { return emptyVal(struct{}{}) }
 func (e emptyVal) Value() Value          { return emptyVal(struct{}{}) }
-func (e emptyVal) Bytes() []byte         { return []byte{} }
-func (e emptyVal) String() string        { return "" }
-func (emptyVal) Set(v interface{}) Value { return NativeToValue(v) }
+func (emptyVal) Set(v interface{}) Value { return newValueFromNativeType(v) }
 func (v emptyVal) ToType(t ValueType) Value {
 	return emptyVal{}
 }
 
 // BOOL TYPE
 func (b boolVal) Boolean() bool { return bool(b) }
-func (b boolVal) Native() bool  { return b.Boolean() }
 func (b boolVal) Integer() int {
 	if b {
 		return 1
@@ -187,7 +178,6 @@ func (b boolVal) Integer() int {
 		return 0
 	}
 }
-func (b boolVal) Bytes() []byte { return []byte(b.String()) }
 func (b boolVal) String() string {
 	if b {
 		return "true"
@@ -196,18 +186,24 @@ func (b boolVal) String() string {
 	}
 }
 func (v boolVal) ToType(t ValueType) Value {
+	str := v.String()
 	var val Value
 	switch t {
 	case FLAG:
-		val = flagVal(*big.NewInt(int64(v.Integer())))
+		//val = flagVal{big.NewRat(1, 1).SetInt64(int64(v.Integer()))}
+		val = emptyVal{}
 	case INTEGER:
-		val = intVal(*big.NewInt(int64(v.Integer())))
+		//val = intVal{big.NewInt(int64(v.Integer()))}
+		val = emptyVal{}
 	case FLOAT:
-		val = ratVal(*big.NewRat(1, 1).SetFloat64(float64(v.Integer())))
+		//val = ratVal{big.NewRat(int64(v.Integer()))}
+		val = emptyVal{}
 	case BYTES:
-		val = bytesVal(v.Bytes())
+		//val = bytesVal{v.Integer().Bytes()}
+		val = emptyVal{}
 	case BYTE:
-		val = byteVal(v.Bytes()[0])
+		//val = byteVal{v.Bytes()[0]}
+		val = emptyVal{}
 	case STRING:
 		val = strVal(v.String())
 	default:
@@ -217,19 +213,21 @@ func (v boolVal) ToType(t ValueType) Value {
 }
 
 // FLAG TYPE
-func (v flagVal) Flag() flagVal    { return v }
-func (v flagVal) BigInt() *big.Int { i := big.Int(v); return &i }
-func (v flagVal) Integer() int64   { return v.BigInt().Int64() }
-func (v flagVal) Uint() uint64     { return v.BigInt().Uint64() }
-func (v flagVal) Native() uint64   { return v.Uint() }
-func (v flagVal) Bytes() []byte    { return []byte(v.String()) }
-func (v flagVal) String() string   { return fmt.Sprint((v.Boolean())) }
+func (v flagVal) Flag() flagVal   { return v }
+func (v flagVal) BigInt() big.Int { return big.Int(v) }
+func (v flagVal) Bytes() []byte   { i := v.BigInt(); return (&i).Bytes() }
+func (v flagVal) Uint() uint64    { return v.Uint() }
+func (v flagVal) Integer() int64  { return v.Integer() }
 func (v flagVal) Boolean() bool {
 	if v.Integer() > 0 {
 		return true
 	} else {
 		return false
 	}
+}
+func (v flagVal) String() string {
+	val := big.Int(v)
+	return string((&val).Bytes())
 }
 func (v flagVal) ToType(t ValueType) Value {
 	var val Value
@@ -261,10 +259,8 @@ func (v intVal) BigFloat() *big.Float { return big.NewFloat(v.Float()) }
 func (v intVal) Flag() flagVal        { return flagVal(*v.BigInt()) }
 func (v intVal) Uint() uint64         { return (v.BigInt()).Uint64() }
 func (v intVal) Integer() int64       { return v.BigInt().Int64() }
-func (v intVal) Native() int64        { return v.Integer() }
 func (v intVal) Float() float64       { return float64(v.BigInt().Int64()) }
-func (v intVal) Bytes() []byte        { return []byte(v.String()) }
-func (v intVal) String() string       { return fmt.Sprint((v.BigInt().Int64())) }
+func (v intVal) Bytes() []byte        { return []byte(v.Bytes()) }
 func (v intVal) Boolean() bool {
 	if v.Integer() > 0 {
 		return true
@@ -295,13 +291,10 @@ func (v intVal) ToType(t ValueType) Value {
 
 // FLOAT TYPE
 func (v ratVal) BigRat() *big.Rat     { r := big.Rat(v); return &r }
-func (v ratVal) BigInt() *big.Int     { return big.NewInt(int64(v.Float())) }
-func (v ratVal) BigFloat() *big.Float { return big.NewFloat((v).Float()) }
-func (v ratVal) Float() float64       { f, _ := (v).BigRat().Float64(); return f }
-func (v ratVal) Native() float64      { return v.Float() }
+func (v ratVal) BigInt() *big.Int     { return big.NewInt(v.Integer()) }
+func (v ratVal) BigFloat() *big.Float { return (v).BigFloat() }
+func (v ratVal) Float() float64       { f, _ := (v).BigFloat().Float64(); return f }
 func (v ratVal) Integer() int64       { return v.BigInt().Int64() }
-func (v ratVal) String() string       { r, _ := v.BigRat().Float64(); return fmt.Sprint(r) }
-func (v ratVal) Bytes() []byte        { return []byte(v.String()) }
 func (v ratVal) Boolean() bool {
 	if v.Float() > 0.0 {
 		return true
@@ -321,11 +314,7 @@ func (v ratVal) ToType(t ValueType) Value {
 	case BYTES:
 		val = bytesVal(v.BigInt().Bytes())
 	case BYTE:
-		if len(v.BigInt().Bytes()) > 0 {
-			val = byteVal(v.BigInt().Bytes()[0])
-		} else {
-			val = byteVal(byte(0))
-		}
+		val = byteVal(v.BigInt().Bytes()[0])
 	case STRING:
 		val = strVal(string(v.BigInt().Bytes()))
 	default:
@@ -335,24 +324,21 @@ func (v ratVal) ToType(t ValueType) Value {
 }
 
 // SINGLE BYTE TYPE
-func (v byteVal) String() string { return string(v.Bytes()) }
-func (v byteVal) Bytes() []byte  { return []byte{v.Byte()} }
-func (v byteVal) Byte() byte     { return byte(v) }
-func (v byteVal) Native() byte   { return v.Byte() }
-func (v byteVal) Uint() uint8    { return uint8(v) }
+func (v byteVal) Byte() byte  { return byte(v) }
+func (v byteVal) Uint() uint8 { return uint8(v) }
 func (v byteVal) ToType(t ValueType) Value {
 	var val Value
 	switch t {
 	case FLAG:
 		val = flagVal(*big.NewInt(int64(v.Uint())))
 	case INTEGER:
-		val = intVal(*big.NewInt(int64(v.Uint())))
+		val = intVal{big.NewInt(int64(v.Uint()))}
 	case FLOAT:
-		val = ratVal(*big.NewRat(1, 1).SetInt64(int64(v.Uint())))
+		val = ratVal{big.NewRat(1, 1).SetUint64(v.Uint())}
 	case BYTES:
 		val = bytesVal([]byte{v.Byte()})
 	case BYTE:
-		val = byteVal([]byte{v.Byte()}[0])
+		val = byte(v)
 	case STRING:
 		val = strVal(string(v.Byte()))
 	default:
@@ -363,10 +349,8 @@ func (v byteVal) ToType(t ValueType) Value {
 
 // BYTE SLICE TYPE
 func (v bytesVal) Bytes() []byte    { return []byte(v) }
-func (v bytesVal) Native() []byte   { return v.Bytes() }
 func (v bytesVal) String() string   { return string(v) }
 func (v bytesVal) Uint() uint64     { return big.NewInt(0).SetBytes(v).Uint64() }
-func (v bytesVal) Integer() int64   { return big.NewInt(0).SetBytes(v).Int64() }
 func (v bytesVal) Flag() flagVal    { return flagVal(*big.NewInt(0).SetBytes(v.Bytes())) }
 func (v bytesVal) BigInt() *big.Int { return big.NewInt(0).SetBytes(v.Bytes()) }
 func (v bytesVal) Uints() (r []uint8) {
@@ -389,17 +373,17 @@ func (v bytesVal) ToType(t ValueType) Value {
 	var val Value
 	switch t {
 	case FLAG:
-		val = flagVal(*big.NewInt(0).SetBytes([]byte(v)))
+		val = &flagVal{big.NewInt(0).SetBytes(v.([]byte))}
 	case INTEGER:
-		val = intVal(*big.NewInt(0).SetBytes([]byte(v)))
+		val = &intVal{big.NewInt(0).SetBytes(v.([]byte))}
 	case FLOAT:
-		val = ratVal(*big.NewRat(1, 1).SetInt64(int64(v.Integer())))
+		val = &floatVal{big.NewRat(1, 1).SetBytes(v.([]byte))}
 	case BYTES:
-		val = bytesVal([]byte(v))
+		val = []byte(v)
 	case BYTE:
-		val = byteVal(v.Bytes()[0])
+		val = v.Bytes()[0]
 	case STRING:
-		val = strVal(v.String())
+		val = strValue(string([]byte(v)))
 	default:
 		val = emptyVal{}
 	}
@@ -409,20 +393,19 @@ func (v bytesVal) ToType(t ValueType) Value {
 // STRING TYPE
 func (v strVal) Bytes() []byte  { return []byte(v) }
 func (v strVal) String() string { return string(v) }
-func (v strVal) Native() string { return v.String() }
 func (v strVal) ToType(t ValueType) Value {
 	var val Value
 	switch t {
 	case FLAG:
-		val = emptyVal{}
+		val = &strVal{big.NewInt(0).SetBytes([]byte(v.(string)))}
 	case INTEGER:
-		val = emptyVal{}
+		val = &strVal{big.NewInt(0).SetBytes([]byte(v.(string)))}
 	case FLOAT:
-		val = emptyVal{}
+		val = &floatVal{big.NewRat(1, 1).SetBytes([]byte(v.(string)))}
 	case BYTES:
-		val = bytesVal([]byte(string(v)))
+		val = []byte(string(v))
 	case BYTE:
-		val = byteVal(v.Bytes()[0])
+		val = v.Bytes()[0]
 	case STRING:
 		val = v
 	default:
@@ -432,17 +415,7 @@ func (v strVal) ToType(t ValueType) Value {
 }
 
 // convenience conversion functions
-func (v vecVal) Vector() Value   { return v }
-func (v vecVal) Native() []Value { return v.Container.Values() }
-func (v vecVal) Bytes() []byte {
-	var bytes = []byte{}
-	for _, b := range v.Container.Values() {
-		b := b.ToType(BYTES).(bytesVal).Bytes()
-		bytes = append(bytes, b...)
-	}
-	return bytes
-}
-func (v vecVal) String() string { return string(v.Bytes()) }
+func (v vecVal) Vector() Value { return v }
 func (v vecVal) ToType(t ValueType) Value {
 	var val Value
 	switch t {
@@ -453,11 +426,17 @@ func (v vecVal) ToType(t ValueType) Value {
 	case FLOAT:
 		val = emptyVal{}
 	case BYTES:
-		val = bytesVal(v.Bytes())
+		var vals = v.Values()
+		var bytes = []byte{}
+		for _, b := range vals {
+			b := []byte(b)
+			bytes = append(bytes, b...)
+		}
+		val = bytesVal(bytes)
 	case BYTE:
-		val = byteVal(v.Bytes()[0])
+		val = v.Bytes()[0]
 	case STRING:
-		val = strVal(v.String())
+		val = string(v.Bytes())
 	default:
 		val = emptyVal{}
 	}
@@ -496,33 +475,27 @@ func fromType(r Value, v Value) {}
 //
 // instanciate arbitratry values of native type and return instances
 // implementing the value interface.
-func NativeToValue(i interface{}) Value {
+func newValueFromNativeType(i interface{}) Value {
 	var v Value
 	switch i.(type) {
 	case bool:
 		if i.(bool) {
-			v = flagVal(*big.NewInt(1))
+			return &flagVal{big.NewInt(1)}
 		} else {
-			v = flagVal(*big.NewInt(0))
+			return &flagVal{big.NewInt(0)}
 		}
 	case uint, uint16, uint32, uint64:
-		v = flagVal(*big.NewInt(int64(i.(uint))))
+		v = &flagVal{big.NewInt(int64(i.(uint)))}
 	case int, int8, int16, int32, int64:
-		v = intVal(*big.NewInt(int64(i.(int))))
+		v = &intVal{big.NewInt(int64(i.(int)))}
 	case float32, float64:
-		v = ratVal(*big.NewRat(1, 1).SetFloat64(i.(float64)))
+		v = &floatVal{big.NewRat(1, 1).SetFloat64(i.(float64))}
 	case byte:
-		v = byteVal(i.(byte))
+		v = byteValue(i.(byte))
 	case []byte:
 		v = bytesVal(i.([]byte))
 	case string:
-		v = strVal(i.(string))
-	case []Value:
-		val := NewContainer(LIST_ARRAY)
-		v.(List).Add(i.([]Value)...)
-		v = vecVal{LIST_ARRAY, val}
-	case Value:
-		v = i.(Value)
+		v = strValue(i.(string))
 	}
 	return v
 }

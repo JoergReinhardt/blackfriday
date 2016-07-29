@@ -91,7 +91,7 @@ type ( // are kept as close to the native types they are derived from, as possib
 	intVal   big.Int
 	ratVal   big.Rat
 	boolVal  bool
-	byteVal  byte
+	byteVal  uint8
 	bytesVal []byte
 	strVal   string
 	vecVal   struct {
@@ -129,17 +129,6 @@ type (
 	FloatFnT    func(Value) float64
 	ValuesFnT   func(Value) []Value
 )
-
-func (v *vecVal) Values() []Value {
-	l := v.Container.Values()
-	for _, val := range l {
-		l = append(l, val.(Value))
-	}
-	return l
-}
-func (v vecVal) Slice() []interface{} {
-	return v.Container.Slice()
-}
 
 // INTERFACE METHODS
 //
@@ -335,11 +324,13 @@ func (v ratVal) ToType(t ValueType) Value {
 }
 
 // SINGLE BYTE TYPE
-func (v byteVal) String() string { return string(v.Bytes()) }
-func (v byteVal) Bytes() []byte  { return []byte{v.Byte()} }
-func (v byteVal) Byte() byte     { return byte(v) }
-func (v byteVal) Native() byte   { return v.Byte() }
-func (v byteVal) Uint() uint8    { return uint8(v) }
+func (v byteVal) String() string   { return string(v.Bytes()) }
+func (v byteVal) Bytes() []byte    { return []byte{v.Byte()} }
+func (v byteVal) Byte() byte       { return byte(v) }
+func (v byteVal) Native() uint8    { return v.Uint() }
+func (v byteVal) Uint() uint8      { return uint8(v) }
+func (v byteVal) Integer() int64   { return int64(v) }
+func (v byteVal) BigInt() *big.Int { return big.NewInt(v.Integer()) }
 func (v byteVal) ToType(t ValueType) Value {
 	var val Value
 	switch t {
@@ -436,13 +427,16 @@ func (v vecVal) Vector() Value   { return v }
 func (v vecVal) Native() []Value { return v.Container.Values() }
 func (v vecVal) Bytes() []byte {
 	var bytes = []byte{}
-	for _, b := range v.Container.Values() {
-		b := b.ToType(BYTES).(bytesVal).Bytes()
+	var vals = v.Container.Values()
+	for _, v := range vals {
+		v := v
+		b := NativeToValue(v).Bytes()
 		bytes = append(bytes, b...)
 	}
 	return bytes
 }
 func (v vecVal) String() string { return string(v.Bytes()) }
+
 func (v vecVal) ToType(t ValueType) Value {
 	var val Value
 	switch t {
@@ -496,33 +490,47 @@ func fromType(r Value, v Value) {}
 //
 // instanciate arbitratry values of native type and return instances
 // implementing the value interface.
-func NativeToValue(i interface{}) Value {
-	var v Value
+func NativeToValue(i interface{}) (v Value) {
 	switch i.(type) {
+	// if its allready a value, just return it
+	case Value:
+		v = i.(Value).Value()
+		// convert booleans to big.Int
 	case bool:
 		if i.(bool) {
 			v = flagVal(*big.NewInt(1))
 		} else {
 			v = flagVal(*big.NewInt(0))
 		}
+		// convert all native unsigned integer types to big.Int flags
+		// for bitwise comparison
 	case uint, uint16, uint32, uint64:
 		v = flagVal(*big.NewInt(int64(i.(uint))))
+
+		// convert all native integer types to big.Int
 	case int, int8, int16, int32, int64:
 		v = intVal(*big.NewInt(int64(i.(int))))
+		// floats get stored as big.Rat rational types, to not loose
+		// praesition where not nescessary
 	case float32, float64:
 		v = ratVal(*big.NewRat(1, 1).SetFloat64(i.(float64)))
+		// convert a single byte to a byte val
 	case byte:
-		v = byteVal(i.(byte))
+		v = byteVal(i.(uint8))
+		// convert byte slice to bytes value
 	case []byte:
 		v = bytesVal(i.([]byte))
+		// while being technicaly the same as the byte slice type, a
+		// string type helps to keep tagged and/or formated text apart
+		// from not yet parsed input.
 	case string:
 		v = strVal(i.(string))
+		// when a slice of values is passed, it is intended to be
+		// encapsulated in a container.
 	case []Value:
 		val := NewContainer(LIST_ARRAY)
-		v.(List).Add(i.([]Value)...)
+		val.(List).Add(i.([]Value)...)
 		v = vecVal{LIST_ARRAY, val}
-	case Value:
-		v = i.(Value)
 	}
 	return v
 }

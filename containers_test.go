@@ -5,20 +5,20 @@ import (
 )
 
 func TestContainers(t *testing.T) {
-	cnt := NewContainer(LIST_ARRAY)
-	vals := []Value{}
 
-	for _, v := range Natives.Bytes {
-		v := NativeToValue(v)
-		vals = append(vals, v)
+	c := NewContainer(LIST_ARRAY)
+
+	for _, s := range Natives.Bytes {
+		s := s
+		v := NativeToValue(s)
+		c.(List).Add(v)
 	}
 
-	cnt.(List).Add(vals...)
+	v := NativeToValue(c.Values())
 
-	(*t).Log(cnt.Size())
-
-	for _, v := range vals {
-		v := v.Value()
-		(*t).Log(v.String())
-	}
+	(*t).Log(v.(vecVal).Size())
+	(*t).Log(v.(vecVal).ContType())
+	(*t).Log(v.(vecVal).Empty())
+	(*t).Log(v.(vecVal).Values())
+	(*t).Log(v.(vecVal).Values())
 }

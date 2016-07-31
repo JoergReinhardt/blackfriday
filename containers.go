@@ -88,31 +88,44 @@ const (
 // instead of empty interfaces.
 //
 type Container interface {
-	ContType() CntType
 	Values() []Value
 	Slice() []interface{}
 	Empty() bool
 	Size() int
 	Clear()
 }
+type ValContainer interface {
+	ContType() CntType
+	Container
+	Enumerable
+	Iterator
+}
 
 // CONTAINER WRAPPER (instanciates a struct type to hold the container,
 type cont struct {
-	CntType
 	containers.Container
-	Comparator func() Comparator
 }
 
-func (c cont) ContType() CntType     { return c.CntType }
-func (c *cont) Slice() []interface{} { return c.Container.Values() }
-func (c *cont) Values() []Value      { return interfaceSlice((*c).Slice()).Values() }
-func wrapContainer(t CntType, c containers.Container, comp ...Comparator) Container {
-	return &cont{
-		t,
-		c,
-		func() Comparator { return comp[0] },
+func (c cont) Slice() []interface{} { return c.Container.(containers.Container).Values() }
+func (c cont) Values() []Value      { return interfaceSlice(c.Slice()).Values() }
+func wrapContainer(c containers.Container) cont {
+	return cont{c}
+}
+func newValueContainer(t CntType) ValContainer {
+	var v ValContainer
+	switch {
+	case t&LISTS != 0:
+		v = newListContainer(t)
+	case t&SETS != 0:
+		v = newSetContainer(t)
+	case t&MAPS != 0:
+		v = newMapContainer(t)
+	case t&STACKS != 0:
+		v = newStackContainer(t)
+	case t&TREES != 0:
+		v = newTreeContainer(t)
 	}
-
+	return v
 }
 
 // ENUMERATOR INTERFACE & IMPLEMENTING FUNCTIONS
@@ -129,7 +142,7 @@ func wrapContainer(t CntType, c containers.Container, comp ...Comparator) Contai
 // koi is supposed to be either a numeral type, in which case an indexed
 // container is assumed, OR it can be of a container type, the bytes, or string
 // value type and is assumed to be the key to map the value to.
-type Enumerator interface {
+type Enumerable interface {
 	Each(func(koi Value, value Value))
 	Any(func(koi Value, value Value) bool) bool
 	All(func(koi Value, value Value) bool) bool
@@ -140,7 +153,7 @@ type enum struct {
 	enum     interface{}
 }
 
-func wrapEnum(t CntType, e interface{}) Enumerator {
+func wrapEnum(t CntType, e interface{}) Enumerable {
 	return &enum{
 		func() CntType { return t },
 		e,
@@ -376,7 +389,7 @@ type List interface {
 // listCnt IMPLEMENTATION
 //
 // type of the container needs to be embedded in the encapsulating struct.
-// Agiledocs own Container, List, Enumerator, Iterator and Comparator
+// Agiledocs own Container, List, Enumerable, Iterator and Comparator
 // interfaces will be implemented in the structs methods to encapsulate all
 // those typeless interface types into nice little values.
 //
@@ -388,11 +401,17 @@ type List interface {
 // fields name to store it in. that list/map/set/stack/tree implementation then
 // also implements a couple of container interfaces, including container
 // itself.
+type ListValue interface {
+	List
+	Container
+	Enumerable
+	Iterator
+}
 type listCnt struct {
 	CntType
 	list lists.List
 	Container
-	Enumerator
+	Enumerable
 	Iterator
 }
 
@@ -424,7 +443,7 @@ func (l *listCnt) Values() []Value { return interfaceSlice((*l).list.Values()).V
 // LIST-CNT CONSTRUCTOR
 // the listCnt constructor only needs to know the dedicated type of the listCnt
 // container to instanciate
-func newlistContainer(t CntType) List {
+func newListContainer(t CntType) ValContainer {
 	var l = listCnt{}
 	switch t {
 	case LIST_ARRAY:
@@ -433,23 +452,23 @@ func newlistContainer(t CntType) List {
 		al := *arraylist.New()
 		l.CntType = t
 		l.list = &al
-		l.Container = wrapContainer(t, &al)
-		l.Enumerator = wrapEnum(t, &al)
+		l.Container = wrapContainer(&al)
+		l.Enumerable = wrapEnum(t, &al)
 		l.Iterator = wrapIterator(t, (&al).Iterator())
 	case LIST_SINGLE:
 		sl := *singlylinkedlist.New()
 		l.CntType = t
 		l.list = &sl
-		l.Enumerator = wrapEnum(t, &sl)
+		l.Enumerable = wrapEnum(t, &sl)
 		l.Iterator = wrapIterator(t, (&sl).Iterator())
 	case LIST_DOUBLE:
 		dl := *doublylinkedlist.New()
 		l.CntType = t
 		l.list = &dl
-		l.Enumerator = wrapEnum(t, &dl)
+		l.Enumerable = wrapEnum(t, &dl)
 		l.Iterator = wrapIterator(t, (&dl).Iterator())
 	}
-	return &l
+	return ValContainer(&l)
 }
 
 // MAP INTERFACE
@@ -466,10 +485,15 @@ type Map interface {
 type mapCnt struct {
 	CntType
 	maps.Map
-	//	containers.Container
-	//	containers.EnumerableWithIndex
-	//	containers.IteratorWithIndex
-	//	containers.ReverseIteratorWithIndex
+	Container
+	Enumerable
+	Iterator
+}
+
+type MapValue interface {
+	Map
+	Enumerable
+	Iterator
 }
 
 func (m *mapCnt) ContType() CntType    { return m.CntType }
@@ -489,6 +513,11 @@ func (m *mapCnt) Remove(k Value) {
 	(*m).Map.Remove(k)
 }
 
+// CONTAINER INTERFACE
+func (m mapCnt) Empty() bool { return m.Map.Empty() }
+func (m mapCnt) Size() int   { return m.Map.Size() }
+func (m *mapCnt) Clear()     { (*m).Map.Clear() }
+
 type BidiMap interface {
 	GetKey(value Value) (key Value, found bool)
 	Map // allready contains container
@@ -503,18 +532,35 @@ type BidiMap interface {
 //
 // | hash, hashbidi = 0 | tree = 1 | treebidi = 2 |
 //
-func newMapContainer(t CntType, c ...Comparator) (m *mapCnt) {
+func newMapContainer(t CntType, c ...Comparator) ValContainer {
+	var m mapCnt
 	switch t {
 	case MAP_HASH:
-		m = &mapCnt{t, hashmap.New()}
+		am := *hashmap.New()
+		m.CntType = t
+		m.Map = &am
+		m.Container = wrapContainer(&am)
+		m.Enumerable = wrapEnum(t, &am)
 	case MAP_HASHBIDI:
-		m = &mapCnt{t, hashbidimap.New()}
+		hbm := *hashbidimap.New()
+		m.CntType = t
+		m.Map = &hbm
+		m.Container = wrapContainer(&hbm)
+		m.Enumerable = wrapEnum(t, &hbm)
 	case MAP_TREE:
-		m = &mapCnt{t, treemap.NewWith(c[0].Convert())}
+		tm := *treemap.NewWith(c[0].Convert())
+		m.CntType = t
+		m.Map = &tm
+		m.Container = wrapContainer(&tm)
+		m.Enumerable = wrapEnum(t, &tm)
 	case MAP_TREEBIDI:
-		m = &mapCnt{t, treebidimap.NewWith(c[0].Convert(), c[1].Convert())}
+		tbm := *treebidimap.NewWith(c[0].Convert(), c[1].Convert())
+		m.CntType = t
+		m.Map = &tbm
+		m.Container = wrapContainer(&tbm)
+		m.Enumerable = wrapEnum(t, &tbm)
 	}
-	return m
+	return ValContainer(&m)
 }
 
 // SET INTERFACE
@@ -525,15 +571,19 @@ type Set interface {
 
 	Container
 }
+type SetValue interface {
+	Set
+	Enumerable
+	Iterator
+}
 
 // SET IMPLEMENTATION
 type setCnt struct {
 	CntType
 	sets.Set
-	//	containers.Container
-	//	containers.EnumerableWithIndex
-	//	containers.IteratorWithIndex
-	//	containers.ReverseIteratorWithIndex
+	Container
+	Enumerable
+	Iterator
 }
 
 func (s *setCnt) ContType() CntType    { return s.CntType }
@@ -550,16 +600,31 @@ func (s *setCnt) Contains(e ...Value) bool {
 	return (*s).Set.Contains(valSlice(e).Interfaces())
 }
 
+// CONTAINER INTERFACE
+func (s setCnt) Empty() bool { return s.Set.Empty() }
+func (s setCnt) Size() int   { return s.Set.Size() }
+func (s *setCnt) Clear()     { (*s).Set.Clear() }
+
 // SET CONSTRUCTOR
 // the treeset needs a comparator closure
-func newSetContainer(t CntType, c ...Comparator) (r *setCnt) {
+func newSetContainer(t CntType, c ...Comparator) ValContainer {
+	var s setCnt
 	switch t {
 	case SET_HASH:
-		r = &setCnt{t, hashset.New()}
+		hs := *hashset.New()
+		s.CntType = t
+		s.Set = &hs
+		s.Container = wrapContainer(&hs)
+		s.Enumerable = wrapEnum(t, &hs)
 	case SET_TREE:
-		r = &setCnt{t, treeset.NewWith(c[0].Convert())}
+		ts := *treeset.NewWith(c[0].Convert())
+		s.CntType = t
+		s.Set = &ts
+		s.Container = wrapContainer(&ts)
+		s.Enumerable = wrapEnum(t, &ts)
+		s.Iterator = wrapIterator(t, (&ts).Iterator())
 	}
-	return r
+	return ValContainer(&s)
 }
 
 // STACK INTERFACE
@@ -575,17 +640,22 @@ type Stack interface {
 type stackCnt struct {
 	CntType
 	stacks.Stack
-	//	containers.Container
-	//	containers.EnumerableWithIndex
-	//	containers.IteratorWithIndex
-	//	containers.ReverseIteratorWithIndex
+	Container
+	Enumerable
+	Iterator
+}
+type StackValue interface {
+	Stack
+	Enumerable
+	Iterator
 }
 
 func (s *stackCnt) ContType() CntType    { return s.CntType }
 func (l *stackCnt) Slice() []interface{} { return (*l).Stack.Values() }
-func (s *stackCnt) Values() []Value {
-	return interfaceSlice((*s).Stack.Values()).Values()
-}
+
+//func (s *stackCnt) Values() []Value {
+//	return interfaceSlice((*s).Stack.Values()).Values()
+//}
 func (s *stackCnt) Peek() (Value, bool) {
 	v, ok := (*s).Stack.Peek()
 	return v.(Value), ok
@@ -596,30 +666,51 @@ func (s *stackCnt) Pop() (Value, bool) {
 }
 func (s *stackCnt) Push(v Value) { (*s).Stack.Push(v) }
 
+// CONTAINER INTERFACE
+func (s stackCnt) Empty() bool      { return s.Stack.Empty() }
+func (s stackCnt) Size() int        { return s.Stack.Size() }
+func (s *stackCnt) Clear()          { (*s).Stack.Clear() }
+func (s *stackCnt) Values() []Value { return interfaceSlice((*s).Stack.Values()).Values() }
+
 // STACK CONSTRUCTOR
-func newStackContainer(t CntType) (s *stackCnt) {
+func newStackContainer(t CntType) ValContainer {
+	var s stackCnt
 	switch t {
 	case STACK_ARRAY:
-		s = &stackCnt{t, arraystack.New()}
+		as := *arraystack.New()
+		s.CntType = t
+		s.Stack = &as
+		s.Container = wrapContainer(&as)
+		s.Enumerable = wrapEnum(t, &as)
+		s.Iterator = wrapIterator(t, &as)
 	case STACK_LINKED:
-		s = &stackCnt{t, linkedliststack.New()}
+		ll := *linkedliststack.New()
+		s.CntType = t
+		s.Stack = &ll
+		s.Container = wrapContainer(&ll)
+		s.Enumerable = wrapEnum(t, &ll)
+		s.Iterator = wrapIterator(t, &ll)
 	}
-	return s
+	return ValContainer(&s)
 }
 
 // TREE INTERFACE
 type Tree interface {
 	Container
 }
+type TreeValue interface {
+	Tree
+	Enumerable
+	Iterator
+}
 
 // TREE IMPLEMENTATION
 type treeCnt struct {
 	CntType
 	trees.Tree
-	//	containers.Container
-	//	containers.EnumerableWithIndex
-	//	containers.IteratorWithIndex
-	//	containers.ReverseIteratorWithIndex
+	Container
+	Enumerable
+	Iterator
 }
 
 func (t *treeCnt) ContType() CntType    { return (*t).CntType }
@@ -628,15 +719,29 @@ func (t *treeCnt) Values() []Value {
 	return interfaceSlice((*t).Tree.Values()).Values()
 }
 
+// CONTAINER INTERFACE
+func (t treeCnt) Empty() bool { return t.Tree.Empty() }
+func (t treeCnt) Size() int   { return t.Tree.Size() }
+func (t *treeCnt) Clear()     { (*t).Tree.Clear() }
+
 // TREE CONSTRUCTOR
-func newTreeContainer(t CntType, c ...Comparator) (r *treeCnt) {
-	switch t {
+func newTreeContainer(ct CntType, c ...Comparator) *treeCnt {
+	var t treeCnt
+	switch ct {
 	case TREE_REDBLACK:
-		tr := redblacktree.NewWith(c[0].Convert())
-		r = &treeCnt{t, tr}
+		tr := *redblacktree.NewWith(c[0].Convert())
+		t.CntType = ct
+		t.Tree = &tr
+		t.Container = wrapContainer(&tr)
+		t.Enumerable = wrapEnum(ct, &tr)
+		t.Iterator = wrapIterator(ct, &tr)
 	case TREE_BINHEAP:
-		h := binaryheap.NewWith(c[0].Convert())
-		r = &treeCnt{t, h}
+		bm := *binaryheap.NewWith(c[0].Convert())
+		t.CntType = ct
+		t.Tree = &bm
+		t.Container = wrapContainer(&bm)
+		t.Enumerable = wrapEnum(ct, &bm)
+		t.Iterator = wrapIterator(ct, &bm)
 	}
-	return r
+	return &t
 }

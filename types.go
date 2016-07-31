@@ -208,12 +208,12 @@ type ( // are kept as close to the native types they are derived from, as possib
 		val Value
 	}
 	lstVal struct {
-		CntType // has to be part of LISTS
-		Container
+		CntType   // has to be part of LISTS
+		Container ValContainer
 	}
 	mapVal struct {
-		CntType // has to be part of MAPS
-		Container
+		CntType   // has to be part of MAPS
+		Container ValContainer
 	}
 )
 
@@ -772,11 +772,11 @@ func NativeToValue(i interface{}) (v Value) {
 		// when a slice of values is passed, it is intended to be
 		// encapsulated in a container.
 	case []Value:
-		val := wrapContainer(LIST_ARRAY, nil)
+		val := newValueContainer(LIST_ARRAY)
 		val.(List).Add(i.([]Value)...)
 		v = lstVal{LIST_ARRAY, val}
 	case []KeyValue:
-		val := wrapContainer(MAP_HASHBIDI, nil)
+		val := newValueContainer(MAP_HASHBIDI)
 		for _, v := range i.([]KeyValue) {
 			k := v.Key()
 			v := v.Value()

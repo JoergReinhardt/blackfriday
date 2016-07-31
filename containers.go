@@ -71,11 +71,22 @@ const (
 	MAPS   = MAP_HASH | MAP_HASHBIDI | MAP_TREE | MAP_TREEBIDI
 	TREES  = TREE_BINHEAP | TREE_REDBLACK
 
-	ENUM_KEY = LISTS | STACKS
-	ENUM_IDX = SETS | MAPS | TREES
+	KEYED   = LISTS | STACKS
+	INDEXED = SETS | MAPS | TREES
+	REVERSE = LIST_ARRAY | LIST_DOUBLE | SET_TREE | STACK_ARRAY |
+		MAP_TREEBIDI | MAP_TREE | TREE_BINHEAP | TREE_REDBLACK
 )
 
 // CONTAINER INTERFACE
+//
+// enumerator and iterator interfaces, provided by the concealed container
+// type, as well as the Interface defining the parent type of the container
+// (list, Set, Stack, Map, Tree).
+//
+// function to assign the nescessary interface methods to a god container, to
+// make it implement the internal container interface, containing Values instances
+// instead of empty interfaces.
+//
 type Container interface {
 	ContType() CntType
 	Values() []Value
@@ -85,106 +96,98 @@ type Container interface {
 	Clear()
 }
 
-func Type(c Container) ValueType { return VECTOR }
-func Size(c Container) int       { return len(c.Slice()) }
-
-// CONTAINER IMPLEMENTATION
+// CONTAINER WRAPPER (instanciates a struct type to hold the container,
 type cont struct {
-	ct CntType
+	CntType
 	containers.Container
+	Comparator func() Comparator
 }
 
-// returns the container type
-//
-func (c cont) ContType() CntType { return c.ct }
-
-// returns a slice of Values from a container instance
-//
-func (c cont) Values() []Value {
-	v := []Value{}
-	l := (c.Container.Values())
-	for _, i := range l {
-		v = append(v, i.(Value))
+func (c cont) ContType() CntType     { return c.CntType }
+func (c *cont) Slice() []interface{} { return c.Container.Values() }
+func (c *cont) Values() []Value      { return interfaceSlice((*c).Slice()).Values() }
+func wrapContainer(t CntType, c containers.Container, comp ...Comparator) Container {
+	return &cont{
+		t,
+		c,
+		func() Comparator { return comp[0] },
 	}
-	return v
+
 }
 
-// CONTAINER WRAPPER
+// ENUMERATOR INTERFACE & IMPLEMENTING FUNCTIONS
 //
-// function to assign the nescessary interface methods to a god container, to
-// make it implement the internal container interface, containing Values instances
-// instead of empty interfaces.
+// are defined as methods on the cont type and supposed to wrap the god
+// enumerators and replace their empty interface return values by instances of
+// appropriate value types.
 //
-func NewContainer(t CntType, c ...Comparator) (r Container) {
-	switch {
-	case t&LISTS != 0:
-		r = newlistContainer(t)
-	case t&MAPS != 0:
-		r = newMapContainer(t, c...)
-	case t&SETS != 0:
-		r = newSetContainer(t, c...)
-	case t&STACKS != 0:
-		r = newStackContainer(t)
-	case t&TREES != 0:
-		r = newTreeContainer(t, c...)
-	}
-	return r
-}
-
-// ENUMERATOR INTERFACES
-//
-// supposed to wrap the god enumerators and replace their empty interface
-// return values by instances of appropriate value types.
-//
-// is a common interface to conceal the differences between keyed and indexed
-// enumerable containers regarding their key, respectively index the enumerable
-// interface describes methods with parameter and return types, that can be
-// retrieved from, or asserted to the appropriate types, assuming an strVal, // for enumerators with keys and itnVal for the indexed enumerables.
+// the interface conceals the differences between keyed and indexed enumerable
+// containers by taking their key, respectively index as parameter of the value
+// type and decide based on the value type, which enumerator, or iterator to
+// choose.
 //
 // koi is supposed to be either a numeral type, in which case an indexed
 // container is assumed, OR it can be of a container type, the bytes, or string
 // value type and is assumed to be the key to map the value to.
-func Each(c Container, fn func(koi Value, value Value)) {
+type Enumerator interface {
+	Each(func(koi Value, value Value))
+	Any(func(koi Value, value Value) bool) bool
+	All(func(koi Value, value Value) bool) bool
+	Find(func(koi Value, value Value) bool) (Value, Value)
+}
+type enum struct {
+	ContType func() CntType // CHECK TYPE FIRST!
+	enum     interface{}
+}
+
+func wrapEnum(t CntType, e interface{}) Enumerator {
+	return &enum{
+		func() CntType { return t },
+		e,
+	}
+}
+func (rec *enum) Each(fn func(koi Value, value Value)) {
 	switch {
-	case c.ContType()&ENUM_KEY != 0:
-		c.(containers.EnumerableWithKey).Each(func(key interface{}, value interface{}) {
+	case (*rec).ContType()&KEYED != 0:
+		(*rec).enum.(containers.EnumerableWithKey).Each(func(key interface{}, value interface{}) {
 			fn(NativeToValue(key), NativeToValue(value))
 		})
-	case c.ContType()&ENUM_IDX != 0:
-		c.(containers.EnumerableWithIndex).Each(func(index int, value interface{}) {
+	case (*rec).ContType()&INDEXED != 0:
+		(*rec).enum.(containers.EnumerableWithIndex).Each(func(index int, value interface{}) {
 			fn(NativeToValue(index), NativeToValue(value))
 		})
 	}
 }
-func Any(c Container, fn func(koi Value, value Value) bool) bool {
+func (rec *enum) Any(fn func(koi Value, value Value) bool) bool {
 	var r bool
 	switch {
-	case c.ContType()&ENUM_KEY != 0:
-		r = c.(containers.EnumerableWithKey).Any(func(key interface{}, value interface{}) bool {
+	case (*rec).ContType()&KEYED != 0:
+		r = (*rec).enum.(containers.EnumerableWithKey).Any(func(key interface{}, value interface{}) bool {
 			return fn(NativeToValue(key), NativeToValue(value))
 		})
-	case c.ContType()&ENUM_IDX != 0:
-		r = c.(containers.EnumerableWithIndex).Any(func(index int, value interface{}) bool {
+	case (*rec).ContType()&INDEXED != 0:
+		r = (*rec).enum.(containers.EnumerableWithIndex).Any(func(index int, value interface{}) bool {
 			return fn(NativeToValue(index), NativeToValue(value))
 		})
 	}
 	return r
 }
-func All(c Container, fn func(koi Value, value Value) bool) bool {
+func (rec *enum) All(fn func(koi Value, value Value) bool) bool {
 	var r bool
 	switch {
-	case c.ContType()&ENUM_KEY != 0:
-		r = c.(containers.EnumerableWithKey).Any(func(key interface{}, value interface{}) bool {
+	case (*rec).ContType()&KEYED != 0:
+		r = (*rec).enum.(containers.EnumerableWithKey).Any(func(key interface{}, value interface{}) bool {
 			return fn(NativeToValue(key), NativeToValue(value))
 		})
-	case c.ContType()&ENUM_IDX != 0:
-		r = c.(containers.EnumerableWithIndex).Any(func(index int, value interface{}) bool {
+	case (*rec).ContType()&INDEXED != 0:
+		r = (*rec).enum.(containers.EnumerableWithIndex).Any(func(index int, value interface{}) bool {
 			return fn(NativeToValue(index), NativeToValue(value))
 		})
 	}
 	return r
 }
 
+// FindBy<Key|Index>
 // gets a function passed, that expects an arbitratry interface as key and a
 // Value as it's parameters. Depending on the type of enumerator, the key
 // either gets asserted as an integer, when the enumerator is indexed and left
@@ -192,44 +195,110 @@ func All(c Container, fn func(koi Value, value Value) bool) bool {
 //
 // the return values are values allready, or will be encapsulated before
 // returned.
-func FindByKey(c Container, fn func(index int, value interface{}) bool) (Value, Value) {
+func (rec *enum) Find(fn func(index Value, value Value) bool) (Value, Value) {
+	if (*rec).ContType()&INDEXED != 0 {
+		var fen = func(index interface{}, value interface{}) bool {
+			return fn(NativeToValue(index), NativeToValue(value))
+		}
+		i, v := (*rec).findByIdx(fen)
+		return NativeToValue(i), NativeToValue(v)
+	} else {
+		var fkn = func(index int, value interface{}) bool {
+			return fn(NativeToValue(index), NativeToValue(value))
+		}
+		i, v := (*rec).enum.(containers.EnumerableWithIndex).Find(fkn)
+		return NativeToValue(i), NativeToValue(v)
+	}
+}
+func (rec *enum) findByKey(fn func(index int, value interface{}) bool) (Value, Value) {
 	var rk, rv interface{}
-	rk, rv = c.(containers.EnumerableWithIndex).Find(fn)
+	rk, rv = (*rec).enum.(containers.EnumerableWithIndex).Find(fn)
 	return NativeToValue(rk), NativeToValue(rv)
 }
-func FindByIdx(c Container, fn func(key interface{}, value interface{}) bool) (Value, Value) {
+func (rec *enum) findByIdx(fn func(key interface{}, value interface{}) bool) (Value, Value) {
 	var rk, rv interface{}
-	rk, rv = c.(containers.EnumerableWithKey).Find(fn)
+	rk, rv = (*rec).enum.(containers.EnumerableWithKey).Find(fn)
 	return NativeToValue(rk), NativeToValue(rv)
 }
 
-// ITERATOR INTERFACES
-type IteratorWithIndex interface {
+type Iterator interface {
 	Next() bool
 	Value() Value
-	Index() int
+	KoI() Value
 	Begin()
 	First() bool
 }
-type ReverseIteratorWithIndex interface {
-	Prev() bool
-	End()
-	Last() bool
-	IteratorWithIndex
+
+// ITERATOR WRAPPER
+type iterator struct {
+	ContType func() CntType
+	i        interface{}
+	next     func() bool
+	value    func() Value
+	koi      func() Value
+	begin    func()
+	first    func() bool
+	prev     func() bool
+	end      func()
+	last     func() bool
 }
-type IteratorWithKey interface {
-	Next() bool
-	Value() Value
-	Key() Value
-	Begin()
-	First() bool
+
+func (i iterator) Next() bool   { return i.next() }
+func (i iterator) Value() Value { return i.value() }
+func (i iterator) KoI() Value   { return i.value() }
+func (i iterator) Begin()       { i.begin() }
+func (i iterator) First() bool  { return i.first() }
+func (i iterator) Prev() bool   { return i.prev() }
+func (i iterator) End()         { i.prev() }
+func (i iterator) Last() bool   { return i.prev() }
+
+func wrapIterator(t CntType, i interface{}) Iterator {
+	var r = iterator{}
+	if t&INDEXED != 0 {
+		r.next = i.(containers.IteratorWithIndex).Next
+		r.value = NativeToValue(i.(containers.IteratorWithIndex).Value).Value
+		r.koi = NativeToValue(i.(containers.IteratorWithIndex).Index).Value
+		r.begin = i.(containers.IteratorWithIndex).Begin
+		r.first = i.(containers.IteratorWithIndex).First
+		if t&REVERSE != 0 {
+			r.prev = i.(containers.ReverseIteratorWithIndex).Prev
+			r.end = i.(containers.ReverseIteratorWithIndex).End
+			r.last = i.(containers.ReverseIteratorWithIndex).Last
+		}
+	} else {
+		r.next = i.(containers.IteratorWithKey).Next
+		r.value = NativeToValue(i.(containers.IteratorWithKey).Value).Value
+		r.koi = NativeToValue(i.(containers.IteratorWithKey).Key).Value
+		r.begin = i.(containers.IteratorWithKey).Begin
+		r.first = i.(containers.IteratorWithKey).First
+		if t&REVERSE != 0 {
+			r.prev = i.(containers.ReverseIteratorWithKey).Prev
+			r.end = i.(containers.ReverseIteratorWithKey).End
+			r.last = i.(containers.ReverseIteratorWithKey).Last
+		}
+	}
+	return r
 }
-type ReverseIteratorWithKey interface {
-	Prev() bool
-	End()
-	Last() bool
-	IteratorWithKey
-}
+
+//var ( // functions to reveal original underlaying gods container type
+//	arraylistFn        = func(l *listCnt) lists.List { return (*l).list.(arraylist.List) }
+//	singlylinkedlistFn = func(l *listCnt) lists.List { return singlylinkedlist.List((*l).list) }
+//	doublylinkedlistFn = func(l *listCnt) lists.List { return doublylinkedlist.List((*l).list) }
+//
+//	hashsetFn = func(s *setCnt) sets.Set { return hashset.Set((*s).Set) }
+//	treesetFn = func(s *setCnt) sets.Set { return treeset.Set((*s).Set) }
+//
+//	hashbidimapFn = func(m *mapCnt) maps.Map { return hashbidimap.Map((*m).Map) }
+//	hashmapFn     = func(m *mapCnt) maps.Map { return hashmap.Map((*m).Map) }
+//	treebidimapFn = func(m *mapCnt) maps.Map { return treebidimap.Map((*m).Map) }
+//	treemapFn     = func(m *mapCnt) maps.Map { return treemap.Map((*m).Map) }
+//
+//	arraystackFn      = func(s *stackCnt) stacks.Stack { return arraystack.Stack((*s).Stack) }
+//	linkedliststackFn = func(s *stackCnt) stacks.Stack { return linkedliststack.Stack((*s).Stack) }
+//
+//	binaryheapFn   = func(t *treeCnt) trees.Tree { return binaryheap.Tree((*t).Tree) }
+//	redblacktreeFn = func(t *treeCnt) trees.Tree { return redblacktree.Tree((*t).Tree) }
+//)
 
 // COMPARATOR INTERFACES
 // gods comparators expect empty interfaces that are assertable to either
@@ -255,6 +324,321 @@ func ConstructComparator(t ValueType) utils.Comparator {
 		f = utils.IntComparator
 	}
 	return f
+}
+
+// CUSTOMIZED CONTAINER INTERFACES AND IMPLEMENTATIONS
+//
+//
+//
+//    type Iterator
+//        func (iterator *Iterator) Begin()
+//        func (iterator *Iterator) End()
+//        func (iterator *Iterator) First() bool
+//        func (iterator *Iterator) Index() int
+//        func (iterator *Iterator) Last() bool
+//        func (iterator *Iterator) Next() bool
+//        func (iterator *Iterator) Prev() bool
+//        func (iterator *Iterator) Value() interface{}
+//    type List
+//        func New() *List
+//        func (list *List) Add(values ...interface{})
+//        func (list *List) All(f func(index int, value interface{}) bool) bool
+//        func (list *List) Any(f func(index int, value interface{}) bool) bool
+//        func (list *List) Clear()
+//        func (list *List) Contains(values ...interface{}) bool
+//        func (list *List) Each(f func(index int, value interface{}))
+//        func (list *List) Empty() bool
+//        func (list *List) Find(f func(index int, value interface{}) bool) (int, interface{})
+//        func (list *List) Get(index int) (interface{}, bool)
+//        func (list *List) Insert(index int, values ...interface{})
+//        func (list *List) Iterator() Iterator
+//        func (list *List) Map(f func(index int, value interface{}) interface{}) *List
+//        func (list *List) Remove(index int)
+//        func (list *List) Select(f func(index int, value interface{}) bool) *List
+//        func (list *List) Size() int
+//        func (list *List) Sort(comparator utils.Comparator)
+//        func (list *List) String() string
+//        func (list *List) Swap(i, j int)
+//        func (list *List) Values() []interface{}
+//
+// listCnt INTERFACE
+type List interface {
+	// List
+	Get(index int) (Value, bool)
+	Remove(index int)
+	Add(values ...Value)
+	Contains(values ...Value) bool
+	Sort(comparator Comparator)
+	Swap(index1, index2 int)
+	Insert(index int, values ...Value)
+}
+
+// listCnt IMPLEMENTATION
+//
+// type of the container needs to be embedded in the encapsulating struct.
+// Agiledocs own Container, List, Enumerator, Iterator and Comparator
+// interfaces will be implemented in the structs methods to encapsulate all
+// those typeless interface types into nice little values.
+//
+// the list interface, as well as all container interfaces will be implemented
+// by one instance of a god container type, that will be instanciated and
+// embedded by the constructor. Depending on gods constructor type, the
+// returned type is different for each container type, but allways implements a
+// more gegenral interface, like map, set, stack... which will be used as the
+// fields name to store it in. that list/map/set/stack/tree implementation then
+// also implements a couple of container interfaces, including container
+// itself.
+type listCnt struct {
+	CntType
+	list lists.List
+	Container
+	Enumerator
+	Iterator
+}
+
+// VALUE INTERFACE
+func (l listCnt) ContType() CntType    { return l.CntType }
+func (l listCnt) Slice() []interface{} { return valSlice(l.Container.Values()).Interfaces() }
+
+// LIST INTERFACE
+func (l *listCnt) Get(i int) (Value, bool) {
+	v, ok := (*l).Get(i)
+	return v.(Value), ok
+}
+func (l *listCnt) Remove(index int) {}
+func (l *listCnt) Add(v ...Value) {
+	is := valSlice(v).Interfaces()
+	(*l).list.Add(is)
+}
+func (l listCnt) Contains(v ...Value) bool  { return l.list.Contains(valSlice(v).Interfaces()) }
+func (l *listCnt) Sort(c Comparator)        { (*l).list.Sort(c.Convert()) }
+func (l *listCnt) Swap(index1, index2 int)  { (*l).list.Swap(index1, index2) }
+func (l *listCnt) Insert(i int, v ...Value) { (*l).list.Insert(i, valSlice(v).Interfaces()) }
+
+// CONTAINER INTERFACE
+func (l listCnt) Empty() bool      { return l.list.Empty() }
+func (l listCnt) Size() int        { return l.list.Size() }
+func (l *listCnt) Clear()          { (*l).list.Clear() }
+func (l *listCnt) Values() []Value { return interfaceSlice((*l).list.Values()).Values() }
+
+// LIST-CNT CONSTRUCTOR
+// the listCnt constructor only needs to know the dedicated type of the listCnt
+// container to instanciate
+func newlistContainer(t CntType) *listCnt {
+	var l = listCnt{}
+	switch t {
+	case LIST_ARRAY:
+		// list.List, implementing enum, container and returning
+		// iterator from its method
+		al := *arraylist.New()
+		l.CntType = t
+		l.list = &al
+		l.Container = wrapContainer(t, &al)
+		l.Enumerator = wrapEnum(t, &al)
+		l.Iterator = wrapIterator(t, (&al).Iterator())
+	case LIST_SINGLE:
+		sl := *singlylinkedlist.New()
+		l.CntType = t
+		l.list = &sl
+		l.Enumerator = wrapEnum(t, &sl)
+		l.Iterator = wrapIterator(t, (&sl).Iterator())
+	case LIST_DOUBLE:
+		dl := *doublylinkedlist.New()
+		l.CntType = t
+		l.list = &dl
+		l.Enumerator = wrapEnum(t, &dl)
+		l.Iterator = wrapIterator(t, (&dl).Iterator())
+	}
+	return &l
+}
+
+// MAP INTERFACE
+type Map interface {
+	Put(key Value, value Value)
+	Get(key Value) (value Value, found bool)
+	Remove(key Value)
+	Keys() []Value
+
+	Container
+}
+
+// MAP IMPLEMENTATION
+type mapCnt struct {
+	CntType
+	maps.Map
+	//	containers.Container
+	//	containers.EnumerableWithIndex
+	//	containers.IteratorWithIndex
+	//	containers.ReverseIteratorWithIndex
+}
+
+func (m *mapCnt) ContType() CntType    { return m.CntType }
+func (l *mapCnt) Slice() []interface{} { return (*l).Map.Values() }
+func (m *mapCnt) Values() []Value      { return interfaceSlice((*m).Map.Values()).Values() }
+func (m *mapCnt) Get(i Value) (Value, bool) {
+	v, ok := (*m).Map.Get(i)
+	return v.(Value), ok
+}
+func (m *mapCnt) Keys() []Value {
+	return interfaceSlice((*m).Map.Keys()).Values()
+}
+func (m *mapCnt) Put(k Value, v Value) {
+	(*m).Put(k, v)
+}
+func (m *mapCnt) Remove(k Value) {
+	(*m).Map.Remove(k)
+}
+
+type BidiMap interface {
+	GetKey(value Value) (key Value, found bool)
+	Map // allready contains container
+}
+
+// MAP CONSTRUCTOR
+//
+// trees need one, or two comparators, while maps dont. Comparators can be of
+// different index type. apart from the designated container type, a variadic
+// idxType can optionaly be passed. The exact ammount of comparators needed, is
+// dependent on its type:
+//
+// | hash, hashbidi = 0 | tree = 1 | treebidi = 2 |
+//
+func newMapContainer(t CntType, c ...Comparator) (m *mapCnt) {
+	switch t {
+	case MAP_HASH:
+		m = &mapCnt{t, hashmap.New()}
+	case MAP_HASHBIDI:
+		m = &mapCnt{t, hashbidimap.New()}
+	case MAP_TREE:
+		m = &mapCnt{t, treemap.NewWith(c[0].Convert())}
+	case MAP_TREEBIDI:
+		m = &mapCnt{t, treebidimap.NewWith(c[0].Convert(), c[1].Convert())}
+	}
+	return m
+}
+
+// SET INTERFACE
+type Set interface {
+	Add(elements ...Value)
+	Remove(elements ...Value)
+	Contains(elements ...Value) bool
+
+	Container
+}
+
+// SET IMPLEMENTATION
+type setCnt struct {
+	CntType
+	sets.Set
+	//	containers.Container
+	//	containers.EnumerableWithIndex
+	//	containers.IteratorWithIndex
+	//	containers.ReverseIteratorWithIndex
+}
+
+func (s *setCnt) ContType() CntType    { return s.CntType }
+func (s *setCnt) Values() []Value      { return interfaceSlice((*s).Set.Values()).Values() }
+func (l *setCnt) Slice() []interface{} { return (*l).Set.Values() }
+func (s *setCnt) Add(e ...Value) {
+	i := valSlice(e).Interfaces()
+	(*s).Set.Add(i...)
+}
+func (s *setCnt) Remove(e ...Value) {
+	(*s).Set.Remove(valSlice(e).Interfaces())
+}
+func (s *setCnt) Contains(e ...Value) bool {
+	return (*s).Set.Contains(valSlice(e).Interfaces())
+}
+
+// SET CONSTRUCTOR
+// the treeset needs a comparator closure
+func newSetContainer(t CntType, c ...Comparator) (r *setCnt) {
+	switch t {
+	case SET_HASH:
+		r = &setCnt{t, hashset.New()}
+	case SET_TREE:
+		r = &setCnt{t, treeset.NewWith(c[0].Convert())}
+	}
+	return r
+}
+
+// STACK INTERFACE
+type Stack interface {
+	Push(value Value)
+	Pop() (value Value, ok bool)
+	Peek() (value Value, ok bool)
+
+	Container
+}
+
+// STACK IMPLEMENTATION
+type stackCnt struct {
+	CntType
+	stacks.Stack
+	//	containers.Container
+	//	containers.EnumerableWithIndex
+	//	containers.IteratorWithIndex
+	//	containers.ReverseIteratorWithIndex
+}
+
+func (s *stackCnt) ContType() CntType    { return s.CntType }
+func (l *stackCnt) Slice() []interface{} { return (*l).Stack.Values() }
+func (s *stackCnt) Values() []Value {
+	return interfaceSlice((*s).Stack.Values()).Values()
+}
+func (s *stackCnt) Peek() (Value, bool) {
+	v, ok := (*s).Stack.Peek()
+	return v.(Value), ok
+}
+func (s *stackCnt) Pop() (Value, bool) {
+	v, ok := (*s).Stack.Pop()
+	return v.(Value), ok
+}
+func (s *stackCnt) Push(v Value) { (*s).Stack.Push(v) }
+
+// STACK CONSTRUCTOR
+func newStackContainer(t CntType) (s *stackCnt) {
+	switch t {
+	case STACK_ARRAY:
+		s = &stackCnt{t, arraystack.New()}
+	case STACK_LINKED:
+		s = &stackCnt{t, linkedliststack.New()}
+	}
+	return s
+}
+
+// TREE INTERFACE
+type Tree interface {
+	Container
+}
+
+// TREE IMPLEMENTATION
+type treeCnt struct {
+	CntType
+	trees.Tree
+	//	containers.Container
+	//	containers.EnumerableWithIndex
+	//	containers.IteratorWithIndex
+	//	containers.ReverseIteratorWithIndex
+}
+
+func (t *treeCnt) ContType() CntType    { return (*t).CntType }
+func (l *treeCnt) Slice() []interface{} { return (*l).Tree.Values() }
+func (t *treeCnt) Values() []Value {
+	return interfaceSlice((*t).Tree.Values()).Values()
+}
+
+// TREE CONSTRUCTOR
+func newTreeContainer(t CntType, c ...Comparator) (r *treeCnt) {
+	switch t {
+	case TREE_REDBLACK:
+		tr := redblacktree.NewWith(c[0].Convert())
+		r = &treeCnt{t, tr}
+	case TREE_BINHEAP:
+		h := binaryheap.NewWith(c[0].Convert())
+		r = &treeCnt{t, h}
+	}
+	return r
 }
 
 // SLICE HELPER TYPES
@@ -340,236 +724,4 @@ func (v byteSlice) Interfaces() []interface{} {
 		is = append(is, i)
 	}
 	return is
-}
-
-// CUSTOMIZED CONTAINER INTERFACES AND IMPLEMENTATIONS
-//
-// listCnt INTERFACE
-type List interface {
-	Get(index int) (Value, bool)
-	Remove(index int)
-	Add(values ...Value)
-	Contains(values ...Value) bool
-	Sort(comparator Comparator)
-	Swap(index1, index2 int)
-	Insert(index int, values ...Value)
-}
-
-// listCnt IMPLEMENTATION
-type listCnt struct {
-	CntType
-	lists.List
-	containers.EnumerableWithIndex
-	containers.IteratorWithIndex
-	containers.ReverseIteratorWithIndex
-}
-
-func (l listCnt) ContType() CntType    { return l.CntType }
-func (l listCnt) Values() []Value      { s := l.List.Values(); return interfaceSlice(s).Values() }
-func (l listCnt) Slice() []interface{} { return l.List.Values() }
-func (l *listCnt) Add(v ...Value) {
-	is := valSlice(v).Interfaces()
-	(*l).List.Add(is)
-}
-func (l *listCnt) Insert(i int, v ...Value) { (*l).List.Insert(i, valSlice(v).Interfaces()) }
-func (l listCnt) Contains(v ...Value) bool  { return l.List.Contains(valSlice(v).Interfaces()) }
-func (l *listCnt) Sort(c Comparator)        { (*l).List.Sort(c.Convert()) }
-func (l listCnt) Get(i int) (Value, bool) {
-	v, ok := l.Get(i)
-	return v.(Value), ok
-}
-func (l listCnt) arrayList() lists.List        { return l.List.(*arraylist.List) }
-func (l listCnt) linkedList() lists.List       { return l.List.(*singlylinkedlist.List) }
-func (l listCnt) doublyLinkedList() lists.List { return l.List.(*doublylinkedlist.List) }
-
-// listCnt CONSTRUCTOR
-// the listCnt constructor only needs to know the dedicated type of the listCnt
-// container to instanciate
-func newlistContainer(t CntType) *listCnt {
-	var l = listCnt{}
-	switch t {
-	case LIST_ARRAY:
-		l.CntType = t
-		l.List = arraylist.New()
-	case LIST_SINGLE:
-		l.CntType = t
-		l.List = singlylinkedlist.New()
-	case LIST_DOUBLE:
-		l.CntType = t
-		l.List = doublylinkedlist.New()
-	}
-	return &l
-}
-
-// MAP INTERFACE
-type Map interface {
-	Put(key Value, value Value)
-	Get(key Value) (value Value, found bool)
-	Remove(key Value)
-	Keys() []Value
-
-	Container
-}
-
-// MAP IMPLEMENTATION
-type mapCnt struct {
-	CntType
-	maps.Map
-}
-
-func (m *mapCnt) ContType() CntType    { return m.CntType }
-func (l *mapCnt) Slice() []interface{} { return (*l).Map.Values() }
-func (m *mapCnt) Values() []Value      { return interfaceSlice((*m).Map.Values()).Values() }
-func (m *mapCnt) Get(i Value) (Value, bool) {
-	v, ok := (*m).Map.Get(i)
-	return v.(Value), ok
-}
-func (m *mapCnt) Keys() []Value {
-	return interfaceSlice((*m).Map.Keys()).Values()
-}
-func (m *mapCnt) Put(k Value, v Value) {
-	(*m).Put(k, v)
-}
-func (m *mapCnt) Remove(k Value) {
-	(*m).Map.Remove(k)
-}
-
-type BidiMap interface {
-	GetKey(value Value) (key Value, found bool)
-	Map // allready contains container
-}
-
-// MAP CONSTRUCTOR
-//
-// trees need one, or two comparators, while maps dont. Comparators can be of
-// different index type. apart from the designated container type, a variadic
-// idxType can optionaly be passed. The exact ammount of comparators needed, is
-// dependent on its type:
-//
-// | hash, hashbidi = 0 | tree = 1 | treebidi = 2 |
-//
-func newMapContainer(t CntType, c ...Comparator) (m *mapCnt) {
-	switch t {
-	case MAP_HASH:
-		m = &mapCnt{t, hashmap.New()}
-	case MAP_HASHBIDI:
-		m = &mapCnt{t, hashbidimap.New()}
-	case MAP_TREE:
-		m = &mapCnt{t, treemap.NewWith(c[0].Convert())}
-	case MAP_TREEBIDI:
-		m = &mapCnt{t, treebidimap.NewWith(c[0].Convert(), c[1].Convert())}
-	}
-	return m
-}
-
-// SET INTERFACE
-type Set interface {
-	Add(elements ...Value)
-	Remove(elements ...Value)
-	Contains(elements ...Value) bool
-
-	Container
-}
-
-// SET IMPLEMENTATION
-type setCnt struct {
-	CntType
-	sets.Set
-}
-
-func (s *setCnt) ContType() CntType    { return s.CntType }
-func (s *setCnt) Values() []Value      { return interfaceSlice((*s).Set.Values()).Values() }
-func (l *setCnt) Slice() []interface{} { return (*l).Set.Values() }
-func (s *setCnt) Add(e ...Value) {
-	i := valSlice(e).Interfaces()
-	(*s).Set.Add(i...)
-}
-func (s *setCnt) Remove(e ...Value) {
-	(*s).Set.Remove(valSlice(e).Interfaces())
-}
-func (s *setCnt) Contains(e ...Value) bool {
-	return (*s).Set.Contains(valSlice(e).Interfaces())
-}
-
-// SET CONSTRUCTOR
-// the treeset needs a comparator closure
-func newSetContainer(t CntType, c ...Comparator) (r *setCnt) {
-	switch t {
-	case SET_HASH:
-		r = &setCnt{t, hashset.New()}
-	case SET_TREE:
-		r = &setCnt{t, treeset.NewWith(c[0].Convert())}
-	}
-	return r
-}
-
-// STACK INTERFACE
-type Stack interface {
-	Push(value Value)
-	Pop() (value Value, ok bool)
-	Peek() (value Value, ok bool)
-
-	Container
-}
-
-// STACK IMPLEMENTATION
-type stackCnt struct {
-	CntType
-	stacks.Stack
-}
-
-func (s *stackCnt) ContType() CntType    { return s.CntType }
-func (l *stackCnt) Slice() []interface{} { return (*l).Stack.Values() }
-func (s *stackCnt) Values() []Value {
-	return interfaceSlice((*s).Stack.Values()).Values()
-}
-func (s *stackCnt) Peek() (Value, bool) {
-	v, ok := (*s).Stack.Peek()
-	return v.(Value), ok
-}
-func (s *stackCnt) Pop() (Value, bool) {
-	v, ok := (*s).Stack.Pop()
-	return v.(Value), ok
-}
-func (s *stackCnt) Push(v Value) { (*s).Stack.Push(v) }
-
-// STACK CONSTRUCTOR
-func newStackContainer(t CntType) (s *stackCnt) {
-	switch t {
-	case STACK_ARRAY:
-		s = &stackCnt{t, arraystack.New()}
-	case STACK_LINKED:
-		s = &stackCnt{t, linkedliststack.New()}
-	}
-	return s
-}
-
-// TREE INTERFACE
-type Tree interface {
-	Container
-}
-
-// TREE IMPLEMENTATION
-type treeCnt struct {
-	CntType
-	trees.Tree
-}
-
-func (t *treeCnt) ContType() CntType    { return (*t).CntType }
-func (l *treeCnt) Slice() []interface{} { return (*l).Tree.Values() }
-func (t *treeCnt) Values() []Value {
-	return interfaceSlice((*t).Tree.Values()).Values()
-}
-
-// TREE CONSTRUCTOR
-func newTreeContainer(t CntType, c ...Comparator) (r *treeCnt) {
-	switch t {
-	case TREE_REDBLACK:
-		tr := redblacktree.NewWith(c[0].Convert())
-		r = &treeCnt{t, tr}
-	case TREE_BINHEAP:
-		h := binaryheap.NewWith(c[0].Convert())
-		r = &treeCnt{t, h}
-	}
-	return r
 }

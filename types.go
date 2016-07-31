@@ -18,6 +18,7 @@ package agiledoc
 import (
 	"fmt"
 	"math/big"
+	"strconv"
 )
 
 // VALUE INTERFACE
@@ -404,12 +405,30 @@ func (v strVal) Native() string { return v.String() }
 func (v strVal) ToType(t ValueType) Value {
 	var val Value
 	switch t {
+	case BOOL:
+		vari, err := parseBool(v)
+		if err != nil {
+			val = emptyVal{}
+		}
+		val = NativeToValue(vari)
 	case FLAG:
-		val = emptyVal{}
+		vari, err := parseInt(v)
+		if err != nil {
+			val = emptyVal{}
+		}
+		val = NativeToValue(vari)
 	case INTEGER:
-		val = emptyVal{}
+		vari, err := parseInt(v)
+		if err != nil {
+			val = emptyVal{}
+		}
+		val = NativeToValue(vari)
 	case FLOAT:
-		val = emptyVal{}
+		vari, err := parseBool(v)
+		if err != nil {
+			val = emptyVal{}
+		}
+		val = NativeToValue(vari)
 	case BYTES:
 		val = bytesVal([]byte(string(v)))
 	case BYTE:
@@ -420,6 +439,36 @@ func (v strVal) ToType(t ValueType) Value {
 		val = emptyVal{}
 	}
 	return val
+}
+
+// PARSE STRINGS OR BYTE SLICES TO NUMERALS
+func parseInt(v Value) (Value, error) {
+	i, err := strconv.Atoi(v.String())
+	if err != nil {
+		return nil, err
+	}
+	return NativeToValue(i), nil
+}
+func parseUint(v Value) (Value, error) {
+	i, err := strconv.ParseUint(v.String(), 2, 8)
+	if err != nil {
+		return nil, err
+	}
+	return NativeToValue(i), nil
+}
+func parseFloat(v Value) (Value, error) {
+	f, err := strconv.ParseFloat(v.String(), 10)
+	if err != nil {
+		return nil, err
+	}
+	return NativeToValue(f), nil
+}
+func parseBool(v Value) (Value, error) {
+	i, err := strconv.ParseBool(v.String())
+	if err != nil {
+		return nil, err
+	}
+	return NativeToValue(i), nil
 }
 
 // convenience conversion functions
@@ -528,7 +577,7 @@ func NativeToValue(i interface{}) (v Value) {
 		// when a slice of values is passed, it is intended to be
 		// encapsulated in a container.
 	case []Value:
-		val := NewContainer(LIST_ARRAY)
+		val := wrapContainer(LIST_ARRAY, nil)
 		val.(List).Add(i.([]Value)...)
 		v = vecVal{LIST_ARRAY, val}
 	}

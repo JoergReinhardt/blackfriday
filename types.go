@@ -58,13 +58,119 @@ type Value interface {
 	String() string
 	ToType(ValueType) Value
 }
+type KeyValue interface {
+	Value // Type() ValueType, Value() Value
+	Key() Value
+	Ident() string
+}
 type Values interface {
 	Value
 	Container
 }
-type KeyValue interface {
+
+func Bytes(v []Value) []byte {
+	var bytes = []byte{}
+	var vals = v
+	for _, v := range vals {
+		v := v
+		b := v.Bytes()
+		bytes = append(bytes, b...)
+	}
+	return bytes
+}
+
+type KeyValues interface {
+	Key() Value
 	Ident() string
-	Value // Type() ValueType, Value() Value
+	Value() Value
+}
+
+// SLICE HELPER TYPES
+// these types exist, so that a slice of interfaces, as well as a slice of
+// Values implements a type, methods can be assigned to. That Way unwrapped
+// slices can allways be converted to those types and provide either the
+// Values(), or the Interfaces() method that converts them to the corredponding
+// slice type.
+type interfaceSlice []interface{}
+
+func (i interfaceSlice) Values() []Value {
+	var vs = []Value{}
+	for _, v := range i {
+		v := v
+		val := NativeToValue(v)
+		vs = append(vs, val)
+	}
+	return vs
+}
+
+type valSlice []Value
+
+func (v valSlice) Interfaces() []interface{} {
+	var is = []interface{}{}
+	for _, i := range v {
+		is = append(is, i)
+	}
+	return is
+}
+
+type keyValSlice []KeyValue
+type byteSlice []byte
+type boolSlice []bool
+
+func (b boolSlice) Bytes() []byte {
+
+	// bool-slice-integer array, combines up to 8 booleans in a slice to
+	// represent byte sized bitflags
+	var bsi [8]bool = [8]bool{}
+
+	// byte slice to concatenate all booleans in bitflag of arbitrary size
+	var bs = []byte{}
+
+	// split input into byte sized chunks and iterate over each of those chunks
+	for o := 0; o < (len(b)/8 + 1); o++ {
+
+		var u uint8 = 0 // allocate a new uint8 for each byte sized chunk
+
+		if o < len(b) { // if bool slice is not yet depleted
+
+			// iterate over each of the eight bits of the current chunk
+			for i := 0; i < 8; i++ {
+				i := i
+				// dereference bool at the current index
+				if bsi[i] { // if element is true, set a bit at the current index
+					u = 1 << uint(i)
+				}
+			}
+		} // end of chunk. since lenght check failed, another iteration is possibly needed.
+		// append the last produced chunk at the byte slice intended to return
+		bs = append(bs, u)
+
+	} // either iterate on, or return byte slice
+	// depending on the total number of chunks
+	return bs
+}
+func (b boolSlice) Values() []Value {
+	var vs = []Value{}
+	for _, v := range b {
+		v := v
+		vs = append(vs, NativeToValue(v))
+	}
+	return vs
+}
+func (i byteSlice) Values() []Value {
+	var vs = []Value{}
+	for _, v := range i {
+		v := v
+		vs = append(vs, NativeToValue(v))
+	}
+	return vs
+}
+func (v byteSlice) Interfaces() []interface{} {
+	var is = []interface{}{}
+	for _, i := range v {
+		is = append(is, i)
+	}
+	return is
 }
 
 // strings make the input handable as text.
@@ -79,7 +185,9 @@ const (
 	BYTE
 	BYTES
 	STRING
-	VECTOR
+	KEYVAL
+	LIST
+	MAP
 )
 
 type ValueType uint
@@ -95,8 +203,16 @@ type ( // are kept as close to the native types they are derived from, as possib
 	byteVal  uint8
 	bytesVal []byte
 	strVal   string
-	vecVal   struct {
-		CntType
+	keyVal   struct {
+		key Value
+		val Value
+	}
+	lstVal struct {
+		CntType // has to be part of LISTS
+		Container
+	}
+	mapVal struct {
+		CntType // has to be part of MAPS
 		Container
 	}
 )
@@ -141,7 +257,9 @@ func (boolVal) Type() ValueType  { return BOOL }
 func (byteVal) Type() ValueType  { return BYTE }
 func (bytesVal) Type() ValueType { return BYTES }
 func (strVal) Type() ValueType   { return STRING }
-func (vecVal) Type() ValueType   { return VECTOR }
+func (keyVal) Type() ValueType   { return KEYVAL }
+func (lstVal) Type() ValueType   { return LIST }
+func (mapVal) Type() ValueType   { return MAP }
 
 func (v flagVal) Value() Value  { return v }
 func (v intVal) Value() Value   { return v }
@@ -150,7 +268,9 @@ func (v boolVal) Value() Value  { return v }
 func (v byteVal) Value() Value  { return v }
 func (v bytesVal) Value() Value { return v }
 func (v strVal) Value() Value   { return v }
-func (v vecVal) Value() Value   { return v }
+func (v keyVal) Value() Value   { return v }
+func (v lstVal) Value() Value   { return v }
+func (v mapVal) Value() Value   { return v }
 
 // EMPTY TYPE
 // the implementation of the empty type, will be instanciateable from thin air,
@@ -472,9 +592,41 @@ func parseBool(v Value) (Value, error) {
 }
 
 // convenience conversion functions
-func (v vecVal) Vector() Value   { return v }
-func (v vecVal) Native() []Value { return v.Container.Values() }
-func (v vecVal) Bytes() []byte {
+func (v keyVal) Key() Value             { return v.key }
+func (v keyVal) Ident() string          { return string(v.Key().String()) }
+func (v keyVal) Native() (Value, Value) { return v.Key(), v.Value() }
+func (v keyVal) Bytes() []byte {
+	return []byte(fmt.Sprintf("%s: %s", v.Key().String(), v.Value().String()))
+}
+func (v keyVal) String() string { return string(v.Bytes()) }
+
+func (v keyVal) ToType(t ValueType) Value {
+	var val Value
+	//	switch t {
+	//	case FLAG:
+	//		val = emptyVal{}
+	//	case INTEGER:
+	//		val = emptyVal{}
+	//	case FLOAT:
+	//		val = emptyVal{}
+	//	case BYTES:
+	//		val = bytesVal(v.Bytes())
+	//	case BYTE:
+	//		val = byteVal(v.Bytes()[0])
+	//	case STRING:
+	//		val = strVal(v.String())
+	//	default:
+	//		val = emptyVal{}
+	//	}
+	return val
+}
+
+// convenience conversion functions
+
+// convenience conversion functions
+func (v lstVal) List() Value     { return v }
+func (v lstVal) Native() []Value { return v.Container.Values() }
+func (v lstVal) Bytes() []byte {
 	var bytes = []byte{}
 	var vals = v.Container.Values()
 	for _, v := range vals {
@@ -484,9 +636,9 @@ func (v vecVal) Bytes() []byte {
 	}
 	return bytes
 }
-func (v vecVal) String() string { return string(v.Bytes()) }
+func (v lstVal) String() string { return string(v.Bytes()) }
 
-func (v vecVal) ToType(t ValueType) Value {
+func (v lstVal) ToType(t ValueType) Value {
 	var val Value
 	switch t {
 	case FLAG:
@@ -504,6 +656,49 @@ func (v vecVal) ToType(t ValueType) Value {
 	default:
 		val = emptyVal{}
 	}
+	return val
+}
+
+// convenience conversion functions
+func (v mapVal) Map() Value { return v }
+func (v mapVal) Native() []KeyValue {
+	var retv []KeyValue
+	var vals = v.Container.Values()
+	for _, val := range vals {
+		retv = append(retv, keyVal{val.(keyVal).Key(), val.(keyVal).Value()})
+	}
+	return retv
+}
+func (v mapVal) Bytes() []byte {
+	var bytes = []byte{}
+	var vals = v.Container.Values()
+	for _, v := range vals {
+		v := v
+		b := NativeToValue(v).Bytes()
+		bytes = append(bytes, b...)
+	}
+	return bytes
+}
+func (v mapVal) String() string { return string(v.Bytes()) }
+
+func (v mapVal) ToType(t ValueType) Value {
+	var val Value
+	//	switch t {
+	//	case FLAG:
+	//		val = emptyVal{}
+	//	case INTEGER:
+	//		val = emptyVal{}
+	//	case FLOAT:
+	//		val = emptyVal{}
+	//	case BYTES:
+	//		val = bytesVal(v.Bytes())
+	//	case BYTE:
+	//		val = byteVal(v.Bytes()[0])
+	//	case STRING:
+	//		val = strVal(v.String())
+	//	default:
+	//		val = emptyVal{}
+	//	}
 	return val
 }
 
@@ -579,7 +774,15 @@ func NativeToValue(i interface{}) (v Value) {
 	case []Value:
 		val := wrapContainer(LIST_ARRAY, nil)
 		val.(List).Add(i.([]Value)...)
-		v = vecVal{LIST_ARRAY, val}
+		v = lstVal{LIST_ARRAY, val}
+	case []KeyValue:
+		val := wrapContainer(MAP_HASHBIDI, nil)
+		for _, v := range i.([]KeyValue) {
+			k := v.Key()
+			v := v.Value()
+			val.(Map).Put(k, v)
+		}
+		v = mapVal{LIST_ARRAY, val}
 	}
 	return v
 }

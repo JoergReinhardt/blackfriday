@@ -424,7 +424,7 @@ func (l *listCnt) Values() []Value { return interfaceSlice((*l).list.Values()).V
 // LIST-CNT CONSTRUCTOR
 // the listCnt constructor only needs to know the dedicated type of the listCnt
 // container to instanciate
-func newlistContainer(t CntType) *listCnt {
+func newlistContainer(t CntType) List {
 	var l = listCnt{}
 	switch t {
 	case LIST_ARRAY:
@@ -639,89 +639,4 @@ func newTreeContainer(t CntType, c ...Comparator) (r *treeCnt) {
 		r = &treeCnt{t, h}
 	}
 	return r
-}
-
-// SLICE HELPER TYPES
-// these types exist, so that a slice of interfaces, as well as a slice of
-// Values implements a type, methods can be assigned to. That Way unwrapped
-// slices can allways be converted to those types and provide either the
-// Values(), or the Interfaces() method that converts them to the corredponding
-// slice type.
-type interfaceSlice []interface{}
-type valSlice []Value
-
-func (i interfaceSlice) Values() []Value {
-	var vs = []Value{}
-	for _, v := range i {
-		v := v
-		val := NativeToValue(v)
-		vs = append(vs, val)
-	}
-	return vs
-}
-func (v valSlice) Interfaces() []interface{} {
-	var is = []interface{}{}
-	for _, i := range v {
-		is = append(is, i)
-	}
-	return is
-}
-
-type byteSlice []byte
-type boolSlice []bool
-
-func (b boolSlice) Bytes() []byte {
-
-	// bool-slice-integer array, combines up to 8 booleans in a slice to
-	// represent byte sized bitflags
-	var bsi [8]bool = [8]bool{}
-
-	// byte slice to concatenate all booleans in bitflag of arbitrary size
-	var bs = []byte{}
-
-	// split input into byte sized chunks and iterate over each of those chunks
-	for o := 0; o < (len(b)/8 + 1); o++ {
-
-		var u uint8 = 0 // allocate a new uint8 for each byte sized chunk
-
-		if o < len(b) { // if bool slice is not yet depleted
-
-			// iterate over each of the eight bits of the current chunk
-			for i := 0; i < 8; i++ {
-				i := i
-				// dereference bool at the current index
-				if bsi[i] { // if element is true, set a bit at the current index
-					u = 1 << uint(i)
-				}
-			}
-		} // end of chunk. since lenght check failed, another iteration is possibly needed.
-		// append the last produced chunk at the byte slice intended to return
-		bs = append(bs, u)
-
-	} // either iterate on, or return byte slice
-	// depending on the total number of chunks
-	return bs
-}
-func (b boolSlice) Values() []Value {
-	var vs = []Value{}
-	for _, v := range b {
-		v := v
-		vs = append(vs, NativeToValue(v))
-	}
-	return vs
-}
-func (i byteSlice) Values() []Value {
-	var vs = []Value{}
-	for _, v := range i {
-		v := v
-		vs = append(vs, NativeToValue(v))
-	}
-	return vs
-}
-func (v byteSlice) Interfaces() []interface{} {
-	var is = []interface{}{}
-	for _, i := range v {
-		is = append(is, i)
-	}
-	return is
 }

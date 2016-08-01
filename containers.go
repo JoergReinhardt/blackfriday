@@ -71,8 +71,8 @@ const (
 	MAPS   = MAP_HASH | MAP_HASHBIDI | MAP_TREE | MAP_TREEBIDI
 	TREES  = TREE_BINHEAP | TREE_REDBLACK
 
-	KEYED   = LISTS | STACKS
-	INDEXED = SETS | MAPS | TREES
+	INDEXED = LISTS | STACKS
+	KEYED   = SETS | MAPS | TREES
 	REVERSE = LIST_ARRAY | LIST_DOUBLE | SET_TREE | STACK_ARRAY |
 		MAP_TREEBIDI | MAP_TREE | TREE_BINHEAP | TREE_REDBLACK
 )
@@ -96,9 +96,23 @@ type Container interface {
 }
 type ValContainer interface {
 	ContType() CntType
-	Container
+	Iterator() Iterator
+	Container() Container
 	Enumerable
-	Iterator
+}
+type ListContainer interface {
+	ValContainer
+	List
+}
+type MapContainer interface {
+	ValContainer
+	Map
+}
+type listCnt struct {
+	CntType
+	list lists.List
+	Enumerable
+	iterFn func() Iterator
 }
 
 // CONTAINER WRAPPER (instanciates a struct type to hold the container,
@@ -235,64 +249,77 @@ func (rec *enum) findByIdx(fn func(key interface{}, value interface{}) bool) (Va
 }
 
 type Iterator interface {
-	Next() bool
 	Value() Value
-	KoI() Value
+	KoI() Value // key or interaface
 	Begin()
+	Next() bool
 	First() bool
+	End()
+	Preview() bool
+	Last() bool
 }
 
 // ITERATOR WRAPPER
 type iterator struct {
-	ContType func() CntType
-	i        interface{}
-	next     func() bool
-	value    func() Value
-	koi      func() Value
-	begin    func()
-	first    func() bool
-	prev     func() bool
-	end      func()
-	last     func() bool
+	i     interface{}
+	next  func() bool
+	value func() Value
+	koi   func() Value
+	begin func()
+	first func() bool
+	prev  func() bool
+	end   func()
+	last  func() bool
 }
 
-func (i iterator) Next() bool   { return i.next() }
-func (i iterator) Value() Value { return i.value() }
-func (i iterator) KoI() Value   { return i.value() }
-func (i iterator) Begin()       { i.begin() }
-func (i iterator) First() bool  { return i.first() }
-func (i iterator) Prev() bool   { return i.prev() }
-func (i iterator) End()         { i.prev() }
-func (i iterator) Last() bool   { return i.prev() }
+func (i iterator) Next() bool    { return i.next() }
+func (i iterator) Value() Value  { return i.value() }
+func (i iterator) KoI() Value    { return i.key() }
+func (i iterator) Begin()        { i.begin() }
+func (i iterator) First() bool   { return i.first() }
+func (i iterator) Preview() bool { return i.prev() }
+func (i iterator) End()          { i.prev() }
+func (i iterator) Last() bool    { return i.prev() }
 
-func wrapIterator(t CntType, i interface{}) Iterator {
-	var r = iterator{}
-	if t&INDEXED != 0 {
-		r.next = i.(containers.IteratorWithIndex).Next
-		r.value = NativeToValue(i.(containers.IteratorWithIndex).Value).Value
-		r.koi = NativeToValue(i.(containers.IteratorWithIndex).Index).Value
-		r.begin = i.(containers.IteratorWithIndex).Begin
-		r.first = i.(containers.IteratorWithIndex).First
-		if t&REVERSE != 0 {
-			r.prev = i.(containers.ReverseIteratorWithIndex).Prev
-			r.end = i.(containers.ReverseIteratorWithIndex).End
-			r.last = i.(containers.ReverseIteratorWithIndex).Last
-		}
-	} else {
-		r.next = i.(containers.IteratorWithKey).Next
-		r.value = NativeToValue(i.(containers.IteratorWithKey).Value).Value
-		r.koi = NativeToValue(i.(containers.IteratorWithKey).Key).Value
-		r.begin = i.(containers.IteratorWithKey).Begin
-		r.first = i.(containers.IteratorWithKey).First
-		if t&REVERSE != 0 {
-			r.prev = i.(containers.ReverseIteratorWithKey).Prev
-			r.end = i.(containers.ReverseIteratorWithKey).End
-			r.last = i.(containers.ReverseIteratorWithKey).Last
-		}
-	}
-	return r
-}
-
+//func wrapIterator(t CntType, i interface{}) Iterator {
+//	var r = iterator{}
+//	if t&INDEXED != 0 {
+//		if t&REVERSE != 0 {
+//			r.i = i.(containers.ReverseIteratorWithIndex)
+//			r.next = i.(containers.ReverseIteratorWithIndex).Next
+//			r.value = NativeToValue(i.(containers.ReverseIteratorWithIndex).Value).Value
+//			r.koi = NativeToValue(i.(containers.ReverseIteratorWithIndex).Index).Value
+//			r.begin = i.(containers.ReverseIteratorWithIndex).Begin
+//			r.first = i.(containers.ReverseIteratorWithIndex).First
+//			r.prev = i.(containers.ReverseIteratorWithIndex).Prev
+//			r.end = i.(containers.ReverseIteratorWithIndex).End
+//			r.last = i.(containers.ReverseIteratorWithIndex).Last
+//		}
+//		r.next = i.(containers.IteratorWithIndex).Next
+//		r.value = NativeToValue(i.(containers.IteratorWithIndex).Value).Value
+//		r.koi = NativeToValue(i.(containers.IteratorWithIndex).Index).Value
+//		r.begin = i.(containers.IteratorWithIndex).Begin
+//		r.first = i.(containers.IteratorWithIndex).First
+//	} else {
+//		if t&REVERSE != 0 {
+//			r.next = i.(containers.ReverseIteratorWithKey).Next
+//			r.value = NativeToValue(i.(containers.ReverseIteratorWithKey).Value).Value
+//			r.koi = NativeToValue(i.(containers.ReverseIteratorWithKey).Key).Value
+//			r.begin = i.(containers.ReverseIteratorWithKey).Begin
+//			r.first = i.(containers.ReverseIteratorWithKey).First
+//			r.prev = i.(containers.ReverseIteratorWithKey).Prev
+//			r.end = i.(containers.ReverseIteratorWithKey).End
+//			r.last = i.(containers.ReverseIteratorWithKey).Last
+//		}
+//		r.next = i.(containers.IteratorWithKey).Next
+//		r.value = NativeToValue(i.(containers.IteratorWithKey).Value).Value
+//		r.koi = NativeToValue(i.(containers.IteratorWithKey).Key).Value
+//		r.begin = i.(containers.IteratorWithKey).Begin
+//		r.first = i.(containers.IteratorWithKey).First
+//	}
+//	return r
+//}
+//
 //var ( // functions to reveal original underlaying gods container type
 //	arraylistFn        = func(l *listCnt) lists.List { return (*l).list.(arraylist.List) }
 //	singlylinkedlistFn = func(l *listCnt) lists.List { return singlylinkedlist.List((*l).list) }
@@ -403,21 +430,14 @@ type List interface {
 // itself.
 type ListValue interface {
 	List
-	Container
 	Enumerable
-	Iterator
-}
-type listCnt struct {
-	CntType
-	list lists.List
-	Container
-	Enumerable
-	Iterator
+	Iterator() Iterator
 }
 
 // VALUE INTERFACE
 func (l listCnt) ContType() CntType    { return l.CntType }
-func (l listCnt) Slice() []interface{} { return valSlice(l.Container.Values()).Interfaces() }
+func (l listCnt) Container() Container { return wrapContainer(l.list) }
+func (l listCnt) Slice() []interface{} { return valSlice(l.Container().Values()).Interfaces() }
 
 // LIST INTERFACE
 func (l *listCnt) Get(i int) (Value, bool) {
@@ -427,9 +447,11 @@ func (l *listCnt) Get(i int) (Value, bool) {
 func (l *listCnt) Remove(index int) {}
 func (l *listCnt) Add(v ...Value) {
 	is := valSlice(v).Interfaces()
-	(*l).list.Add(is)
+	(*l).list.Add(is...)
 }
-func (l listCnt) Contains(v ...Value) bool  { return l.list.Contains(valSlice(v).Interfaces()) }
+func (l listCnt) Contains(v ...Value) bool { return l.list.Contains(valSlice(v).Interfaces()...) }
+
+func (l *listCnt) Iterator() Iterator       { return (*l).iterFn() }
 func (l *listCnt) Sort(c Comparator)        { (*l).list.Sort(c.Convert()) }
 func (l *listCnt) Swap(index1, index2 int)  { (*l).list.Swap(index1, index2) }
 func (l *listCnt) Insert(i int, v ...Value) { (*l).list.Insert(i, valSlice(v).Interfaces()) }
@@ -452,21 +474,20 @@ func newListContainer(t CntType) ValContainer {
 		al := *arraylist.New()
 		l.CntType = t
 		l.list = &al
-		l.Container = wrapContainer(&al)
 		l.Enumerable = wrapEnum(t, &al)
-		l.Iterator = wrapIterator(t, (&al).Iterator())
+		l.iterFn = func() Iterator { return wrapIterator(t, (&al).Iterator()) }
 	case LIST_SINGLE:
 		sl := *singlylinkedlist.New()
 		l.CntType = t
 		l.list = &sl
 		l.Enumerable = wrapEnum(t, &sl)
-		l.Iterator = wrapIterator(t, (&sl).Iterator())
+		l.iterFn = func() Iterator { return wrapIterator(t, (&sl).Iterator()) }
 	case LIST_DOUBLE:
 		dl := *doublylinkedlist.New()
 		l.CntType = t
 		l.list = &dl
 		l.Enumerable = wrapEnum(t, &dl)
-		l.Iterator = wrapIterator(t, (&dl).Iterator())
+		l.iterFn = func() Iterator { return wrapIterator(t, (&dl).Iterator()) }
 	}
 	return ValContainer(&l)
 }
@@ -477,27 +498,25 @@ type Map interface {
 	Get(key Value) (value Value, found bool)
 	Remove(key Value)
 	Keys() []Value
-
-	Container
 }
 
 // MAP IMPLEMENTATION
 type mapCnt struct {
 	CntType
 	maps.Map
-	Container
 	Enumerable
-	Iterator
+	iterFn func() Iterator
 }
 
 type MapValue interface {
 	Map
 	Enumerable
-	Iterator
 }
 
-func (m *mapCnt) ContType() CntType    { return m.CntType }
-func (l *mapCnt) Slice() []interface{} { return (*l).Map.Values() }
+func (m mapCnt) ContType() CntType     { return m.CntType }
+func (m mapCnt) Container() Container  { return wrapContainer(m.Map) }
+func (m mapCnt) Iterator() Iterator    { return wrapIterator(m.CntType, m.Map) }
+func (m *mapCnt) Slice() []interface{} { return (*m).Map.Values() }
 func (m *mapCnt) Values() []Value      { return interfaceSlice((*m).Map.Values()).Values() }
 func (m *mapCnt) Get(i Value) (Value, bool) {
 	v, ok := (*m).Map.Get(i)
@@ -539,26 +558,24 @@ func newMapContainer(t CntType, c ...Comparator) ValContainer {
 		am := *hashmap.New()
 		m.CntType = t
 		m.Map = &am
-		m.Container = wrapContainer(&am)
 		m.Enumerable = wrapEnum(t, &am)
 	case MAP_HASHBIDI:
 		hbm := *hashbidimap.New()
 		m.CntType = t
 		m.Map = &hbm
-		m.Container = wrapContainer(&hbm)
 		m.Enumerable = wrapEnum(t, &hbm)
 	case MAP_TREE:
 		tm := *treemap.NewWith(c[0].Convert())
 		m.CntType = t
 		m.Map = &tm
-		m.Container = wrapContainer(&tm)
 		m.Enumerable = wrapEnum(t, &tm)
+		m.iterFn = func() Iterator { return wrapIterator(t, (&tm).Iterator()) }
 	case MAP_TREEBIDI:
 		tbm := *treebidimap.NewWith(c[0].Convert(), c[1].Convert())
 		m.CntType = t
 		m.Map = &tbm
-		m.Container = wrapContainer(&tbm)
 		m.Enumerable = wrapEnum(t, &tbm)
+		m.iterFn = func() Iterator { return wrapIterator(t, (&tbm).Iterator()) }
 	}
 	return ValContainer(&m)
 }
@@ -569,24 +586,25 @@ type Set interface {
 	Remove(elements ...Value)
 	Contains(elements ...Value) bool
 
-	Container
+	Iterator() Iterator
+	Container() Container
 }
 type SetValue interface {
 	Set
 	Enumerable
-	Iterator
 }
 
 // SET IMPLEMENTATION
 type setCnt struct {
 	CntType
 	sets.Set
-	Container
 	Enumerable
-	Iterator
+	iterFn func() Iterator
 }
 
 func (s *setCnt) ContType() CntType    { return s.CntType }
+func (s *setCnt) Container() Container { return wrapContainer(s.Set) }
+func (s *setCnt) Iterator() Iterator   { return wrapIterator(s.CntType, s.Iterator()) }
 func (s *setCnt) Values() []Value      { return interfaceSlice((*s).Set.Values()).Values() }
 func (l *setCnt) Slice() []interface{} { return (*l).Set.Values() }
 func (s *setCnt) Add(e ...Value) {
@@ -614,15 +632,13 @@ func newSetContainer(t CntType, c ...Comparator) ValContainer {
 		hs := *hashset.New()
 		s.CntType = t
 		s.Set = &hs
-		s.Container = wrapContainer(&hs)
 		s.Enumerable = wrapEnum(t, &hs)
 	case SET_TREE:
 		ts := *treeset.NewWith(c[0].Convert())
 		s.CntType = t
 		s.Set = &ts
-		s.Container = wrapContainer(&ts)
 		s.Enumerable = wrapEnum(t, &ts)
-		s.Iterator = wrapIterator(t, (&ts).Iterator())
+		s.iterFn = func() Iterator { return wrapIterator(t, (&ts).Iterator()) }
 	}
 	return ValContainer(&s)
 }
@@ -639,10 +655,9 @@ type Stack interface {
 // STACK IMPLEMENTATION
 type stackCnt struct {
 	CntType
-	stacks.Stack
-	Container
 	Enumerable
-	Iterator
+	stacks.Stack
+	iterFn func() Iterator
 }
 type StackValue interface {
 	Stack
@@ -651,7 +666,9 @@ type StackValue interface {
 }
 
 func (s *stackCnt) ContType() CntType    { return s.CntType }
-func (l *stackCnt) Slice() []interface{} { return (*l).Stack.Values() }
+func (s *stackCnt) Container() Container { return wrapContainer(s.Stack) }
+func (s *stackCnt) Iterator() Iterator   { return wrapIterator(s.CntType, s.Iterator()) }
+func (s *stackCnt) Slice() []interface{} { return (*s).Stack.Values() }
 
 //func (s *stackCnt) Values() []Value {
 //	return interfaceSlice((*s).Stack.Values()).Values()
@@ -680,16 +697,14 @@ func newStackContainer(t CntType) ValContainer {
 		as := *arraystack.New()
 		s.CntType = t
 		s.Stack = &as
-		s.Container = wrapContainer(&as)
 		s.Enumerable = wrapEnum(t, &as)
-		s.Iterator = wrapIterator(t, &as)
+		s.iterFn = func() Iterator { return wrapIterator(t, (&as).Iterator()) }
 	case STACK_LINKED:
 		ll := *linkedliststack.New()
 		s.CntType = t
 		s.Stack = &ll
-		s.Container = wrapContainer(&ll)
 		s.Enumerable = wrapEnum(t, &ll)
-		s.Iterator = wrapIterator(t, &ll)
+		s.iterFn = func() Iterator { return wrapIterator(t, (&ll).Iterator()) }
 	}
 	return ValContainer(&s)
 }
@@ -701,19 +716,21 @@ type Tree interface {
 type TreeValue interface {
 	Tree
 	Enumerable
-	Iterator
 }
 
 // TREE IMPLEMENTATION
 type treeCnt struct {
 	CntType
 	trees.Tree
-	Container
 	Enumerable
-	Iterator
+	iterFn func() Iterator
 }
 
 func (t *treeCnt) ContType() CntType    { return (*t).CntType }
+func (t *treeCnt) Container() Container { return wrapContainer(t.Tree) }
+func (t *treeCnt) Iterator() Iterator {
+	return wrapIterator(t.CntType, t.Tree.(*treeset.Set).Iterator())
+}
 func (l *treeCnt) Slice() []interface{} { return (*l).Tree.Values() }
 func (t *treeCnt) Values() []Value {
 	return interfaceSlice((*t).Tree.Values()).Values()
@@ -725,23 +742,20 @@ func (t treeCnt) Size() int   { return t.Tree.Size() }
 func (t *treeCnt) Clear()     { (*t).Tree.Clear() }
 
 // TREE CONSTRUCTOR
-func newTreeContainer(ct CntType, c ...Comparator) *treeCnt {
+func newTreeContainer(ct CntType, c ...Comparator) ValContainer {
 	var t treeCnt
 	switch ct {
 	case TREE_REDBLACK:
 		tr := *redblacktree.NewWith(c[0].Convert())
 		t.CntType = ct
 		t.Tree = &tr
-		t.Container = wrapContainer(&tr)
 		t.Enumerable = wrapEnum(ct, &tr)
-		t.Iterator = wrapIterator(ct, &tr)
 	case TREE_BINHEAP:
 		bm := *binaryheap.NewWith(c[0].Convert())
 		t.CntType = ct
 		t.Tree = &bm
-		t.Container = wrapContainer(&bm)
 		t.Enumerable = wrapEnum(ct, &bm)
-		t.Iterator = wrapIterator(ct, &bm)
+		t.iterFn = func() Iterator { return wrapIterator(ct, (&bm).Iterator()) }
 	}
 	return &t
 }

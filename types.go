@@ -209,11 +209,11 @@ type ( // are kept as close to the native types they are derived from, as possib
 	}
 	lstVal struct {
 		CntType   // has to be part of LISTS
-		Container ValContainer
+		Container ListContainer
 	}
 	mapVal struct {
 		CntType   // has to be part of MAPS
-		Container ValContainer
+		Container MapContainer
 	}
 )
 
@@ -625,10 +625,10 @@ func (v keyVal) ToType(t ValueType) Value {
 
 // convenience conversion functions
 func (v lstVal) List() Value     { return v }
-func (v lstVal) Native() []Value { return v.Container.Values() }
+func (v lstVal) Native() []Value { return v.Container.Container().Values() }
 func (v lstVal) Bytes() []byte {
 	var bytes = []byte{}
-	var vals = v.Container.Values()
+	var vals = v.Container.Container().Values()
 	for _, v := range vals {
 		v := v
 		b := NativeToValue(v).Bytes()
@@ -663,7 +663,7 @@ func (v lstVal) ToType(t ValueType) Value {
 func (v mapVal) Map() Value { return v }
 func (v mapVal) Native() []KeyValue {
 	var retv []KeyValue
-	var vals = v.Container.Values()
+	var vals = v.Container.Container().Values()
 	for _, val := range vals {
 		retv = append(retv, keyVal{val.(keyVal).Key(), val.(keyVal).Value()})
 	}
@@ -671,7 +671,7 @@ func (v mapVal) Native() []KeyValue {
 }
 func (v mapVal) Bytes() []byte {
 	var bytes = []byte{}
-	var vals = v.Container.Values()
+	var vals = v.Container.Container().Values()
 	for _, v := range vals {
 		v := v
 		b := NativeToValue(v).Bytes()
@@ -774,7 +774,7 @@ func NativeToValue(i interface{}) (v Value) {
 	case []Value:
 		val := newValueContainer(LIST_ARRAY)
 		val.(List).Add(i.([]Value)...)
-		v = lstVal{LIST_ARRAY, val}
+		v = lstVal{LIST_ARRAY, val.(*listCnt)}
 	case []KeyValue:
 		val := newValueContainer(MAP_HASHBIDI)
 		for _, v := range i.([]KeyValue) {
@@ -782,7 +782,7 @@ func NativeToValue(i interface{}) (v Value) {
 			v := v.Value()
 			val.(Map).Put(k, v)
 		}
-		v = mapVal{LIST_ARRAY, val}
+		v = mapVal{LIST_ARRAY, val.(*mapCnt)}
 	}
 	return v
 }

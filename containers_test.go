@@ -6,16 +6,25 @@ import (
 
 func TestContainers(t *testing.T) {
 
-	c := wrapContainer(LIST_ARRAY)
+	c := newValueContainer(LIST_ARRAY)
 
 	for _, s := range Natives.Bytes {
 		s := s
-		v := NativeToValue(s)
-		c.(List).Add(v)
+		v := NativeToValue(s).Value()
+		t.Log(v)
+		(c.(List)).Add(v)
 	}
 
-	(*t).Log(c.Size())
 	(*t).Log(c.ContType())
-	(*t).Log(c.Empty())
-	(*t).Log(c.Values())
+	(*t).Log(c.Container().Size())
+	(*t).Log(c.Container().Empty())
+	(*t).Log(c.Container().Values())
+
+	i := c.Iterator()
+	t.Log(i)
+
+	//	for ok := i.Next(); ok; {
+	//		n := i.Value()
+	//		t.Log(n)
+	//	}
 }

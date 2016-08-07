@@ -187,14 +187,17 @@ const (
 	STRING
 	KEYVAL
 	LIST
+	STACK
 	MAP
+	SET
+	TREE
 )
 
-type ValueType uint
+type ValueType uint16
 
 // TYPES
 //
-type ( // are kept as close to the native types they are derived from, as possible
+type ( // are kept as close to gos native types they are derived from, as possible
 	emptyVal struct{} // the empty struct is taken as emptyVal
 	flagVal  big.Int
 	intVal   big.Int
@@ -208,43 +211,40 @@ type ( // are kept as close to the native types they are derived from, as possib
 		val Value
 	}
 	lstVal struct {
-		CntType   // has to be part of LISTS
-		Container ListContainer
+		CntType    // has to be part of LISTS
+		List       func() List
+		Container  func() Container
+		Enumerable func() Enumerable
+		Iterator   func() Iterator
+	}
+	stkVal struct {
+		CntType    // has to be part of STACKS
+		Stack      func() Stack
+		Container  func() Container
+		Enumerable func() Enumerable
+		Iterator   func() Iterator
 	}
 	mapVal struct {
-		CntType   // has to be part of MAPS
-		Container MapContainer
+		CntType    // has to be part of MAPS
+		Map        func() Map
+		Container  func() Container
+		Enumerable func() Enumerable
+		Iterator   func() Iterator
 	}
-)
-
-// funtion types that implement the interface
-type (
-	// for each interface method there is a function defined, representing it. By sharing it's type
-	// signature and using a Value instance as its first parameter and only return type.
-	//
-	ValueFnT func(Value) Value // TYPE CONVERTING & RETURN METHOD
-	TypeFnT  func(Value) ValueType
-	IdentFnT func(KeyValue) string
-	///
-	/// FUNCTIONAL TYPE REPRESENTATION
-	//
-	// to convert from each allowed type to every type a value can be
-	// converted to, without a lot of repeating, function types to
-	// represent the native types are needed.
-	//
-	// the type system makes A function type that gets an interface type as
-	// first parameter in it´s definition, acts like a method that works on
-	// all instances that implement its receiving Interface parameter.
-	BoolFnT     func(Value) bool
-	BigIntFnT   func(Value) big.Int
-	BigFloatFnT func(Value) big.Float
-	BigRatFnT   func(Value) big.Rat
-	ByteFnT     func(Value) byte
-	BytesFnT    func(Value) []byte
-	StringFnT   func(Value) string
-	IntegerFnT  func(Value) int64
-	FloatFnT    func(Value) float64
-	ValuesFnT   func(Value) []Value
+	setVal struct {
+		CntType    // has to be part of SETS
+		Set        func() Set
+		Container  func() Container
+		Enumerable func() Enumerable
+		Iterator   func() Iterator
+	}
+	treeVal struct {
+		CntType    // has to be part of TREES
+		Tree       func() Tree
+		Container  func() Container
+		Enumerable func() Enumerable
+		Iterator   func() Iterator
+	}
 )
 
 // INTERFACE METHODS
@@ -259,18 +259,24 @@ func (bytesVal) Type() ValueType { return BYTES }
 func (strVal) Type() ValueType   { return STRING }
 func (keyVal) Type() ValueType   { return KEYVAL }
 func (lstVal) Type() ValueType   { return LIST }
+func (stkVal) Type() ValueType   { return STACK }
 func (mapVal) Type() ValueType   { return MAP }
+func (setVal) Type() ValueType   { return SET }
+func (treeVal) Type() ValueType  { return TREE }
 
-func (v flagVal) Value() Value  { return v }
-func (v intVal) Value() Value   { return v }
-func (v ratVal) Value() Value   { return v }
-func (v boolVal) Value() Value  { return v }
-func (v byteVal) Value() Value  { return v }
-func (v bytesVal) Value() Value { return v }
+func (v flagVal) Value() Value  { return flagVal{v} }
+func (v intVal) Value() Value   { return intVal{v} }
+func (v ratVal) Value() Value   { return ratVal{v} }
+func (v boolVal) Value() Value  { return boolVal{v} }
+func (v byteVal) Value() Value  { return byteVal{v} }
+func (v bytesVal) Value() Value { return bytesVal{v} }
 func (v strVal) Value() Value   { return v }
 func (v keyVal) Value() Value   { return v }
 func (v lstVal) Value() Value   { return v }
+func (v stkVal) Value() Value   { return v }
 func (v mapVal) Value() Value   { return v }
+func (v setVal) Value() Value   { return v }
+func (v treeVal) Value() Value  { return v }
 
 // EMPTY TYPE
 // the implementation of the empty type, will be instanciateable from thin air,

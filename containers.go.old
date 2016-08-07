@@ -146,7 +146,7 @@
 //    Contains(elements ...interface{}) bool
 //
 //    hash 	 nil|nil
-//    tree  	 rev|key
+//    tree  	 rev|nil
 //
 //
 // TREES
@@ -279,112 +279,41 @@ const (
 // instead of empty interfaces.
 //
 type Container interface {
-	Values() []Value
-	Slice() []interface{}
 	Empty() bool
 	Size() int
 	Clear()
-}
-type List interface {
-	lists.List
-}
-type Stack interface {
-	stacks.Stack
-}
-type Map interface {
-	maps.Map
-}
-type Set interface {
-	sets.Set
-}
-type Tree interface {
-	trees.Tree
+
+	Values() []Value
+	Slice() []interface{}
 }
 
-// CONTAINER WRAPPER (instanciates a struct type to hold the container,
-type cont struct {
-	containers.Container
-}
+// CONTAINER WRAPPER TYPE
+//
+// implements the classes of the container interface that need to be wrapped.
+// Methods that stay identical to their god counterparts by signature (Empty(),
+// Size(), Clear()), dont need to be wrapped.
+//
+type cont struct{ containers.Container }
 
-// CONVERSIONS
-func (c cont) Slice() []interface{} { return c.Container.(containers.Container).Values() }
-func (c cont) Values() []Value      { return interfaceSlice(c.Slice()).Values() }
-func wrapContainer(c containers.Container) cont {
-	return cont{c}
-}
-func newContainer(t CntType, comp ...Comparator) Container {
-	var v Container
+func (c cont) Values() []Value                  { return interfaceSlice(c.Slice()).Values() }
+func (c cont) Slice() []interface{}             { return c.Container.(containers.Container).Values() }
+func wrapContainer(c containers.Container) cont { return cont{c} }
+
+func newValueContainer(t CntType) ValContainer {
+	var v ValContainer
 	switch {
 	case t&LISTS != 0:
 		v = newListContainer(t)
 	case t&SETS != 0:
-		c := newSetContainer(t)
+		v = newSetContainer(t)
 	case t&MAPS != 0:
-		c := newMapContainer(t, comp[0])
+		v = newMapContainer(t)
 	case t&STACKS != 0:
 		v = newStackContainer(t)
 	case t&TREES != 0:
 		v = newTreeContainer(t)
 	}
 	return v
-}
-func newListContainer(t CntType) Container {
-	var c lists.List
-	switch {
-	case t&LIST_ARRAY != 0:
-		c = arraylist.New()
-	case t&LIST_SINGLE != 0:
-		c = singlylinkedlist.New()
-	case t&LIST_DOUBLE != 0:
-		c = doublylinkedlist.New()
-	}
-	return wrapContainer(c)
-}
-func newStackContainer(t CntType) Container {
-	var c stacks.Stack
-	switch {
-	case t&STACK_ARRAY != 0:
-		c = arraystack.New()
-	case t&STACK_LINKED != 0:
-		c = linkedliststack.New()
-	}
-	return wrapContainer(c)
-}
-func newMapContainer(t CntType, comp ...Comparator) Container {
-	var c maps.Map
-	switch {
-	case t&MAP_HASH != 0:
-		c = hashmap.New()
-	case t&MAP_HASHBIDI != 0:
-		c = hashbidimap.New()
-	case t&MAP_TREE != 0:
-		c = treemap.NewWith(comp[0].Convert())
-	case t&MAP_TREEBIDI != 0:
-		c = treebidimap.NewWith(comp[0].Convert(), comp[1].Convert())
-	}
-	return wrapContainer(c)
-}
-func newSetContainer(t CntType, comp ...Comparator) Container {
-	var c sets.Set
-	switch {
-	case t&SET_HASH != 0:
-		c = hashset.New()
-	case t&SET_TREE != 0:
-		c := treeset.NewWith(comp[0].Convert())
-
-	}
-	return wrapContainer(c)
-}
-func newTreeContainer(t CntType, comp ...Comparator) Container {
-	var c trees.Tree
-	switch {
-	case t&TREE_BINHEAP != 0:
-		c = binaryheap.NewWith(comp[0].Convert())
-	case t&TREE_REDBLACK != 0:
-		c = redblacktree.NewWith(comp[0].Convert())
-
-	}
-	return wrapContainer(c)
 }
 
 // ENUMERABLE INTERFACE
@@ -394,6 +323,14 @@ type Enumerable interface {
 	Any(func(koi Value, value Value) bool) bool
 	All(func(koi Value, value Value) bool) bool
 	Find(func(koi Value, value Value) bool) (Value, Value)
+}
+
+//	REVERSE
+//
+type Reverse interface {
+	End()
+	Preview() bool
+	Last() bool
 }
 
 // ENUMERABLE RETURN TYPE IMPLEMENTATIONS
@@ -407,41 +344,53 @@ type enumKey struct {
 	enum     containers.EnumerableWithKey
 }
 
+type enumIdxRev struct {
+	ContType CntType // CHECK TYPE FIRST!
+	enum     containers.ReverseEnumerableWithIndex
+}
+type enumKeyRev struct {
+	ContType CntType // CHECK TYPE FIRST!
+	enum     containers.ReverseEnumerableWithKey
+}
+
 // WRAP_ENUM
 // chooses which enumerable interface implementation to instanciate and maps
 // the appropriate functions to the instance.
-//func wrapEnum(t CntType, koi Value, value Value) Enumerable {
-//	var ret utils.Comparator
-//	if t&INDEXED != 0 {
-//		ret = func(koi, value interface{}) int {
-//			idx := koi.(intVal).Integer()
-//			return utils.IntComparator(idx, value)
-//		}
-//	} else {
-//		ret = func(koi, value interface{}) int {
-//			key := koi.(strVal).String()
-//			return utils.StringComparator(key, value)
-//		}
-//	}
-//}
+func wrapEnum(t CntType, e interface{}) Enumerable {
+	var ret Enumerable
+	ret = wrapEnumMapType(t, e)
+	ret = wrapEnumReverse(t, e)
+	return ret
+}
+func wrapEnumMapType(t CntType, e interface{}) Enumerable {
+	var ret Enumerable
+	if t&INDEXED != 0 {
+		ret = &enumIdx{e.(containers.EnumerableWithIndex)}
+	} else {
+		ret = &enumKey{e.(containers.EnumerableWithKey)}
+	}
+	return ret
+}
+func wrapEnumReverse(t CntType, e interface{}) Enumerable {
+	if t&REVERSE != 0 {
+		ret = &enumIdxRev{ret.(containers.ReverseEnumerableWithIndex)}
+	} else {
+		ret = &enumKeyRev{ret.(containers.ReverseEnumerableWithKey)}
+	}
+	return ret
+}
 
 // ENUMERABLE FUNCTIONS
 // enumerable interface implementing functions
 //
-func Each(e containers.Enumerable, t CntType, koi Value, value Value) {
-	var comp utils.Comparator
+func Each(t CntType, e Enumerable, fn func(koi Value, value Value)) {
 	if t&INDEXED != 0 {
-		comp = func(koi, value interface{}) int {
-			idx := koi.(intVal).Integer()
-			return utils.IntComparator(idx, value)
-		}
+		var index int = koi.Integer()
+		e.(containers.EnumerableWithIndex).Each(index, value)
 	} else {
-		comp = func(koi, value interface{}) int {
-			key := koi.(strVal).String()
-			return utils.StringComparator(key, value)
-		}
+		var key string = koi.String()
+		e.(containers.EnumerableWithKey).Each(key, value)
 	}
-	e.Each(comp)
 }
 func Any(e Enumerable, fn func(koi Value, value Value) bool) bool                             {}
 func All(e Enumerable, fn func(koi Value, value Value) bool) bool                             {}
@@ -455,84 +404,4 @@ type Iterator interface {
 	Begin()
 	Next() bool
 	First() bool
-}
-
-//	REVERSE
-//
-type Reverse interface {
-	End()
-	Preview() bool
-	Last() bool
-}
-
-//			r.i
-//			r.next
-//			r.value
-//			r.koi
-//			r.begin
-//			r.first
-//			r.prev
-//			r.end
-//			r.last
-//		r.next
-//		r.value
-//		r.koi
-//		r.begin
-//		r.first
-//			r.next
-//			r.value
-//			r.koi
-//			r.begin
-//			r.first
-//			r.prev
-//			r.end
-//			r.last
-//		r.next
-//		r.value
-//		r.koi
-//		r.begin
-//		r.first
-//
-//	arraylistFn
-//	singlylinkedlistFn
-//	doublylinkedlistFn
-//
-//	hashsetFn
-//	treesetFn
-//
-//	hashbidimapFn
-//	hashmapFn
-//	treebidimapFn
-//	treemapFn
-//
-//	arraystackFn
-//	linkedliststackFn
-//
-//	binaryheapFn
-//	redblacktreeFn
-
-// COMPARATOR INTERFACES
-// gods comparators expect empty interfaces that are assertable to either
-// string, or int. The Values interface allows for much more complex types. the
-// comparator function can be set up on arbitratry types, methods, or fields of
-// complex types, as long as it is converted to the correct signature before
-// passed to god.
-type Comparator func(a, b Value) int
-type IntComparator func(a, b Value) int
-type StringComparator func(a, b Value) int
-
-func (c Comparator) Convert() utils.Comparator {
-	var r utils.Comparator = c.Convert()
-	return r
-}
-
-func ConstructComparator(t ValueType) utils.Comparator {
-	var f utils.Comparator
-	switch t {
-	case STRING:
-		f = utils.StringComparator
-	case INTEGER:
-		f = utils.IntComparator
-	}
-	return f
 }

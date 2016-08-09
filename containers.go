@@ -78,8 +78,8 @@ const (
 	// ENUMERABLE/ITERATOR/COMPARATOR MAPPING TYPE
 	// sets of containers, which have their contents either mapped by an
 	// integer index, or by a key of arbitrary type.
-	INDEXED = LISTS | STACKS
-	KEYED   = SETS | MAPS | TREES
+	INDEXED   = LISTS | STACKS | TREE_BINHEAP
+	KEYMAPPED = MAPS | SET_TREE | TREE_REDBLACK
 
 	// REVERSEABLE ITERATOR INDICATOR
 	// reverseable iterators allways also implement the basic iterator of
@@ -166,21 +166,53 @@ type reverseKeyIterator struct {
 func (i reverseKeyIterator) Value() Value { return NativeToValue(i.Value()) }
 
 func wrapIter(t CntType, c interface{}) Iterator {
-	var ret Iterator
+	var i Iterator
+
+	switch t {
+	case LIST_ARRAY:
+		iter := c.(*arraylist.List).Iterator()
+		i = wrapIteratorDetailed(t, &iter)
+	case LIST_SINGLE:
+		iter := c.(*singlylinkedlist.List).Iterator()
+		i = wrapIteratorDetailed(t, iter)
+	case LIST_DOUBLE:
+		iter := c.(*doublylinkedlist.List).Iterator()
+		i = wrapIteratorDetailed(t, iter)
+	case STACK_ARRAY:
+		iter := c.(*arraystack.Stack).Iterator()
+		i = wrapIteratorDetailed(t, iter)
+	case MAP_TREE:
+		iter := c.(*treemap.Map).Iterator()
+		i = wrapIteratorDetailed(t, iter)
+	case MAP_TREEBIDI:
+		iter := c.(*treebidimap.Map).Iterator()
+		i = wrapIteratorDetailed(t, iter)
+	case TREE_BINHEAP:
+		iter := c.(*binaryheap.Heap).Iterator()
+		i = wrapIteratorDetailed(t, iter)
+	case TREE_REDBLACK:
+		iter := c.(*redblacktree.Tree).Iterator()
+		i = wrapIteratorDetailed(t, iter)
+	}
+
+	return i
+}
+func wrapIteratorDetailed(t CntType, i interface{}) Iterator {
+	var r Iterator
 	if t&INDEXED != 0 {
 		if t&REVERSE != 0 {
-			ret = reverseIdxIterator{c.(containers.ReverseIteratorWithIndex)}
+			r = reverseIdxIterator{i.(containers.ReverseIteratorWithIndex)}
 		} else {
-			ret = idxIterator{c.(containers.IteratorWithIndex)}
+			r = idxIterator{i.(containers.IteratorWithIndex)}
 		}
 	} else {
 		if t&REVERSE != 0 {
-			ret = reverseKeyIterator{c.(containers.ReverseIteratorWithKey)}
+			r = reverseKeyIterator{i.(containers.ReverseIteratorWithKey)}
 		} else {
-			ret = keyIterator{c.(containers.IteratorWithKey)}
+			r = keyIterator{i.(containers.IteratorWithKey)}
 		}
 	}
-	return ret
+	return r
 }
 
 // ENUMERABLE INTERFACE
@@ -374,8 +406,8 @@ func newKeymappedTreeContainer(t CntType, comp ...Comparator) Collection {
 // will be accessable via additional mathods mapped to the instance in question
 // directly.
 type Collection interface {
-	CommonType() CntType // combined bitflag LISTS, STACKS, SETS, MAPS, TREES
-	ExactType() CntType  // bitflag with single bit set
+	CommonContainerType() CntType // combined bitflag LISTS, STACKS, SETS, MAPS, TREES
+	ContainerType() CntType       // bitflag with single bit set
 	Container() Container
 	Iterator() Iterator
 	Enumerable() Enumerable
@@ -388,8 +420,8 @@ type collection struct {
 	c interface{}
 }
 
-func (c collection) ExactType() CntType { return c.t }
-func (c collection) CommonType() CntType {
+func (c collection) ContainerType() CntType { return c.t }
+func (c collection) CommonContainerType() CntType {
 	var t = c.t
 	var r CntType
 	switch {

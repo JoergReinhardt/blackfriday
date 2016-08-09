@@ -206,12 +206,12 @@ func (mapVal) Type() ValueType   { return MAP }
 func (setVal) Type() ValueType   { return SET }
 func (treeVal) Type() ValueType  { return TREE }
 
-func (v flagVal) Value() Value  { return flagVal(v) }
-func (v intVal) Value() Value   { return intVal(v) }
-func (v ratVal) Value() Value   { return ratVal(v) }
-func (v boolVal) Value() Value  { return boolVal(v) }
-func (v byteVal) Value() Value  { return byteVal(v) }
-func (v bytesVal) Value() Value { return bytesVal(v) }
+func (v flagVal) Value() Value  { return v }
+func (v intVal) Value() Value   { return v }
+func (v ratVal) Value() Value   { return v }
+func (v boolVal) Value() Value  { return v }
+func (v byteVal) Value() Value  { return v }
+func (v bytesVal) Value() Value { return v }
 func (v strVal) Value() Value   { return v }
 func (v keyVal) Value() Value   { return v }
 func (v lstVal) Value() Value   { return v }
@@ -228,32 +228,11 @@ func (v byteVal) Native() interface{}  { return v.Byte() }
 func (v bytesVal) Native() interface{} { return v.Eval() }
 func (v strVal) Native() interface{}   { return v.String() }
 func (v keyVal) Native() interface{}   { return v.val }
-func (v lstVal) Native() interface{}   { return v.List() }
-func (v stkVal) Native() interface{}   { return v.Stack() }
-func (v mapVal) Native() interface{} {
-	var retv []KeyValue
-	var vals = v.Container().Values()
-	for _, val := range vals {
-		retv = append(retv, keyVal{val.(keyVal).Key(), val.(keyVal).Value()})
-	}
-	return retv
-}
-func (v setVal) Native() interface{} {
-	var retv []KeyValue
-	var vals = v.Container().Values()
-	for _, val := range vals {
-		retv = append(retv, keyVal{val.(keyVal).Key(), val.(keyVal).Value()})
-	}
-	return retv
-}
-func (v treeVal) Native() interface{} {
-	var retv []KeyValue
-	var vals = v.Container().Values()
-	for _, val := range vals {
-		retv = append(retv, keyVal{val.(keyVal).Key(), val.(keyVal).Value()})
-	}
-	return retv
-}
+func (v lstVal) Native() interface{}   { return v.list() }
+func (v stkVal) Native() interface{}   { return v.stack() }
+func (v mapVal) Native() interface{}   { return v.getmap() }
+func (v setVal) Native() interface{}   { return v.set() }
+func (v treeVal) Native() interface{}  { return v.tree() }
 
 // EMPTY TYPE
 // the implementation of the empty type, will be instanciateable from thin air,
@@ -653,6 +632,14 @@ func (v setVal) Eval() []byte {
 	}
 	return bytes
 }
+func (v setVal) KeyValues() []KeyValue {
+	var retv []KeyValue
+	var vals = v.Container().Values()
+	for _, val := range vals {
+		retv = append(retv, keyVal{val.(keyVal).Key(), val.(keyVal).Value()})
+	}
+	return retv
+}
 func (v setVal) String() string { return string(v.Eval()) }
 
 func (v setVal) ToType(t ValueType) Value {
@@ -689,6 +676,14 @@ func (v mapVal) Eval() []byte {
 	return bytes
 }
 func (v mapVal) String() string { return string(v.Eval()) }
+func (v mapVal) KeyValues() []KeyValue {
+	var retv []KeyValue
+	var vals = v.Container().Values()
+	for _, val := range vals {
+		retv = append(retv, keyVal{val.(keyVal).Key(), val.(keyVal).Value()})
+	}
+	return retv
+}
 
 func (v mapVal) ToType(t ValueType) Value {
 	var val Value
@@ -724,6 +719,14 @@ func (v treeVal) Eval() []byte {
 	return bytes
 }
 func (v treeVal) String() string { return string(v.Eval()) }
+func (v treeVal) KeyValues() []KeyValue {
+	var retv []KeyValue
+	var vals = v.Container().Values()
+	for _, val := range vals {
+		retv = append(retv, keyVal{val.(keyVal).Key(), val.(keyVal).Value()})
+	}
+	return retv
+}
 
 func (v treeVal) ToType(t ValueType) Value {
 	var val Value

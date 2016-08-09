@@ -58,21 +58,29 @@ func TestTypesShortStrings(t *testing.T) {
 }
 func TestTypesLongStrings(t *testing.T) {
 	for _, v := range Natives.Bytes {
-		v := v
-		val := emptyVal{}.Value()
-
-		val = val.(emptyVal).Set(v)
+		val := NativeToValue(v)
 		vals = append(vals, val)
 	}
 	(*t).Log(vals)
 }
 func TestConveresion(t *testing.T) {
-	for o := 0; o < 9; o++ {
+	for o := 0; o < 15; o++ {
 		v := emptyVal{}.Set(Natives.Bytes)
 		for i := 0; i < 9; i++ {
 			i := i
 			ty := 1 << uint(i)
-			(*t).Log(v.ToType(ValueType(ty)).String())
+			x := v.ToType(ValueType(ty))
+			(*t).Log(x.Type(), x.String())
 		}
 	}
+}
+func TestCollectionList(t *testing.T) {
+	col := NativeToValue(vals).(lstVal)
+	(*t).Log(
+		col.Type(),
+		col.Container(),
+		col.Enumerable(),
+		col.Iterator(),
+		col.List(),
+	)
 }

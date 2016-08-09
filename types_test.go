@@ -77,10 +77,13 @@ func TestConveresion(t *testing.T) {
 func TestCollectionList(t *testing.T) {
 	col := NativeToValue(vals).(lstVal)
 	(*t).Log(
-		col.Type(),
-		col.Container(),
-		col.Enumerable(),
-		col.Iterator(),
-		col.List(),
+		"\nType: ", col.Type(),
+		"\nContainer: ", col.Container(),
+		"\nContainer Values: ", col.Container().Values(),
+		"\nContainer Size: ", col.Container().Size(),
+		"\nEnumerable: ", col.Enumerable(),
+		"\nIterator: ", col.Iterator(),
+		"\nIterator Next(): ", col.Iterator().Next(),
+		"\nList: ", col.List(),
 	)
 }

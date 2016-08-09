@@ -156,10 +156,10 @@ type ValueType uint16
 //
 type ( // are kept as close to gos native types they are derived from, as possible
 	emptyVal struct{} // the empty struct is taken as emptyVal
+	boolVal  big.Int
 	flagVal  big.Int
 	intVal   big.Int
 	ratVal   big.Rat
-	boolVal  bool
 	byteVal  uint8
 	bytesVal []byte
 	strVal   string
@@ -792,10 +792,10 @@ func NativeToValue(i interface{}) (v Value) {
 		// encapsulated in a container.
 	case []Value:
 		col := newCollection(LIST_ARRAY, false)
-		v = lstVal{col, func() List { return List(col.native().(List)) }}
+		v = lstVal{col, func() List { return col.SubContainer().(List) }}
 	case []KeyValue:
 		col := newCollection(MAP_HASHBIDI, true)
-		v = mapVal{col, func() Map { return Map(col.native().(Map)) }}
+		v = mapVal{col, func() Map { return col.SubContainer().(Map) }}
 		for _, kv := range i.([]KeyValue) {
 			key := kv.Key()
 			value := kv.Value()

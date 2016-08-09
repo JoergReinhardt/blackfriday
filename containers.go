@@ -165,7 +165,7 @@ type reverseKeyIterator struct {
 
 func (i reverseKeyIterator) Value() Value { return NativeToValue(i.Value()) }
 
-func wrapIter(t CntType, c interface{}) Iterator {
+func wrapIterator(t CntType, c interface{}) Iterator {
 	var i Iterator
 
 	switch t {
@@ -201,15 +201,19 @@ func wrapIteratorDetailed(t CntType, i interface{}) Iterator {
 	var r Iterator
 	if t&INDEXED != 0 {
 		if t&REVERSE != 0 {
-			r = reverseIdxIterator{i.(containers.ReverseIteratorWithIndex)}
+			iter := reverseIdxIterator{i.(containers.ReverseIteratorWithIndex)}
+			r = &iter
 		} else {
-			r = idxIterator{i.(containers.IteratorWithIndex)}
+			iter := idxIterator{i.(containers.IteratorWithIndex)}
+			r = &iter
 		}
 	} else {
 		if t&REVERSE != 0 {
-			r = reverseKeyIterator{i.(containers.ReverseIteratorWithKey)}
+			iter := reverseKeyIterator{i.(containers.ReverseIteratorWithKey)}
+			r = &iter
 		} else {
-			r = keyIterator{i.(containers.IteratorWithKey)}
+			iter := keyIterator{i.(containers.IteratorWithKey)}
+			r = &iter
 		}
 	}
 	return r
@@ -238,13 +242,17 @@ func (e enumKey) HasKey() bool { return true }
 // WRAP_ENUM
 // chooses which enumerable interface implementation to instanciate and maps
 // the appropriate functions to the instance.
-func wrapEnum(t CntType, c interface{}) Enumerable {
+func wrapEnumerable(t CntType, c interface{}) Enumerable {
+	var e Enumerable
 	if t&INDEXED != 0 {
-		return enumIdx{c.(containers.EnumerableWithIndex)}
+		enum := enumIdx{c.(containers.EnumerableWithIndex)}
+		e = &enum
 	} else {
-		return enumKey{c.(containers.EnumerableWithKey)}
+		enum := enumKey{c.(containers.EnumerableWithKey)}
+		e = &enum
 
 	}
+	return e
 }
 
 // CONTAINER INTERFACE
@@ -262,9 +270,14 @@ type container struct {
 	containers.Container
 }
 
+func (c container) Values() []Value      { return interfaceSlice(c.Container.Values()).Values() }
 func (c container) Slice() []interface{} { return c.Container.Values() }
+func wrapContainer(t CntType, c interface{}) Container {
+	cnt := container{c.(containers.Container)}
+	return &cnt
+}
 
-// CONTAINER COMMON TYPE INTERFACES
+// SUB CONTAINER TYPE INTERFACES
 type List interface {
 	lists.List
 }
@@ -287,104 +300,159 @@ type EnumerableWithKey interface {
 	containers.EnumerableWithKey
 }
 
-func (c container) Values() []Value { return interfaceSlice(c.Container.Values()).Values() }
+//func wrapCollectionMethods()
+// wraps the wrapper functions, that wrap the original iterator, enumerable and
+// container interfaces.
+func wrapCollectionMethods(t CntType, f func() interface{}) (func() Container, func() Iterator, func() Enumerable) {
+	return func() Container { return wrapContainer(t, f()) },
+		func() Iterator { return wrapIterator(t, f()) },
+		func() Enumerable { return wrapEnumerable(t, f()) }
 
-func newCollection(t CntType, mapped bool, comp ...Comparator) Collection {
-	var v Collection
-	switch {
-	case t&LISTS != 0:
-		v = newListContainer(t)
-	case t&MAPS != 0:
-		v = newMapContainer(t, comp[0])
-	case t&STACKS != 0:
-		v = newStackContainer(t)
-	case t&SETS != 0:
-		if mapped {
-			v = newKeymappedSetContainer(comp[0])
-		} else {
-			v = newIndexedSetContainer(t)
-		}
-	case t&TREES != 0:
-		if mapped {
-			v = newKeymappedTreeContainer(t)
-		} else {
-			v = newIndexedTreeContainer(t)
-		}
-	}
-	return v
 }
-func newListContainer(t CntType) Collection {
-	var c lists.List
+func newCollection(t CntType, keymapped bool, comp ...Comparator) Collection {
+
+	// allocate empty collection struct
+	var c = collection{}
+
+	// set collection type
+	c.t = t
+
+	// instanciate native container instance and closure to return
+	// reference to the concealed container.
 	switch {
 	case t&LIST_ARRAY != 0:
-		c = arraylist.New()
+
+		// instanciate concealed gods container, to implement the interface
+		col := *arraylist.New()
+
+		// create a function to return a reference to the original struct
+		c.ref = func() interface{} { return &col }
+
 	case t&LIST_SINGLE != 0:
-		c = singlylinkedlist.New()
+		col := *singlylinkedlist.New()
+		c.ref = func() interface{} { return &col }
 	case t&LIST_DOUBLE != 0:
-		c = doublylinkedlist.New()
-	}
-	return collection{t, c}
-}
-func newStackContainer(t CntType) Collection {
-	var c stacks.Stack
-	switch {
+		// instanciate concealed gods container, to implement the interface
+		col := *doublylinkedlist.New()
+		// create a function to return a reference to the original struct
+		c.ref = func() interface{} { return &col }
 	case t&STACK_ARRAY != 0:
-		c = arraystack.New()
+		col := *arraystack.New()
+		c.ref = func() interface{} { return &col }
 	case t&STACK_LINKED != 0:
-		c = linkedliststack.New()
-	}
-	return collection{t, c}
-}
-func newMapContainer(t CntType, comp ...Comparator) Collection {
-	var c maps.Map
-	switch {
+		col := *linkedliststack.New()
+		c.ref = func() interface{} { return &col }
 	case t&MAP_HASH != 0:
-		c = hashmap.New()
+		col := *hashmap.New()
+		c.ref = func() interface{} { return &col }
 	case t&MAP_HASHBIDI != 0:
-		c = hashbidimap.New()
+		col := *hashbidimap.New()
+		c.ref = func() interface{} { return &col }
 	case t&MAP_TREE != 0:
-		c = treemap.NewWith(wrapComparator(STRING, comp[0]))
+		col := *treemap.NewWith(wrapComparator(STRING, comp[0]))
+		c.ref = func() interface{} { return &col }
 	case t&MAP_TREEBIDI != 0:
-		c = treebidimap.NewWith(wrapComparator(STRING, comp[0]), wrapComparator(STRING, comp[1]))
+		col := *treebidimap.NewWith(wrapComparator(STRING, comp[0]), wrapComparator(STRING, comp[1]))
+		c.ref = func() interface{} { return &col }
+	case t&SETS != 0:
+		if keymapped {
+			if t == SET_HASH {
+				col := *hashset.New()
+				c.ref = func() interface{} { return &col }
+			} else {
+				col := *treeset.NewWith(wrapComparator(STRING, comp[0]))
+				c.ref = func() interface{} { return &col }
+			}
+		} else {
+			if t == SET_HASH {
+				col := *hashset.New()
+				c.ref = func() interface{} { return &col }
+			} else {
+				col := *treeset.NewWith(wrapComparator(INTEGER, comp[0]))
+				c.ref = func() interface{} { return &col }
+			}
+		}
+	case t&TREES != 0:
+		if keymapped {
+			if t == TREE_BINHEAP {
+				col := *binaryheap.NewWith(wrapComparator(STRING, comp[0]))
+				c.ref = func() interface{} { return &col }
+			} else {
+				col := *redblacktree.NewWith(wrapComparator(STRING, comp[0]))
+				c.ref = func() interface{} { return &col }
+			}
+		} else {
+			if t == TREE_BINHEAP {
+				col := *binaryheap.NewWith(wrapComparator(INTEGER, comp[0]))
+				c.ref = func() interface{} { return &col }
+			} else {
+				col := *redblacktree.NewWith(wrapComparator(INTEGER, comp[0]))
+				c.ref = func() interface{} { return &col }
+			}
+		}
 	}
-	return collection{t, c}
+
+	// pass container type and the reference function to the method
+	// wrapper. yields all other functions needed to assign to the
+	// collection structs fields.
+	c.container, c.iterator, c.enumerable = wrapCollectionMethods(t, c.ref)
+
+	// return a reference to the collection struct, holding the closures,
+	// mapped to its Collection implementing methods.
+	return &c
 }
 func newIndexedSetContainer(t CntType, comp ...Comparator) Collection {
-	var c sets.Set
+	var c = collection{}
+	c.t = t
 	switch {
 	case t&SET_HASH != 0:
-		c = hashset.New()
+		col := *hashset.New()
+		c.ref = func() interface{} { return &col }
 	case t&SET_TREE != 0: // KEY OR INDEX
-		c = treeset.NewWith(wrapComparator(INTEGER, comp[0]))
+		col := *treeset.NewWith(wrapComparator(INTEGER, comp[0]))
+		c.ref = func() interface{} { return &col }
 
 	}
-	return collection{t, c}
+	c.container, c.iterator, c.enumerable = wrapCollectionMethods(t, c.ref)
+	return &c
 }
-func newKeymappedSetContainer(comp Comparator) Collection {
-	var c = treeset.NewWith(wrapComparator(STRING, comp))
-	return collection{SET_TREE, c}
+func newKeymappedSetContainer(t CntType, comp Comparator) Collection {
+	var c = collection{}
+	c.t = t
+	col := *hashset.New()
+	c.ref = func() interface{} { return &col }
+	c.container, c.iterator, c.enumerable = wrapCollectionMethods(t, c.ref)
+	return &c
 }
 func newIndexedTreeContainer(t CntType, comp ...Comparator) Collection {
-	var c trees.Tree
+	var c = collection{}
+	c.t = t
 	switch {
 	case t&TREE_BINHEAP != 0:
-		c = binaryheap.NewWith(wrapComparator(INTEGER, comp[0]))
+		col := *binaryheap.NewWith(wrapComparator(INTEGER, comp[0]))
+		c.ref = func() interface{} { return &col }
 	case t&TREE_REDBLACK != 0:
-		c = redblacktree.NewWith(wrapComparator(INTEGER, comp[0]))
+		col := *redblacktree.NewWith(wrapComparator(INTEGER, comp[0]))
+		c.ref = func() interface{} { return &col }
 
 	}
-	return collection{t, c}
+	c.container, c.iterator, c.enumerable = wrapCollectionMethods(t, c.ref)
+	return &c
 }
 func newKeymappedTreeContainer(t CntType, comp ...Comparator) Collection {
-	var c trees.Tree
+	var c = collection{}
+	c.t = t
 	switch {
 	case t&TREE_BINHEAP != 0:
-		c = binaryheap.NewWith(wrapComparator(STRING, comp[0]))
+		col := *binaryheap.NewWith(wrapComparator(STRING, comp[0]))
+		c.ref = func() interface{} { return &col }
 	case t&TREE_REDBLACK != 0:
-		c = redblacktree.NewWith(wrapComparator(STRING, comp[0]))
+		col := *redblacktree.NewWith(wrapComparator(STRING, comp[0]))
+		c.ref = func() interface{} { return &col }
 
 	}
-	return collection{t, c}
+	c.container, c.iterator, c.enumerable = wrapCollectionMethods(t, c.ref)
+	return &c
 }
 
 // COLLECTION INTERFACE
@@ -411,40 +479,57 @@ type Collection interface {
 	Container() Container
 	Iterator() Iterator
 	Enumerable() Enumerable
-	native() interface{} // either List, Stack, Set, Map, or Tree
+	SubContainer() interface{} // assertable to either List, Stack, Set, Map, Tree
+
+	contained() interface{} // either List, Stack, Set, Map, or Tree
 }
 
 // COLLECTION IMPLEMENTATION
 type collection struct {
-	t CntType
-	c interface{}
+	t          CntType
+	container  func() Container
+	iterator   func() Iterator
+	enumerable func() Enumerable
+	ref        func() interface{} // contains raw struct from gods
+	sub        func() interface{} // contains List, Stack, Set, Map, or Tree interface
 }
+
+func (c *collection) SubContainer() (i interface{}) {
+	switch {
+	case c.t&LISTS != 0:
+		i = List((*c).ref().(lists.List))
+	case c.t&STACKS != 0:
+		i = Stack((*c).ref().(stacks.Stack))
+	case c.t&SETS != 0:
+		i = Set((*c).ref().(sets.Set))
+	case c.t&MAPS != 0:
+		i = Map((*c).ref().(maps.Map))
+	case c.t&TREES != 0:
+		i = Tree((*c).ref().(trees.Tree))
+	}
+	return i
+}
+func (c *collection) contained() interface{} { return (*c).ref() }
+
+func (c *collection) Container() Container   { return (*c).container() }
+func (c *collection) Iterator() Iterator     { return (*c).iterator() }
+func (c *collection) Enumerable() Enumerable { return (*c).enumerable() }
 
 func (c collection) ContainerType() CntType { return c.t }
 func (c collection) CommonContainerType() CntType {
 	var t = c.t
-	var r CntType
+	var ct CntType = 0
 	switch {
 	case t&LISTS != 0:
-		r = LISTS
+		ct = LISTS
 	case t&STACKS != 0:
-		r = LISTS
+		ct = LISTS
 	case t&SETS != 0:
-		r = LISTS
+		ct = LISTS
 	case t&MAPS != 0:
-		r = LISTS
+		ct = LISTS
 	case t&TREES != 0:
-		r = LISTS
+		ct = LISTS
 	}
-	return r
+	return ct
 }
-func (c collection) Container() Container {
-	return container{c.c.(containers.Container)}
-}
-func (c collection) Iterator() Iterator {
-	return wrapIter(c.t, c.c)
-}
-func (c collection) Enumerable() Enumerable {
-	return wrapEnum(c.t, c.c)
-}
-func (c collection) native() interface{} { return c.c }

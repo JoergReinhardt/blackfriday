@@ -4,55 +4,29 @@ package agiledoc
 
 import "fmt"
 
-const (
-	_ValueType_name_0 = "NIL"
-	_ValueType_name_1 = "BOOL"
-	_ValueType_name_2 = "INTEGER"
-	_ValueType_name_3 = "FLOAT"
-	_ValueType_name_4 = "RATIONAL"
-	_ValueType_name_5 = "FLAG"
-	_ValueType_name_6 = "BYTE"
-	_ValueType_name_7 = "BYTES"
-	_ValueType_name_8 = "STRING"
-	_ValueType_name_9 = "VECTOR"
-)
+const _ValueType_name = "NILBOOLINTEGERFLOATRATIONALFLAGBYTEBYTESSTRINGKEYVALLISTSTACKMAPSETTREE"
 
-var (
-	_ValueType_index_0 = [...]uint8{0, 3}
-	_ValueType_index_1 = [...]uint8{0, 4}
-	_ValueType_index_2 = [...]uint8{0, 7}
-	_ValueType_index_3 = [...]uint8{0, 5}
-	_ValueType_index_4 = [...]uint8{0, 8}
-	_ValueType_index_5 = [...]uint8{0, 4}
-	_ValueType_index_6 = [...]uint8{0, 4}
-	_ValueType_index_7 = [...]uint8{0, 5}
-	_ValueType_index_8 = [...]uint8{0, 6}
-	_ValueType_index_9 = [...]uint8{0, 6}
-)
+var _ValueType_map = map[ValueType]string{
+	0:     _ValueType_name[0:3],
+	2:     _ValueType_name[3:7],
+	4:     _ValueType_name[7:14],
+	8:     _ValueType_name[14:19],
+	16:    _ValueType_name[19:27],
+	32:    _ValueType_name[27:31],
+	64:    _ValueType_name[31:35],
+	128:   _ValueType_name[35:40],
+	256:   _ValueType_name[40:46],
+	512:   _ValueType_name[46:52],
+	1024:  _ValueType_name[52:56],
+	2048:  _ValueType_name[56:61],
+	4096:  _ValueType_name[61:64],
+	8192:  _ValueType_name[64:67],
+	16384: _ValueType_name[67:71],
+}
 
 func (i ValueType) String() string {
-	switch {
-	case i == 0:
-		return _ValueType_name_0
-	case i == 2:
-		return _ValueType_name_1
-	case i == 4:
-		return _ValueType_name_2
-	case i == 8:
-		return _ValueType_name_3
-	case i == 16:
-		return _ValueType_name_4
-	case i == 32:
-		return _ValueType_name_5
-	case i == 64:
-		return _ValueType_name_6
-	case i == 128:
-		return _ValueType_name_7
-	case i == 256:
-		return _ValueType_name_8
-	case i == 512:
-		return _ValueType_name_9
-	default:
-		return fmt.Sprintf("ValueType(%d)", i)
+	if str, ok := _ValueType_map[i]; ok {
+		return str
 	}
+	return fmt.Sprintf("ValueType(%d)", i)
 }

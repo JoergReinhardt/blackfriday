@@ -1,194 +1,3 @@
-// ENUMERATOR INTERFACE & IMPLEMENTING FUNCTIONS
-//
-// are defined as methods on the cont type and supposed to wrap the god
-// enumerators and replace their empty interface return values by instances of
-// appropriate value types.
-//
-// the interface conceals the differences between keyed and indexed enumerable
-// containers by taking their key, respectively index as parameter of the value
-// type and decide based on the value type, which enumerator, or iterator to
-// choose.
-//
-// koi is supposed to be either a numeral type, in which case an indexed
-// container is assumed, OR it can be of a container type, the bytes, or string
-// value type and is assumed to be the key to map the value to.
-//
-// ENUMERATOR
-//
-//    func GetSortedValues(container Container, comparator utils.Comparator) []interface{}
-//    Each calls the given function once for each element, passing that element's index and value.
-//
-//    Each(func(index int, value interface{}))
-//	(or key interface{})
-//
-//    Any passes each element of the container to the given function and
-//    returns true if the function ever returns true for any element.
-//
-//    Any(func(index int, value interface{}) bool) bool
-//	(or key interface{})
-//
-//    All passes each element of the container to the given function and
-//    returns true if the function returns true for all elements.
-//
-//    All(func(index int, value interface{}) bool) bool
-//	(or key interface{})
-//
-//    Find passes each element of the container to the given function and returns
-//    the first (index,value) for which the function is true or -1,nil otherwise
-//    if no element matches the criteria.
-//
-//    Find(func(index int, value interface{}) bool) (int, interface{})
-//	(or key interface{})
-//
-// ITERATOR
-//
-//    Next moves the iterator to the next element and returns true if there was a next element in the container.
-//    If Next() returns true, then next element's index and value can be retrieved by Index() and Value().
-//    If Next() was called for the first time, then it will point the iterator to the first element if it exists.
-//    Modifies the state of the iterator.
-//
-//    Next() bool
-//
-//    Value returns the current element's value.
-//    Does not modify the state of the iterator.
-// 					  ______
-//    Value() interface{} 	 		\
-// 						 \
-//    Index returns the current element's index.  \ KoI() Value
-//    Does not modify the state of the iterator.  / contains either an integer, or a type suited as a map key
-// 						 /
-//    Index() int 			  ______/
-//
-//    Begin resets the iterator to its initial state (one-before-first)
-//    Call Next() to fetch the first element if any.
-//
-//    Begin()
-//
-//    First moves the iterator to the first element and returns true if there was a first element in the container.
-//    If First() returns true, then first element's index and value can be retrieved by Index() and Value().
-//    Modifies the state of the iterator.
-//
-//    First() bool
-//
-// REVERSE ITERATOR
-//
-//    Prev moves the iterator to the previous element and returns true if there was a previous element in the container.
-//    If Prev() returns true, then previous element's index and value can be retrieved by Index() and Value().
-//    Modifies the state of the iterator.
-//
-//    Prev() bool
-//
-//    End moves the iterator past the last element (one-past-the-end).
-//    Call Prev() to fetch the last element if any.
-//
-//    End()
-//
-//    Last moves the iterator to the last element and returns true if there was a last element in the container.
-//    If Last() returns true, then last element's index and value can be retrieved by Index() and Value().
-//    Modifies the state of the iterator.
-//
-//    Last() bool
-//
-// UTILS
-//
-//    func Sort(values []interface{}, comparator Comparator)
-//    func StringComparator(a, b interface{}) int
-//    type Comparator func(a, b interface{}) int
-//
-//    negative , if a < b
-//    zero     , if a == b
-//    positive , if a > b
-//
-// LISTS
-//
-//    Get(index int) (interface{}, bool)
-//    Remove(index int)
-//    Add(values ...interface{})
-//    Contains(values ...interface{}) bool
-//    Sort(comparator utils.Comparator)
-//    Swap(index1, index2 int)
-//    Insert(index int, values ...interface{})
-//
-//    array 	 rev|idx
-//    doublly	 rev|idx
-//    singly  	 uni|idx
-//
-// STACKS
-//
-//    Push(value interface{})
-//    Pop() (value interface{}, ok bool)
-//    Peek() (value interface{}, ok bool)
-//
-//    array	 rev|idx
-//    singlu  	 uni|idx
-//
-// MAPS
-//
-//    Put(key interface{}, value interface{})
-//    Get(key interface{}) (value interface{}, found bool)
-//    Remove(key interface{})
-//    Keys() []interface{}
-//
-// 	BIDIMAP
-//
-//    	GetKey(value interface{}) (key interface{}, found bool)
-//
-//    hash 	 nil|key
-//    hashbidi	 nil|key
-//    tree  	 rev|key
-//    treebidi 	 rev|key
-//
-//
-// SETS
-//
-//    Add(elements ...interface{})
-//    Remove(elements ...interface{})
-//    Contains(elements ...interface{}) bool
-//
-//    hash 	 nil|nil
-//    tree  	 rev|key
-//
-//
-// TREES
-//
-// the two tree types have not that much in common, so tree only implements
-// container, while all detail is left to the tree implementation in question.
-//
-//
-// 	TREE (COMMON)
-//
-//        func NewWith(comparator utils.Comparator) *Heap |  func NewWith(comparator utils.Comparator) *Tree
-//        func NewWithIntComparator() *Heap 		  |  func NewWithIntComparator() *Tree
-//        func NewWithStringComparator() *Heap 		  |  func NewWithStringComparator() *Tree
-//        func Clear() 			                  |  func (tree *Tree) Clear()
-//        func Empty() bool 		    	          |  func (tree *Tree) Empty() bool
-//        func Iterator() Iterator 	   	          |  func (tree *Tree) Iterator() Iterator
-//        func Size() int 		                  |  func (tree *Tree) Size() int
-//        func String() string 		 	          |  func (tree *Tree) String() string
-//        func Values() []interface{} 	       	          |  func (tree *Tree) Values() []interface{}
-//
-//
-//	    HEAP
-//
-//	      func (heap *Heap) Peek() (value interface{}, ok bool)
-//	      func (heap *Heap) Pop() (value interface{}, ok bool)
-//	      func (heap *Heap) Push(value interface{})
-//
-//	    RED-BLACK
-//
-//	      func (tree *Tree) Floor(key interface{}) (floor *Node, found bool)
-//  	      func (tree *Tree) Ceiling(key interface{}) (ceiling *Node, found bool)
-//	      func (tree *Tree) Put(key interface{}, value interface{})
-//	      func (tree *Tree) Get(key interface{}) (value interface{}, found bool)
-//	      func (tree *Tree) Left() *Node
-//	      func (tree *Tree) Right() *Node
-//	      func (tree *Tree) Remove(key interface{})
-//	      func (tree *Tree) Keys() []interface{}
-//
-//
-//    heap 	 rev|idx
-//    heap 	 rev|key
-//
 package agiledoc
 
 import (
@@ -224,6 +33,9 @@ import (
 // are fully recursive. The Values returned from and passed to mapped
 // containers and sets, also implement the Var interface, KeyValues identitys are
 // taken as map keys to map their values on to.
+
+// CONTAINER TYPE
+// bitflag to indicate the contained gods containers exact type
 type CntType uint16
 
 //go:generate -command stringer -type CntType
@@ -254,29 +66,156 @@ const (
 	// contain the container interface.
 	CONTAINER CntType = 0
 
+	// COMMON CONTAINER TYPES
 	// sets of containers that share a more specific interface than
-	// gods/containers and have other method signatures in common
+	// gods/containers, like the lists, set, stack, map, or tree interface
 	LISTS  = LIST_ARRAY | LIST_SINGLE | LIST_DOUBLE
 	SETS   = SET_HASH | SET_TREE
 	STACKS = STACK_ARRAY | STACK_LINKED
 	MAPS   = MAP_HASH | MAP_HASHBIDI | MAP_TREE | MAP_TREEBIDI
 	TREES  = TREE_BINHEAP | TREE_REDBLACK
 
+	// ENUMERABLE/ITERATOR/COMPARATOR MAPPING TYPE
+	// sets of containers, which have their contents either mapped by an
+	// integer index, or by a key of arbitrary type.
 	INDEXED = LISTS | STACKS
 	KEYED   = SETS | MAPS | TREES
+
+	// REVERSEABLE ITERATOR INDICATOR
+	// reverseable iterators allways also implement the basic iterator of
+	// the same mapping type.
 	REVERSE = LIST_ARRAY | LIST_DOUBLE | SET_TREE | STACK_ARRAY |
 		MAP_TREEBIDI | MAP_TREE | TREE_BINHEAP | TREE_REDBLACK
 )
 
+// COMPARATOR INTERFACE
+// replaces the empty interface parameters expected by the gods library, with
+// parameters that implement the Value interface.  Integer and String
+// Comparator wrap the Implementations from gods, the untyped comparator uses
+// the Compare operation to compare arbitrary values and return an integer.
+type Comparator func(a, b Value) int
+type IntComparator func(a, b Value) int
+type StringComparator func(a, b Value) int
+
+// wrap comparator exoecting values as parameters, to return one implementing gods utils.comparator.
+func wrapComparator(t ValueType, f func(a, b Value) int) (c utils.Comparator) {
+	switch t {
+	case STRING, BYTES:
+		c = func(a, b interface{}) int { return f(NativeToValue(a), NativeToValue(b)) }
+	case INTEGER, FLOAT, RATIONAL:
+		c = func(a, b interface{}) int {
+			return f(NativeToValue(a), NativeToValue(b))
+		}
+	default:
+		c = func(a, b interface{}) int {
+			return f(NativeToValue(a), NativeToValue(b))
+		}
+	}
+	return c
+}
+
+// SORT INTERFACE
+// inplace sort, wraps gods utils.Sort() function. If the Type of all contained values is either integer, or string, the gods integer or string comparators will be instanciated. For all other, or mixed Values, the compare operation is to be used (operations.go).
+func Sort(values []Value, comparator Comparator) {
+	var t ValueType = 0
+	// concatenate all embedded types
+	for _, v := range values {
+		val := v
+		t = t | val.Type()
+	}
+	utils.Sort(valSlice(values).Interfaces(), wrapComparator(t, comparator))
+}
+
+// ITERATOR INTERFACE
+type Iterator interface {
+	Value() Value
+	Begin()
+	Next() bool
+	First() bool
+}
+
+//	REVERSE ITERATOR INTERFACE
+type Reverse interface {
+	Iterator
+	End()
+	Preview() bool
+	Last() bool
+}
+type idxIterator struct {
+	containers.IteratorWithIndex
+}
+
+func (i idxIterator) Value() Value { return NativeToValue(i.Value()) }
+
+type keyIterator struct {
+	containers.IteratorWithKey
+}
+
+func (i keyIterator) Value() Value { return NativeToValue(i.Value()) }
+
+type reverseIdxIterator struct {
+	containers.ReverseIteratorWithIndex
+}
+
+func (i reverseIdxIterator) Value() Value { return NativeToValue(i.Value()) }
+
+type reverseKeyIterator struct {
+	containers.ReverseIteratorWithKey
+}
+
+func (i reverseKeyIterator) Value() Value { return NativeToValue(i.Value()) }
+
+func wrapIter(t CntType, c interface{}) Iterator {
+	var ret Iterator
+	if t&INDEXED != 0 {
+		if t&REVERSE != 0 {
+			ret = reverseIdxIterator{c.(containers.ReverseIteratorWithIndex)}
+		} else {
+			ret = idxIterator{c.(containers.IteratorWithIndex)}
+		}
+	} else {
+		if t&REVERSE != 0 {
+			ret = reverseKeyIterator{c.(containers.ReverseIteratorWithKey)}
+		} else {
+			ret = keyIterator{c.(containers.IteratorWithKey)}
+		}
+	}
+	return ret
+}
+
+// ENUMERABLE INTERFACE
+//
+type Enumerable interface {
+	HasKey() bool
+}
+
+// ENUMERABLE RETURN TYPE IMPLEMENTATIONS
+//
+type enumIdx struct {
+	containers.EnumerableWithIndex
+}
+
+func (e enumIdx) HasKey() bool { return false }
+
+type enumKey struct {
+	containers.EnumerableWithKey
+}
+
+func (e enumKey) HasKey() bool { return true }
+
+// WRAP_ENUM
+// chooses which enumerable interface implementation to instanciate and maps
+// the appropriate functions to the instance.
+func wrapEnum(t CntType, c interface{}) Enumerable {
+	if t&INDEXED != 0 {
+		return enumIdx{c.(containers.EnumerableWithIndex)}
+	} else {
+		return enumKey{c.(containers.EnumerableWithKey)}
+
+	}
+}
+
 // CONTAINER INTERFACE
-//
-// enumerator and iterator interfaces, provided by the concealed container
-// type, as well as the Interface defining the parent type of the container
-// (list, Set, Stack, Map, Tree).
-//
-// function to assign the nescessary interface methods to a god container, to
-// make it implement the internal container interface, containing Values instances
-// instead of empty interfaces.
 //
 type Container interface {
 	Values() []Value
@@ -285,6 +224,15 @@ type Container interface {
 	Size() int
 	Clear()
 }
+
+// CONTAINER IMPLEMENTATION
+type container struct {
+	containers.Container
+}
+
+func (c container) Slice() []interface{} { return c.Container.Values() }
+
+// CONTAINER COMMON TYPE INTERFACES
 type List interface {
 	lists.List
 }
@@ -300,35 +248,40 @@ type Set interface {
 type Tree interface {
 	trees.Tree
 }
-
-// CONTAINER WRAPPER (instanciates a struct type to hold the container,
-type cont struct {
-	containers.Container
+type EnumerableWithIndex interface {
+	containers.EnumerableWithIndex
+}
+type EnumerableWithKey interface {
+	containers.EnumerableWithKey
 }
 
-// CONVERSIONS
-func (c cont) Slice() []interface{} { return c.Container.(containers.Container).Values() }
-func (c cont) Values() []Value      { return interfaceSlice(c.Slice()).Values() }
-func wrapContainer(c containers.Container) cont {
-	return cont{c}
-}
-func newContainer(t CntType, comp ...Comparator) Container {
-	var v Container
+func (c container) Values() []Value { return interfaceSlice(c.Container.Values()).Values() }
+
+func newCollection(t CntType, mapped bool, comp ...Comparator) Collection {
+	var v Collection
 	switch {
 	case t&LISTS != 0:
 		v = newListContainer(t)
-	case t&SETS != 0:
-		c := newSetContainer(t)
 	case t&MAPS != 0:
-		c := newMapContainer(t, comp[0])
+		v = newMapContainer(t, comp[0])
 	case t&STACKS != 0:
 		v = newStackContainer(t)
+	case t&SETS != 0:
+		if mapped {
+			v = newKeymappedSetContainer(comp[0])
+		} else {
+			v = newIndexedSetContainer(t)
+		}
 	case t&TREES != 0:
-		v = newTreeContainer(t)
+		if mapped {
+			v = newKeymappedTreeContainer(t)
+		} else {
+			v = newIndexedTreeContainer(t)
+		}
 	}
 	return v
 }
-func newListContainer(t CntType) Container {
+func newListContainer(t CntType) Collection {
 	var c lists.List
 	switch {
 	case t&LIST_ARRAY != 0:
@@ -338,9 +291,9 @@ func newListContainer(t CntType) Container {
 	case t&LIST_DOUBLE != 0:
 		c = doublylinkedlist.New()
 	}
-	return wrapContainer(c)
+	return collection{t, c}
 }
-func newStackContainer(t CntType) Container {
+func newStackContainer(t CntType) Collection {
 	var c stacks.Stack
 	switch {
 	case t&STACK_ARRAY != 0:
@@ -348,9 +301,9 @@ func newStackContainer(t CntType) Container {
 	case t&STACK_LINKED != 0:
 		c = linkedliststack.New()
 	}
-	return wrapContainer(c)
+	return collection{t, c}
 }
-func newMapContainer(t CntType, comp ...Comparator) Container {
+func newMapContainer(t CntType, comp ...Comparator) Collection {
 	var c maps.Map
 	switch {
 	case t&MAP_HASH != 0:
@@ -358,181 +311,108 @@ func newMapContainer(t CntType, comp ...Comparator) Container {
 	case t&MAP_HASHBIDI != 0:
 		c = hashbidimap.New()
 	case t&MAP_TREE != 0:
-		c = treemap.NewWith(comp[0].Convert())
+		c = treemap.NewWith(wrapComparator(STRING, comp[0]))
 	case t&MAP_TREEBIDI != 0:
-		c = treebidimap.NewWith(comp[0].Convert(), comp[1].Convert())
+		c = treebidimap.NewWith(wrapComparator(STRING, comp[0]), wrapComparator(STRING, comp[1]))
 	}
-	return wrapContainer(c)
+	return collection{t, c}
 }
-func newSetContainer(t CntType, comp ...Comparator) Container {
+func newIndexedSetContainer(t CntType, comp ...Comparator) Collection {
 	var c sets.Set
 	switch {
 	case t&SET_HASH != 0:
 		c = hashset.New()
-	case t&SET_TREE != 0:
-		c := treeset.NewWith(comp[0].Convert())
+	case t&SET_TREE != 0: // KEY OR INDEX
+		c = treeset.NewWith(wrapComparator(INTEGER, comp[0]))
 
 	}
-	return wrapContainer(c)
+	return collection{t, c}
 }
-func newTreeContainer(t CntType, comp ...Comparator) Container {
+func newKeymappedSetContainer(comp Comparator) Collection {
+	var c = treeset.NewWith(wrapComparator(STRING, comp))
+	return collection{SET_TREE, c}
+}
+func newIndexedTreeContainer(t CntType, comp ...Comparator) Collection {
 	var c trees.Tree
 	switch {
 	case t&TREE_BINHEAP != 0:
-		c = binaryheap.NewWith(comp[0].Convert())
+		c = binaryheap.NewWith(wrapComparator(INTEGER, comp[0]))
 	case t&TREE_REDBLACK != 0:
-		c = redblacktree.NewWith(comp[0].Convert())
+		c = redblacktree.NewWith(wrapComparator(INTEGER, comp[0]))
 
 	}
-	return wrapContainer(c)
+	return collection{t, c}
 }
+func newKeymappedTreeContainer(t CntType, comp ...Comparator) Collection {
+	var c trees.Tree
+	switch {
+	case t&TREE_BINHEAP != 0:
+		c = binaryheap.NewWith(wrapComparator(STRING, comp[0]))
+	case t&TREE_REDBLACK != 0:
+		c = redblacktree.NewWith(wrapComparator(STRING, comp[0]))
 
-// ENUMERABLE INTERFACE
-//
-type Enumerable interface {
-	Each(func(koi Value, value Value))
-	Any(func(koi Value, value Value) bool) bool
-	All(func(koi Value, value Value) bool) bool
-	Find(func(koi Value, value Value) bool) (Value, Value)
-}
-
-// ENUMERABLE RETURN TYPE IMPLEMENTATIONS
-//
-type enumIdx struct {
-	ContType CntType // CHECK TYPE FIRST!
-	enum     containers.EnumerableWithIndex
-}
-type enumKey struct {
-	ContType CntType // CHECK TYPE FIRST!
-	enum     containers.EnumerableWithKey
-}
-
-// WRAP_ENUM
-// chooses which enumerable interface implementation to instanciate and maps
-// the appropriate functions to the instance.
-//func wrapEnum(t CntType, koi Value, value Value) Enumerable {
-//	var ret utils.Comparator
-//	if t&INDEXED != 0 {
-//		ret = func(koi, value interface{}) int {
-//			idx := koi.(intVal).Integer()
-//			return utils.IntComparator(idx, value)
-//		}
-//	} else {
-//		ret = func(koi, value interface{}) int {
-//			key := koi.(strVal).String()
-//			return utils.StringComparator(key, value)
-//		}
-//	}
-//}
-
-// ENUMERABLE FUNCTIONS
-// enumerable interface implementing functions
-//
-func Each(e containers.Enumerable, t CntType, koi Value, value Value) {
-	var comp utils.Comparator
-	if t&INDEXED != 0 {
-		comp = func(koi, value interface{}) int {
-			idx := koi.(intVal).Integer()
-			return utils.IntComparator(idx, value)
-		}
-	} else {
-		comp = func(koi, value interface{}) int {
-			key := koi.(strVal).String()
-			return utils.StringComparator(key, value)
-		}
 	}
-	e.Each(comp)
-}
-func Any(e Enumerable, fn func(koi Value, value Value) bool) bool                             {}
-func All(e Enumerable, fn func(koi Value, value Value) bool) bool                             {}
-func Find(e Enumerable, fn func(index Value, value Value) bool) (Value, Value)                {}
-func findByKey(e Enumerable, fn func(index int, value interface{}) bool) (Value, Value)       {}
-func findByIdx(e Enumerable, fn func(key interface{}, value interface{}) bool) (Value, Value) {}
-
-// ITERATOR INTERFACE
-type Iterator interface {
-	Value() Value
-	Begin()
-	Next() bool
-	First() bool
+	return collection{t, c}
 }
 
-//	REVERSE
+// COLLECTION INTERFACE
 //
-type Reverse interface {
-	End()
-	Preview() bool
-	Last() bool
+// collection provides a common Interface, to be implemented by all collection
+// types alike. A Collection has a common type, to be recognizeable as either
+// list, stack, set, map, or tree. Depending on the common type, the Native
+// method yields the appropriate type.
+//
+// the exact type gives further information about methods to expect being
+// present, or if and which type of comparator function needs to be passed to
+// access the enumerable methods.
+//
+// All collections implement the container, iterator, and enumerable methods,
+// yielding the appropriate interface instances, depending on their common
+// type.
+//
+// methods provided by the contained type, that are not part of any interface
+// will be accessable via additional mathods mapped to the instance in question
+// directly.
+type Collection interface {
+	CommonType() CntType // combined bitflag LISTS, STACKS, SETS, MAPS, TREES
+	ExactType() CntType  // bitflag with single bit set
+	Container() Container
+	Iterator() Iterator
+	Enumerable() Enumerable
+	native() interface{} // either List, Stack, Set, Map, or Tree
 }
 
-//			r.i
-//			r.next
-//			r.value
-//			r.koi
-//			r.begin
-//			r.first
-//			r.prev
-//			r.end
-//			r.last
-//		r.next
-//		r.value
-//		r.koi
-//		r.begin
-//		r.first
-//			r.next
-//			r.value
-//			r.koi
-//			r.begin
-//			r.first
-//			r.prev
-//			r.end
-//			r.last
-//		r.next
-//		r.value
-//		r.koi
-//		r.begin
-//		r.first
-//
-//	arraylistFn
-//	singlylinkedlistFn
-//	doublylinkedlistFn
-//
-//	hashsetFn
-//	treesetFn
-//
-//	hashbidimapFn
-//	hashmapFn
-//	treebidimapFn
-//	treemapFn
-//
-//	arraystackFn
-//	linkedliststackFn
-//
-//	binaryheapFn
-//	redblacktreeFn
+// COLLECTION IMPLEMENTATION
+type collection struct {
+	t CntType
+	c interface{}
+}
 
-// COMPARATOR INTERFACES
-// gods comparators expect empty interfaces that are assertable to either
-// string, or int. The Values interface allows for much more complex types. the
-// comparator function can be set up on arbitratry types, methods, or fields of
-// complex types, as long as it is converted to the correct signature before
-// passed to god.
-type Comparator func(a, b Value) int
-type IntComparator func(a, b Value) int
-type StringComparator func(a, b Value) int
-
-func (c Comparator) Convert() utils.Comparator {
-	var r utils.Comparator = c.Convert()
+func (c collection) ExactType() CntType { return c.t }
+func (c collection) CommonType() CntType {
+	var t = c.t
+	var r CntType
+	switch {
+	case t&LISTS != 0:
+		r = LISTS
+	case t&STACKS != 0:
+		r = LISTS
+	case t&SETS != 0:
+		r = LISTS
+	case t&MAPS != 0:
+		r = LISTS
+	case t&TREES != 0:
+		r = LISTS
+	}
 	return r
 }
-
-func ConstructComparator(t ValueType) utils.Comparator {
-	var f utils.Comparator
-	switch t {
-	case STRING:
-		f = utils.StringComparator
-	case INTEGER:
-		f = utils.IntComparator
-	}
-	return f
+func (c collection) Container() Container {
+	return container{c.c.(containers.Container)}
 }
+func (c collection) Iterator() Iterator {
+	return wrapIter(c.t, c.c)
+}
+func (c collection) Enumerable() Enumerable {
+	return wrapEnum(c.t, c.c)
+}
+func (c collection) native() interface{} { return c.c }

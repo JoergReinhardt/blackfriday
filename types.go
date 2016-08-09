@@ -1,61 +1,18 @@
-// TYPE SYSTEM
-//
-// after lots of experimenting, I decided the best way is to keep the interface
-// as simple as possible. One Method interfaces for the win but you might want
-// to add one just to get shure. The main reason to reimplement a typesystem on
-// top of gos existing type system, is due to the fact, that the reflection
-// capabilitys are far to complex in features. far to complicated to use and
-// don't perform that well either.
-//
-// That makes a type marker that performs well in comparisions, the essence of
-// a type. The Value needs to be returnable in a generalized form, which is
-// perfomed by the Value() mehode. Every value can additionaly be returned as
-// its contained native type, but those methods differ by signature and can't
-// be defined without the use of an empty interface. Everything else is up for
-// grabs,
 package agiledoc
 
 import (
 	"fmt"
 	"math/big"
-	"strconv"
 )
 
 // VALUE INTERFACE
 //
-// the base types are kept as simple as possible.
-//
-// NIL
-//
-// while returning an error and/or boolean when values don't exist, or turn out
-// not to be converteable is one way of doing it, I think having a nil type to
-// return instead, makes things much easyer and there are lots of additional
-// reasons to have one anyway.
-//
-// FLAG
-//
-// since the type field is the essential difference to ordinary values, I
-// decided to have bitflags as a type, to make the type acsess-, compare- and
-// usable.
-//
-// INTEGER, RATIONAL & FLOAT
-//
-// parsing values embedded in text and perform calculations on them is the main
-// goal of agiledocument, which makesnumbers are the essence of the agile
-// document. they are implemented by math librarys big.int / big.float types,
-// since those allready implement all nescessary type conversions, parsing from
-// string included and they are highly optimized to perform well. flag type is
-// another big.Int, since it also implements bitwise boolean operations.
-//
-// BYTES
-//
-// the source will be provided by blackfriday in form of a byte slice
-//
 type Value interface {
 	Type() ValueType
 	Value() Value
-	Bytes() []byte
+	Eval() []byte
 	String() string
+	Native() interface{}
 	ToType(ValueType) Value
 }
 type KeyValue interface {
@@ -68,12 +25,12 @@ type Values interface {
 	Container
 }
 
-func Bytes(v []Value) []byte {
+func Eval(v []Value) []byte {
 	var bytes = []byte{}
 	var vals = v
 	for _, v := range vals {
 		v := v
-		b := v.Bytes()
+		b := v.Eval()
 		bytes = append(bytes, b...)
 	}
 	return bytes
@@ -117,7 +74,7 @@ type keyValSlice []KeyValue
 type byteSlice []byte
 type boolSlice []bool
 
-func (b boolSlice) Bytes() []byte {
+func (b boolSlice) Eval() []byte {
 
 	// bool-slice-integer array, combines up to 8 booleans in a slice to
 	// represent byte sized bitflags
@@ -211,39 +168,24 @@ type ( // are kept as close to gos native types they are derived from, as possib
 		val Value
 	}
 	lstVal struct {
-		CntType    // has to be part of LISTS
-		List       func() List
-		Container  func() Container
-		Enumerable func() Enumerable
-		Iterator   func() Iterator
+		Collection
+		list func() List
 	}
 	stkVal struct {
-		CntType    // has to be part of STACKS
-		Stack      func() Stack
-		Container  func() Container
-		Enumerable func() Enumerable
-		Iterator   func() Iterator
+		Collection
+		stack func() Stack
 	}
 	mapVal struct {
-		CntType    // has to be part of MAPS
-		Map        func() Map
-		Container  func() Container
-		Enumerable func() Enumerable
-		Iterator   func() Iterator
+		Collection
+		getmap func() Map
 	}
 	setVal struct {
-		CntType    // has to be part of SETS
-		Set        func() Set
-		Container  func() Container
-		Enumerable func() Enumerable
-		Iterator   func() Iterator
+		Collection
+		set func() Set
 	}
 	treeVal struct {
-		CntType    // has to be part of TREES
-		Tree       func() Tree
-		Container  func() Container
-		Enumerable func() Enumerable
-		Iterator   func() Iterator
+		Collection
+		tree func() Tree
 	}
 )
 
@@ -264,12 +206,12 @@ func (mapVal) Type() ValueType   { return MAP }
 func (setVal) Type() ValueType   { return SET }
 func (treeVal) Type() ValueType  { return TREE }
 
-func (v flagVal) Value() Value  { return flagVal{v} }
-func (v intVal) Value() Value   { return intVal{v} }
-func (v ratVal) Value() Value   { return ratVal{v} }
-func (v boolVal) Value() Value  { return boolVal{v} }
-func (v byteVal) Value() Value  { return byteVal{v} }
-func (v bytesVal) Value() Value { return bytesVal{v} }
+func (v flagVal) Value() Value  { return flagVal(v) }
+func (v intVal) Value() Value   { return intVal(v) }
+func (v ratVal) Value() Value   { return ratVal(v) }
+func (v boolVal) Value() Value  { return boolVal(v) }
+func (v byteVal) Value() Value  { return byteVal(v) }
+func (v bytesVal) Value() Value { return bytesVal(v) }
 func (v strVal) Value() Value   { return v }
 func (v keyVal) Value() Value   { return v }
 func (v lstVal) Value() Value   { return v }
@@ -278,6 +220,41 @@ func (v mapVal) Value() Value   { return v }
 func (v setVal) Value() Value   { return v }
 func (v treeVal) Value() Value  { return v }
 
+func (v flagVal) Native() interface{}  { return v.Uint() }
+func (v intVal) Native() interface{}   { return v.Integer() }
+func (v ratVal) Native() interface{}   { return v.Float() }
+func (v boolVal) Native() interface{}  { return v.Boolean() }
+func (v byteVal) Native() interface{}  { return v.Byte() }
+func (v bytesVal) Native() interface{} { return v.Eval() }
+func (v strVal) Native() interface{}   { return v.String() }
+func (v keyVal) Native() interface{}   { return v.val }
+func (v lstVal) Native() interface{}   { return v.List() }
+func (v stkVal) Native() interface{}   { return v.Stack() }
+func (v mapVal) Native() interface{} {
+	var retv []KeyValue
+	var vals = v.Container().Values()
+	for _, val := range vals {
+		retv = append(retv, keyVal{val.(keyVal).Key(), val.(keyVal).Value()})
+	}
+	return retv
+}
+func (v setVal) Native() interface{} {
+	var retv []KeyValue
+	var vals = v.Container().Values()
+	for _, val := range vals {
+		retv = append(retv, keyVal{val.(keyVal).Key(), val.(keyVal).Value()})
+	}
+	return retv
+}
+func (v treeVal) Native() interface{} {
+	var retv []KeyValue
+	var vals = v.Container().Values()
+	for _, val := range vals {
+		retv = append(retv, keyVal{val.(keyVal).Key(), val.(keyVal).Value()})
+	}
+	return retv
+}
+
 // EMPTY TYPE
 // the implementation of the empty type, will be instanciateable from thin air,
 // used as base value type, that can convert a native value into the
@@ -285,8 +262,9 @@ func (v treeVal) Value() Value  { return v }
 // conversion can not be performed, or a variable lookup fails.
 func (emptyVal) Type() ValueType         { return NIL }
 func (emptyVal) Empty() emptyVal         { return emptyVal(struct{}{}) }
+func (e emptyVal) Native() interface{}   { return e.Empty() }
 func (e emptyVal) Value() Value          { return emptyVal(struct{}{}) }
-func (e emptyVal) Bytes() []byte         { return []byte{} }
+func (e emptyVal) Eval() []byte          { return []byte{} }
 func (e emptyVal) String() string        { return "" }
 func (emptyVal) Set(v interface{}) Value { return NativeToValue(v) }
 func (v emptyVal) ToType(t ValueType) Value {
@@ -295,7 +273,6 @@ func (v emptyVal) ToType(t ValueType) Value {
 
 // BOOL TYPE
 func (b boolVal) Boolean() bool { return bool(b) }
-func (b boolVal) Native() bool  { return b.Boolean() }
 func (b boolVal) Integer() int {
 	if b {
 		return 1
@@ -303,7 +280,7 @@ func (b boolVal) Integer() int {
 		return 0
 	}
 }
-func (b boolVal) Bytes() []byte { return []byte(b.String()) }
+func (b boolVal) Eval() []byte { return []byte(b.String()) }
 func (b boolVal) String() string {
 	if b {
 		return "true"
@@ -321,9 +298,9 @@ func (v boolVal) ToType(t ValueType) Value {
 	case FLOAT:
 		val = ratVal(*big.NewRat(1, 1).SetFloat64(float64(v.Integer())))
 	case BYTES:
-		val = bytesVal(v.Bytes())
+		val = bytesVal(v.Eval())
 	case BYTE:
-		val = byteVal(v.Bytes()[0])
+		val = byteVal(v.Eval()[0])
 	case STRING:
 		val = strVal(v.String())
 	default:
@@ -337,8 +314,7 @@ func (v flagVal) Flag() flagVal    { return v }
 func (v flagVal) BigInt() *big.Int { i := big.Int(v); return &i }
 func (v flagVal) Integer() int64   { return v.BigInt().Int64() }
 func (v flagVal) Uint() uint64     { return v.BigInt().Uint64() }
-func (v flagVal) Native() uint64   { return v.Uint() }
-func (v flagVal) Bytes() []byte    { return []byte(v.String()) }
+func (v flagVal) Eval() []byte     { return []byte(v.String()) }
 func (v flagVal) String() string   { return fmt.Sprint((v.Boolean())) }
 func (v flagVal) Boolean() bool {
 	if v.Integer() > 0 {
@@ -361,9 +337,9 @@ func (v flagVal) ToType(t ValueType) Value {
 		i := big.Int(v)
 		val = bytesVal((&i).Bytes())
 	case BYTE:
-		val = byteVal(v.Bytes()[0])
+		val = byteVal(v.Eval()[0])
 	case STRING:
-		val = strVal(string(v.Bytes()))
+		val = strVal(string(v.Eval()))
 	default:
 		val = emptyVal{}
 	}
@@ -377,9 +353,8 @@ func (v intVal) BigFloat() *big.Float { return big.NewFloat(v.Float()) }
 func (v intVal) Flag() flagVal        { return flagVal(*v.BigInt()) }
 func (v intVal) Uint() uint64         { return (v.BigInt()).Uint64() }
 func (v intVal) Integer() int64       { return v.BigInt().Int64() }
-func (v intVal) Native() int64        { return v.Integer() }
 func (v intVal) Float() float64       { return float64(v.BigInt().Int64()) }
-func (v intVal) Bytes() []byte        { return []byte(v.String()) }
+func (v intVal) Eval() []byte         { return []byte(v.String()) }
 func (v intVal) String() string       { return fmt.Sprint((v.BigInt().Int64())) }
 func (v intVal) Boolean() bool {
 	if v.Integer() > 0 {
@@ -398,11 +373,11 @@ func (v intVal) ToType(t ValueType) Value {
 	case FLOAT:
 		val = ratVal(*v.BigRat())
 	case BYTES:
-		val = bytesVal(v.Bytes())
+		val = bytesVal(v.Eval())
 	case BYTE:
-		val = byteVal(v.Bytes()[0])
+		val = byteVal(v.Eval()[0])
 	case STRING:
-		val = strVal(string(v.Bytes()))
+		val = strVal(string(v.Eval()))
 	default:
 		val = emptyVal{}
 	}
@@ -414,10 +389,9 @@ func (v ratVal) BigRat() *big.Rat     { r := big.Rat(v); return &r }
 func (v ratVal) BigInt() *big.Int     { return big.NewInt(int64(v.Float())) }
 func (v ratVal) BigFloat() *big.Float { return big.NewFloat((v).Float()) }
 func (v ratVal) Float() float64       { f, _ := (v).BigRat().Float64(); return f }
-func (v ratVal) Native() float64      { return v.Float() }
 func (v ratVal) Integer() int64       { return v.BigInt().Int64() }
 func (v ratVal) String() string       { r, _ := v.BigRat().Float64(); return fmt.Sprint(r) }
-func (v ratVal) Bytes() []byte        { return []byte(v.String()) }
+func (v ratVal) Eval() []byte         { return []byte(v.String()) }
 func (v ratVal) Boolean() bool {
 	if v.Float() > 0.0 {
 		return true
@@ -451,10 +425,9 @@ func (v ratVal) ToType(t ValueType) Value {
 }
 
 // SINGLE BYTE TYPE
-func (v byteVal) String() string   { return string(v.Bytes()) }
-func (v byteVal) Bytes() []byte    { return []byte{v.Byte()} }
+func (v byteVal) String() string   { return string(v.Eval()) }
+func (v byteVal) Eval() []byte     { return []byte{v.Byte()} }
 func (v byteVal) Byte() byte       { return byte(v) }
-func (v byteVal) Native() uint8    { return v.Uint() }
 func (v byteVal) Uint() uint8      { return uint8(v) }
 func (v byteVal) Integer() int64   { return int64(v) }
 func (v byteVal) BigInt() *big.Int { return big.NewInt(v.Integer()) }
@@ -480,13 +453,12 @@ func (v byteVal) ToType(t ValueType) Value {
 }
 
 // BYTE SLICE TYPE
-func (v bytesVal) Bytes() []byte    { return []byte(v) }
-func (v bytesVal) Native() []byte   { return v.Bytes() }
+func (v bytesVal) Eval() []byte     { return []byte(v) }
 func (v bytesVal) String() string   { return string(v) }
 func (v bytesVal) Uint() uint64     { return big.NewInt(0).SetBytes(v).Uint64() }
 func (v bytesVal) Integer() int64   { return big.NewInt(0).SetBytes(v).Int64() }
-func (v bytesVal) Flag() flagVal    { return flagVal(*big.NewInt(0).SetBytes(v.Bytes())) }
-func (v bytesVal) BigInt() *big.Int { return big.NewInt(0).SetBytes(v.Bytes()) }
+func (v bytesVal) Flag() flagVal    { return flagVal(*big.NewInt(0).SetBytes(v.Eval())) }
+func (v bytesVal) BigInt() *big.Int { return big.NewInt(0).SetBytes(v.Eval()) }
 func (v bytesVal) Uints() (r []uint8) {
 	r = []uint8{}
 	for _, val := range v {
@@ -515,7 +487,7 @@ func (v bytesVal) ToType(t ValueType) Value {
 	case BYTES:
 		val = bytesVal([]byte(v))
 	case BYTE:
-		val = byteVal(v.Bytes()[0])
+		val = byteVal(v.Eval()[0])
 	case STRING:
 		val = strVal(v.String())
 	default:
@@ -525,9 +497,8 @@ func (v bytesVal) ToType(t ValueType) Value {
 }
 
 // STRING TYPE
-func (v strVal) Bytes() []byte  { return []byte(v) }
+func (v strVal) Eval() []byte   { return []byte(v) }
 func (v strVal) String() string { return string(v) }
-func (v strVal) Native() string { return v.String() }
 func (v strVal) ToType(t ValueType) Value {
 	var val Value
 	switch t {
@@ -558,7 +529,7 @@ func (v strVal) ToType(t ValueType) Value {
 	case BYTES:
 		val = bytesVal([]byte(string(v)))
 	case BYTE:
-		val = byteVal(v.Bytes()[0])
+		val = byteVal(v.Eval()[0])
 	case STRING:
 		val = v
 	default:
@@ -567,44 +538,15 @@ func (v strVal) ToType(t ValueType) Value {
 	return val
 }
 
-// PARSE STRINGS OR BYTE SLICES TO NUMERALS
-func parseInt(v Value) (Value, error) {
-	i, err := strconv.Atoi(v.String())
-	if err != nil {
-		return nil, err
-	}
-	return NativeToValue(i), nil
-}
-func parseUint(v Value) (Value, error) {
-	i, err := strconv.ParseUint(v.String(), 2, 8)
-	if err != nil {
-		return nil, err
-	}
-	return NativeToValue(i), nil
-}
-func parseFloat(v Value) (Value, error) {
-	f, err := strconv.ParseFloat(v.String(), 10)
-	if err != nil {
-		return nil, err
-	}
-	return NativeToValue(f), nil
-}
-func parseBool(v Value) (Value, error) {
-	i, err := strconv.ParseBool(v.String())
-	if err != nil {
-		return nil, err
-	}
-	return NativeToValue(i), nil
-}
-
-// convenience conversion functions
-func (v keyVal) Key() Value             { return v.key }
-func (v keyVal) Ident() string          { return string(v.Key().String()) }
-func (v keyVal) Native() (Value, Value) { return v.Key(), v.Value() }
-func (v keyVal) Bytes() []byte {
+// KEYVALUE
+// a keyvalue is a valu identifyable by a key. It represents values, contained
+// in keymapped containers.
+func (v keyVal) Key() Value    { return v.key }
+func (v keyVal) Ident() string { return string(v.Key().String()) }
+func (v keyVal) Eval() []byte {
 	return []byte(fmt.Sprintf("%s: %s", v.Key().String(), v.Value().String()))
 }
-func (v keyVal) String() string { return string(v.Bytes()) }
+func (v keyVal) String() string { return string(v.Eval()) }
 
 func (v keyVal) ToType(t ValueType) Value {
 	var val Value
@@ -616,9 +558,9 @@ func (v keyVal) ToType(t ValueType) Value {
 	//	case FLOAT:
 	//		val = emptyVal{}
 	//	case BYTES:
-	//		val = bytesVal(v.Bytes())
+	//		val = bytesVal(v.Eval())
 	//	case BYTE:
-	//		val = byteVal(v.Bytes()[0])
+	//		val = byteVal(v.Eval()[0])
 	//	case STRING:
 	//		val = strVal(v.String())
 	//	default:
@@ -630,19 +572,18 @@ func (v keyVal) ToType(t ValueType) Value {
 // convenience conversion functions
 
 // convenience conversion functions
-func (v lstVal) List() Value     { return v }
-func (v lstVal) Native() []Value { return v.Container.Container().Values() }
-func (v lstVal) Bytes() []byte {
+func (v lstVal) List() List { return v.list() }
+func (v lstVal) Eval() []byte {
 	var bytes = []byte{}
-	var vals = v.Container.Container().Values()
+	var vals = v.Container().Values()
 	for _, v := range vals {
 		v := v
-		b := NativeToValue(v).Bytes()
+		b := NativeToValue(v).Eval()
 		bytes = append(bytes, b...)
 	}
 	return bytes
 }
-func (v lstVal) String() string { return string(v.Bytes()) }
+func (v lstVal) String() string { return string(v.Eval()) }
 
 func (v lstVal) ToType(t ValueType) Value {
 	var val Value
@@ -654,9 +595,79 @@ func (v lstVal) ToType(t ValueType) Value {
 	case FLOAT:
 		val = emptyVal{}
 	case BYTES:
-		val = bytesVal(v.Bytes())
+		val = bytesVal(v.Eval())
 	case BYTE:
-		val = byteVal(v.Bytes()[0])
+		val = byteVal(v.Eval()[0])
+	case STRING:
+		val = strVal(v.String())
+	default:
+		val = emptyVal{}
+	}
+	return val
+}
+
+// STACK VALUE
+func (v stkVal) Stack() Stack { return v.stack() }
+func (v stkVal) Eval() []byte {
+	var bytes = []byte{}
+	var vals = v.Container().Values()
+	for _, v := range vals {
+		v := v
+		b := NativeToValue(v).Eval()
+		bytes = append(bytes, b...)
+	}
+	return bytes
+}
+func (v stkVal) String() string { return string(v.Eval()) }
+
+func (v stkVal) ToType(t ValueType) Value {
+	var val Value
+	switch t {
+	case FLAG:
+		val = emptyVal{}
+	case INTEGER:
+		val = emptyVal{}
+	case FLOAT:
+		val = emptyVal{}
+	case BYTES:
+		val = bytesVal(v.Eval())
+	case BYTE:
+		val = byteVal(v.Eval()[0])
+	case STRING:
+		val = strVal(v.String())
+	default:
+		val = emptyVal{}
+	}
+	return val
+}
+
+// SET VALUE
+func (v setVal) Set() Set { return v.set() }
+func (v setVal) Eval() []byte {
+	var bytes = []byte{}
+	var vals = v.Container().Values()
+	for _, v := range vals {
+		v := v
+		b := NativeToValue(v).Eval()
+		bytes = append(bytes, b...)
+	}
+	return bytes
+}
+func (v setVal) String() string { return string(v.Eval()) }
+
+func (v setVal) ToType(t ValueType) Value {
+	var val Value
+	switch t {
+	case FLAG:
+		val = emptyVal{}
+	case INTEGER:
+		val = emptyVal{}
+	case FLOAT:
+		val = emptyVal{}
+	case BYTES:
+		val = bytesVal(v.Eval())
+	case BYTE:
+		val = byteVal(v.Eval()[0])
 	case STRING:
 		val = strVal(v.String())
 	default:
@@ -666,26 +677,18 @@ func (v lstVal) ToType(t ValueType) Value {
 }
 
 // convenience conversion functions
-func (v mapVal) Map() Value { return v }
-func (v mapVal) Native() []KeyValue {
-	var retv []KeyValue
-	var vals = v.Container.Container().Values()
-	for _, val := range vals {
-		retv = append(retv, keyVal{val.(keyVal).Key(), val.(keyVal).Value()})
-	}
-	return retv
-}
-func (v mapVal) Bytes() []byte {
+func (v mapVal) Map() Map { return v.getmap() }
+func (v mapVal) Eval() []byte {
 	var bytes = []byte{}
-	var vals = v.Container.Container().Values()
+	var vals = v.Container().Values()
 	for _, v := range vals {
 		v := v
-		b := NativeToValue(v).Bytes()
+		b := NativeToValue(v).Eval()
 		bytes = append(bytes, b...)
 	}
 	return bytes
 }
-func (v mapVal) String() string { return string(v.Bytes()) }
+func (v mapVal) String() string { return string(v.Eval()) }
 
 func (v mapVal) ToType(t ValueType) Value {
 	var val Value
@@ -697,9 +700,9 @@ func (v mapVal) ToType(t ValueType) Value {
 	//	case FLOAT:
 	//		val = emptyVal{}
 	//	case BYTES:
-	//		val = bytesVal(v.Bytes())
+	//		val = bytesVal(v.Eval())
 	//	case BYTE:
-	//		val = byteVal(v.Bytes()[0])
+	//		val = byteVal(v.Eval()[0])
 	//	case STRING:
 	//		val = strVal(v.String())
 	//	default:
@@ -708,33 +711,40 @@ func (v mapVal) ToType(t ValueType) Value {
 	return val
 }
 
-// TO-TYPE | FROM-TYPE
-//
-// if the native tyoe is allready known at the time of initialization,
-// reflection can be omitted.
-//func toType(i Value, t ValueType) (v Value) {
-//	switch t {
-//	case NIL:
-//		v = emptyVal{}
-//	case FLAG:
-//		v = &flagVal{big.NewInt(i.(*flagVal).Integer())}
-//	case INTEGER:
-//		v = &intVal{big.NewInt(i.(*intVal).Int64())}
-//	case FLOAT:
-//		f, _ := i.(*floatVal).Float64()
-//		v = &floatVal{big.NewRat(1, 1).SetFloat64(f)}
-//	case BYTES:
-//		v = bytesVal(i.(*bytesVal).Bytes())
-//	case BYTE:
-//		v = i.(byteValue)
-//	case STRING:
-//		v = strValue(i.(*strValue).String())
-//	default:
-//		v = emptyVal{}
-//	}
-//	return v
-//}
-func fromType(r Value, v Value) {}
+// TREE VALUE
+func (v treeVal) Tree() Tree { return v.tree() }
+func (v treeVal) Eval() []byte {
+	var bytes = []byte{}
+	var vals = v.Container().Values()
+	for _, v := range vals {
+		v := v
+		b := NativeToValue(v).Eval()
+		bytes = append(bytes, b...)
+	}
+	return bytes
+}
+func (v treeVal) String() string { return string(v.Eval()) }
+
+func (v treeVal) ToType(t ValueType) Value {
+	var val Value
+	switch t {
+	case FLAG:
+		val = emptyVal{}
+	case INTEGER:
+		val = emptyVal{}
+	case FLOAT:
+		val = emptyVal{}
+	case BYTES:
+		val = bytesVal(v.Eval())
+	case BYTE:
+		val = byteVal(v.Eval()[0])
+	case STRING:
+		val = strVal(v.String())
+	default:
+		val = emptyVal{}
+	}
+	return val
+}
 
 // INSTANCIATE A NEW VALUE
 //
@@ -778,17 +788,16 @@ func NativeToValue(i interface{}) (v Value) {
 		// when a slice of values is passed, it is intended to be
 		// encapsulated in a container.
 	case []Value:
-		val := newValueContainer(LIST_ARRAY)
-		val.(List).Add(i.([]Value)...)
-		v = lstVal{LIST_ARRAY, val.(*listCnt)}
+		col := newCollection(LIST_ARRAY, false)
+		v = lstVal{col, func() List { return List(col.native().(List)) }}
 	case []KeyValue:
-		val := newValueContainer(MAP_HASHBIDI)
-		for _, v := range i.([]KeyValue) {
-			k := v.Key()
-			v := v.Value()
-			val.(Map).Put(k, v)
+		col := newCollection(MAP_HASHBIDI, true)
+		v = mapVal{col, func() Map { return Map(col.native().(Map)) }}
+		for _, kv := range i.([]KeyValue) {
+			key := kv.Key()
+			value := kv.Value()
+			v.(mapVal).Map().Put(key, value)
 		}
-		v = mapVal{LIST_ARRAY, val.(*mapCnt)}
 	}
 	return v
 }

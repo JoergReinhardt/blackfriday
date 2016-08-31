@@ -4,24 +4,22 @@ package agiledoc
 
 import "fmt"
 
-const _ValueType_name = "NILBOOLINTEGERFLOATRATIONALFLAGBYTEBYTESSTRINGKEYVALLISTSTACKMAPSETTREE"
+const _ValueType_name = "EMPTYBOOLUINTINTEGERBYTESSTRINGFLOATRATIONALTUPLEFLAGLISTMATRIXKEYMAP"
 
 var _ValueType_map = map[ValueType]string{
-	0:     _ValueType_name[0:3],
-	2:     _ValueType_name[3:7],
-	4:     _ValueType_name[7:14],
-	8:     _ValueType_name[14:19],
-	16:    _ValueType_name[19:27],
-	32:    _ValueType_name[27:31],
-	64:    _ValueType_name[31:35],
-	128:   _ValueType_name[35:40],
-	256:   _ValueType_name[40:46],
-	512:   _ValueType_name[46:52],
-	1024:  _ValueType_name[52:56],
-	2048:  _ValueType_name[56:61],
-	4096:  _ValueType_name[61:64],
-	8192:  _ValueType_name[64:67],
-	16384: _ValueType_name[67:71],
+	0:    _ValueType_name[0:5],
+	2:    _ValueType_name[5:9],
+	4:    _ValueType_name[9:13],
+	8:    _ValueType_name[13:20],
+	16:   _ValueType_name[20:25],
+	32:   _ValueType_name[25:31],
+	64:   _ValueType_name[31:36],
+	128:  _ValueType_name[36:44],
+	256:  _ValueType_name[44:49],
+	512:  _ValueType_name[49:53],
+	1024: _ValueType_name[53:57],
+	2048: _ValueType_name[57:63],
+	4096: _ValueType_name[63:69],
 }
 
 func (i ValueType) String() string {

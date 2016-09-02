@@ -12,12 +12,13 @@ import (
 
 //////////////////////// FUNCTIONAL TYPES TO REPRESENT VALUES /////////////////////
 type (
-	BitFlag func() *big.Int  // implements Ranked interface
-	List    func() *al.List  // implements Ranked interface
-	Table   func() *al.List  // implements Tabular interface
-	Map     func() *hm.Map   // imolements Mapped interface
-	Stack   func() *as.Stack // imolements Mapped interface
-	Set     func() *ts.Set   // imolements Mapped interface
+	BitFlag func() *big.Int
+	List    func() *al.List
+	Table   List
+	Matrix  List
+	Stack   func() *as.Stack
+	Set     func() *ts.Set
+	Map     func() *hm.Map
 
 	Iterator   func() Iterable
 	Enumerator func() Enumerable
@@ -30,8 +31,8 @@ type (
 // All longer slices are flattened by evalCollection and refed into eval
 // recursively. .  All conversions to Collected,  get instanciated as list
 // type,to profit from the enumerable interface at flattening and conversion.
-func evalCollection(i ...interface{}) Value {
-	var v Value      // return value
+func evalCollection(i ...interface{}) Evaluator {
+	var v Evaluator  // return value
 	var l = al.New() // allocate intermediate list
 	l.Add(i...)      // unroll outer layer of possibly nested interfaces
 
@@ -75,13 +76,14 @@ type Flag Int
 
 // The Type and Value methods can be pre-assigned at the level of distinct
 // functional types, representing each dynamic type
-func (f BitFlag) Eval() Value       { return Eval(f) }
+func (f BitFlag) Eval() Evaluator   { return Value(f) }
+func (f BitFlag) Base() BaseType    { return func() interface{} { return Int(f) } }
 func (f BitFlag) Serialize() []byte { return Int(f)().Bytes() }
 func (f BitFlag) String() string    { return f().Text(2) }
 func (f BitFlag) Type() ValueType   { return FLAG }
 
 ////////////////////////////////////////////////////////////////////////////////////
-func (l List) Eval() Value     { return Eval(l) }
+func (l List) Eval() Evaluator { return Value(l) }
 func (l List) Type() ValueType { return LIST }
 func (l List) AddInterface(v ...interface{}) Ranked {
 	var retval = l()
@@ -89,7 +91,7 @@ func (l List) AddInterface(v ...interface{}) Ranked {
 	var retfn List = func() *al.List { return retval }
 	return retfn
 }
-func (l List) Add(v ...Value) Ranked {
+func (l List) Add(v ...Evaluator) Ranked {
 	var retval = l()
 	for _, value := range v {
 		value := value
@@ -116,13 +118,13 @@ func (l List) Clear() Ranked {
 }
 
 // EMPTY INTERFACE VALUE SLICE
-func (l List) Values() []Value {
-	var retval []Value
+func (l List) Values() []Evaluator {
+	var retval []Evaluator
 	// parameter function to convert slice of interfaces to slice of
 	// values.
 	// once.
 	var fn = func(index int, value interface{}) {
-		retval = append(retval, Eval(value))
+		retval = append(retval, Value(value))
 	}
 	l().Each(fn)
 	return retval
@@ -136,12 +138,35 @@ func (l List) Interfaces() []interface{} {
 func (l List) RankedValues() []Pair {
 	var retval []Pair
 	var fn = func(index int, value interface{}) {
-		i := Eval(index)
-		v := Eval(value)
+		i := Value(index)
+		v := Value(value)
 		// pass both values as paired parameter, will trigger eval to
 		// produce a key/value tuple type
-		retval = append(retval, Eval(i, v).(Pair))
+		retval = append(retval, Value(i, v).(Pair))
 	}
+	l().Each(fn)
+	return retval
+}
+func (l List) Base() BaseType {
+	return func() interface{} { return Collected(l) }
+}
+func (l List) Bytes() []byte {
+	var retval []byte
+
+	// parameter function to pass on to internal each methode:
+	var fn = func(index int, value interface{}) {
+		i := Value(index).Base().Bytes()
+		v := Value(value).Base().Bytes()
+
+		// format each entry as one line with leading numeric index,
+		// followed by a dot and blank character, the Value and a
+		// newline character.
+		retval = append(
+			i,
+			v...,
+		)
+	}
+	// call function once per value, to format whole list
 	l().Each(fn)
 	return retval
 }
@@ -152,8 +177,8 @@ func (l List) Serialize() []byte {
 
 	// parameter function to pass on to internal each methode:
 	var fn = func(index int, value interface{}) {
-		i := Eval(index).Serialize()
-		v := Eval(value).Serialize()
+		i := Value(index).Serialize()
+		v := Value(value).Serialize()
 
 		// format each entry as one line with leading numeric index,
 		// followed by a dot and blank character, the Value and a
@@ -183,7 +208,15 @@ func (l List) Iterator() Iterable {
 	return intIterator(func() *al.Iterator { i := l().Iterator(); return &i })
 }
 
-// ITERATOR IMPLEMENTING METHODS
+// LIST FROM NATIVE VALUES
+var EvalList = func(v ...Evaluator) Ranked {
+	var l = al.New()
+	(*l).Add(Slice(v).Interfaces()...)
+	var fn List = func() *al.List { return l }
+	return fn
+}
+
+// ITERATOR IMPLEMENTING TYPES (to wrap different iterator implementations)
 // the iterator embedded in a arraylist is a struct, of type
 // arraylist.Iterator. the list has a method to generate it. Iterators with
 // index differ from iterators with key in the expected parameters, not in the
@@ -191,59 +224,58 @@ func (l List) Iterator() Iterable {
 // returned each time.
 type intIterator func() *al.Iterator
 
-func (l intIterator) Index() (int, Iterable)   { return l().Index(), l }
-func (l intIterator) Value() (Value, Iterable) { return Eval(l().Value()), l }
-func (l intIterator) Next() (bool, Iterable)   { return l().Next(), l }
-func (l intIterator) First() (bool, Iterable)  { return l().First(), l }
-func (l intIterator) Begin() Iterable          { l.Begin(); return l }
+func (l intIterator) Index() (int, Iterable)       { return l().Index(), l }
+func (l intIterator) Value() (Evaluator, Iterable) { return Value(l().Value()), l }
+func (l intIterator) Next() (bool, Iterable)       { return l().Next(), l }
+func (l intIterator) First() (bool, Iterable)      { return l().First(), l }
+func (l intIterator) Begin() Iterable              { l.Begin(); return l }
 
 // reverse iterator interface
 func (l intIterator) End() Iterable          { l().End(); return l }
 func (l intIterator) Prev() (bool, Iterable) { return l().Prev(), l }
 func (l intIterator) Last() (bool, Iterable) { return l().Last(), l }
 
-//////////////////////// ENUM /////////////////////////////////////////////////////
-// ENUMERABLE IMPLEMENTING METHODS
+// ENUMERABLE IMPLEMENTING TYPE
 // the enumerator is imolemented by the list itself and alters it's State. Two
 // types of enumerable interfaces exist, different in parameters and different
-// regarding return values of one of its methods. the return types of the
-// differing find method are either int index and interface value, or both of
-// the value type. the internal interface returns a value of the Pair type
-// instead
+// regarding the type of return values one of its methods returns. the possible
+// return types of the differing find method are either int index and interface
+// value, or both of the value type. the internal interface returns a value of
+// the Pair type instead
 type intEnumerable func() con.EnumerableWithIndex
 
-func (e intEnumerable) Each(pf func(index Value, value Value)) Enumerable {
+func (e intEnumerable) Each(pf func(index Evaluator, value Evaluator)) Enumerable {
 	e().Each(
 		func(index int, value interface{}) {
-			pf(Eval(index), Eval(value)) // each does not return a boolean
+			pf(Value(index), Value(value)) // each does not return a boolean
 		})
 	return intEnumerable(e)
 }
 
-func (e intEnumerable) Any(pf func(value Value, index Value) bool) (Enumerable, bool) {
-	// calls each method of contained container, with demanded parameter types
+func (e intEnumerable) Any(pf func(value Evaluator, index Evaluator) bool) (Enumerable, bool) {
 	ok := e().Any(
 		func(index int, value interface{}) bool {
-			return pf(Eval(index), Eval(value))
+			return pf(Value(index), Value(value))
 		})
 	return e, ok
 }
-func (e intEnumerable) All(pf func(value Value, index Value) bool) (Enumerable, bool) {
+func (e intEnumerable) All(pf func(value Evaluator, index Evaluator) bool) (Enumerable, bool) {
 	ok := e().All(
 		func(index int, value interface{}) bool {
-			return pf(Eval(index), Eval(value))
+			return pf(Value(index), Value(value))
 		})
 	return e, ok
 }
-func (e intEnumerable) Find(pf func(index Value, value Value) bool) (Enumerable, Pair) {
+func (e intEnumerable) Find(pf func(index Evaluator, value Evaluator) bool) (Enumerable, Pair) {
 	i, v := e().Find(
 		func(index int, value interface{}) bool {
-			return pf(Eval(index), Eval(value))
+			return pf(Value(index), Value(value))
 		})
-	return e, Eval(i, v).(Pair)
+	return e, Value(i, v).(Pair)
 }
 
-type Slice []Value
+// helper type to convert between slices of interfaces and value slices
+type Slice []Evaluator
 
 func (s Slice) Interfaces() (i []interface{}) {
 	for _, val := range s {
@@ -251,18 +283,9 @@ func (s Slice) Interfaces() (i []interface{}) {
 	}
 	return s.Interfaces()
 }
-func (s Slice) Values() (i []Value) {
+func (s Slice) Values() (i []Evaluator) {
 	for _, val := range s {
-		i = append(i, val.(Value))
+		i = append(i, val.(Evaluator))
 	}
 	return i
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////
-// LIST FROM NATIVE VALUES
-var EvalList = func(v ...Value) Ranked {
-	var l = al.New()
-	(*l).Add(Slice(v).Interfaces()...)
-	var fn List = func() *al.List { return l }
-	return fn
 }

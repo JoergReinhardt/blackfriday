@@ -20,6 +20,9 @@ type (
 
 	Table  List
 	Matrix List
+
+	Iterator   func() Iterable
+	Enumerator func() Enumerable
 )
 
 // lists and sublists of exactly two values length, are assumed to be either
@@ -30,32 +33,59 @@ type (
 // recursively. .  All conversions to Collected,  get instanciated as list
 // type,to profit from the enumerable interface at flattening and conversion.
 // COLLECTED IMPLEMENTING METHODS
+type Col func() con.Container
+
+func (c Col) Type() ValueType           { return COLLECTED }
+func (c Col) Empty() bool               { return c().Empty() }
+func (c Col) Size() int                 { return c().Size() }
+func (c Col) Interfaces() []interface{} { return c().Values() }
+func (c Col) Values() []Evaluator       { return Slice(c().Values()).Values() }
+
+func (c Col) Clear() Collected { return func() con.Container { Collected(c().Clear()) } }
+
+func (c Col) Serialize() []byte {
+	var r = []byte{}
+	switch {
+	case c.Type()&LIST != 0:
+		r = List(c).Serialize()
+	case c.Type()&TABLE != 0:
+		r = BidiMap(c).Serialize()
+	}
+	return r
+}
+func (c Col) String() string  { string(c.Serialize) }
+func (c Col) Eval() Evaluator { return c().Serialize() }
 
 ////////////////////////////////////////////////////////////////////////////////////
 //// LIST ////
 //////////////
+type List Col
+
 func (l List) Eval() Evaluator  { return Value(l) }
 func (l List) Type() ValueType  { return LIST }
 func (l List) Size() int        { return l().Size() }
 func (l List) Empty() bool      { return l().Empty() }
-func (l List) Clear() Collected { l().Clear(); return l }
-func (l List) AddInterface(v ...interface{}) List {
+func (l List) Clear() Collected { return List(func() *al.List { return l().Clear() }) }
+func (l List) AddInterface(v ...interface{}) listed {
 	var retval = l()
 	(*retval).Add(v...)
-	return List(func() *al.List { return retval })
+	var retfn List = func() *al.List { return retval }
+	return retfn
 }
-func (l List) Add(v ...Evaluator) List {
+func (l List) Add(v ...Evaluator) listed {
 	var retval = l()
 	for _, value := range v {
 		value := value
 		(*retval).Add(value)
 	}
-	return List(func() *al.List { return retval })
+	var retfn List = func() *al.List { return retval }
+	return retfn
 }
-func (l List) Remove(i int) List {
+func (l List) Remove(i int) listed {
 	var retval = l()
 	(*retval).Remove(i)
-	return List(func() *al.List { return retval })
+	var retfn List = func() *al.List { return retval }
+	return retfn
 }
 
 func (l List) RankedValues() []Pair {
@@ -129,10 +159,10 @@ func (l List) Enum() Enumerable {
 	return r
 }
 
-// LIST FROM SLICE OF VALUES
-var newList = func(v ...Evaluator) List {
+// LIST FROM NATIVE VALUES
+var EvalList = func(v ...Evaluator) listed {
 	var l = al.New()
-	(*l).Add(InterSlice(v)...)
+	(*l).Add(Slice(v).Interfaces()...)
 	var fn List = func() *al.List { return l }
 	return fn
 }
@@ -141,6 +171,7 @@ var newList = func(v ...Evaluator) List {
 // The Type and Value methods can be pre-assigned at the level of distinct
 // functional types, representing each dynamic type
 // BOOLEAN VALUE (JACOBI)
+type BitFlag func() *big.Int
 
 // The Type and Value methods can be pre-assigned at the level of distinct
 // functional types, representing each dynamic type
@@ -172,7 +203,7 @@ func (f BitFlag) Clear() Collected {
 	return BitFlag(func() *big.Int { return r })
 }
 func (f BitFlag) Values() []Evaluator {
-	return ValueSlice(f.Values())
+	return Slice(f.Values())
 }
 func (f BitFlag) Interfaces() []interface{} {
 	var v []interface{}
@@ -181,6 +212,117 @@ func (f BitFlag) Interfaces() []interface{} {
 		v = append(v, val)
 	}
 	return v
+}
+
+////////////////////////////////////////////////////////////////////////////////////
+//// MAP ////
+//////////////
+type BidiMap func() *hm.Map
+
+func (m BidiMap) Eval() Evaluator  { return Value(m) }
+func (m BidiMap) Type() ValueType  { return TABLE }
+func (m BidiMap) Size() int        { return m().Size() }
+func (m BidiMap) Empty() bool      { return m().Empty() }
+func (m BidiMap) Clear() Collected { return BidiMap(func() *al.BidiMap { return l().Clear() }) }
+func (l BidiMap) AddInterface(v ...interface{}) listed {
+	var retval = l()
+	(*retval).Add(v...)
+	var retfn BidiMap = func() *al.BidiMap { return retval }
+	return retfn
+}
+func (l BidiMap) Add(v ...Evaluator) listed {
+	var retval = l()
+	for _, value := range v {
+		value := value
+		(*retval).Add(value)
+	}
+	var retfn BidiMap = func() *al.BidiMap { return retval }
+	return retfn
+}
+func (l BidiMap) Remove(i int) listed {
+	var retval = l()
+	(*retval).Remove(i)
+	var retfn BidiMap = func() *al.BidiMap { return retval }
+	return retfn
+}
+
+func (l BidiMap) RankedValues() []Pair {
+	var retval []Pair
+	var fn = func(index int, value interface{}) {
+		i := Value(index)
+		v := Value(value)
+		// pass both values as paired parameter, will trigger eval to
+		// produce a key/value tuple type
+		retval = append(retval, Value(i, v).(Pair))
+	}
+	l().Each(fn)
+	return retval
+}
+func (l BidiMap) Interfaces() []interface{} {
+	return l().Values()
+}
+
+func (l BidiMap) Values() []Evaluator {
+	var retval []Evaluator
+	// parameter function to convert slice of interfaces to slice of
+	// values once.
+	var fn = func(index int, value interface{}) {
+		retval = append(retval, Value(l.Interfaces()))
+	}
+	// retrieve an iterator from collection and call it passing the
+	// argument function, to append to the predefined slice
+	(con.EnumerableWithIndex)(l()).Each(fn)
+	return retval
+}
+
+func (l BidiMap) Serialize() []byte {
+	// allocate return byte slice, so it can be enclosed by the parameter
+	// function.
+	var retval []byte
+
+	// parameter function to pass on to internal each methode:
+	var fn = func(index int, value interface{}) {
+		i := Value(index).Serialize()
+		v := Value(value).Serialize()
+
+		// format each entry as one line with leading numeric index,
+		// followed by a dot and blank character, the Value and a
+		// newline character.
+		retval = append(
+			retval,
+			append(
+				i,
+				append(
+					[]byte(": "),
+					append(
+						v,
+						[]byte("\n")...,
+					)...,
+				)...,
+			)...,
+		)
+	}
+	// call function once per value, to format whole list
+	l().Each(fn)
+	return retval
+}
+
+// use serialization as string format base
+func (l BidiMap) String() string { return string(l.Serialize()) }
+func (l BidiMap) Iter() Iterable {
+	return IdxIterator(func() *al.Iterator { i := l().Iterator(); return &i })
+}
+func (l BidiMap) Enum() Enumerable {
+	var r IdxEnumerable = func() con.EnumerableWithIndex { return l() }
+	return r
+}
+
+// LIST FROM NATIVE VALUES
+var EvalBidiMap = func(v ...Evaluator) listed {
+	var l = al.New()
+	(*l).Add(Slice(v).Interfaces()...)
+	var fn BidiMap = func() *al.BidiMap { return l }
+	return fn
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -193,7 +335,7 @@ func (f BitFlag) Interfaces() []interface{} {
 // returned each time.
 type IdxIterator func() *al.Iterator
 
-func (l IdxIterator) Index() (Evaluator, Iterable) { return Value(l().Index()), l }
+func (l IdxIterator) Index() (int, Iterable)       { return l().Index(), l }
 func (l IdxIterator) Value() (Evaluator, Iterable) { return Value(l().Value()), l }
 func (l IdxIterator) Next() (bool, Iterable)       { return l().Next(), l }
 func (l IdxIterator) First() (bool, Iterable)      { return l().First(), l }
@@ -243,154 +385,18 @@ func (e IdxEnumerable) Find(pf func(index Evaluator, value Evaluator) bool) (Pai
 	return Value(i, v).(Pair), e
 }
 
-////////////////////////////////////////////////////////////////////////////////////
-//// MAP ////
-//////////////
-func (m Map) Eval() Evaluator  { return Value(m) }
-func (m Map) Type() ValueType  { return TABLE }
-func (m Map) Size() int        { return m().Size() }
-func (m Map) Empty() bool      { return m().Empty() }
-func (m Map) Clear() Collected { m().Clear(); return m }
-func (m Map) Add(v ...Evaluator) Map {
-	var r = m()
-	for i, v := range v {
-		i, v := i, v
-		switch {
-		case v.(Evaluator).Type()&PAIR != 0:
-			(*r).Put(v.(Pair).Key(), v.(Pair).Value())
-
-		case v.(Evaluator).Type()&RAT != 0:
-			(*r).Put(Value(i), Value(v.(Rat).Num(), v.(Rat).Denom()).(Pair))
-		default:
-			(*r).Put(Value(i), v.(Rat).Denom())
-		}
-	}
-	return func() *hm.Map { return r }
-}
-func (m Map) AddInterface(v ...interface{}) Map {
-	var r = m()
-	for i, val := range v {
-		i, val := i, val
-		r.Put(Value(i), Value(val))
-	}
-	return func() *hm.Map { return r }
-}
-func (m Map) Remove(i int) Map {
-	var retval = m()
-	(*retval).Remove(i)
-	return func() *hm.Map { return retval }
-}
-func (m Map) Interfaces() []interface{} {
-	return m().Values()
-}
-
-func (m Map) Values() []Evaluator {
-	return ValueSlice(m.Interfaces())
-}
-
-func (m Map) Serialize() []byte {
-	var retval []byte
-	var keys = ValueSlice(m().Keys())
-	var values = ValueSlice(m().Values())
-	for i := len(values); i > 0; i-- {
-		i := i
-		retval = append(keys[i].Serialize(),
-			append([]byte(": "),
-				append(values[i].Serialize(),
-					[]byte("\n")...,
-				)...,
-			)...,
-		)
-
-	}
-
-	return retval
-}
-
-// use serialization as string format base
-func (m Map) String() string { return string(m.Serialize()) }
-
-// MAP FROM PAIRS OF VALUES
-var newMap = func(v ...Pair) Map {
-	var r = hm.New()
-	for _, v := range v {
-		v := v
-		(*r).Put(v.Key(), v.Value())
-	}
-	return func() *hm.Map { return r }
-}
-
-//// KEY ENUMERABLE ////
-type KeyEnumerable func() con.EnumerableWithKey
-
-func (e KeyEnumerable) Each(pf func(index Evaluator, value Evaluator)) Enumerable {
-	e().Each(
-		func(index interface{}, value interface{}) {
-			pf(Value(index), Value(value)) // each does not return a boolean
-		})
-	return e
-}
-
-func (e KeyEnumerable) Any(pf func(index Evaluator, value Evaluator) bool) (bool, Enumerable) {
-	ok := e().Any(
-		func(index interface{}, value interface{}) bool {
-			return pf(Value(index), Value(value))
-		})
-	return ok, e
-}
-func (e KeyEnumerable) All(pf func(index Evaluator, value Evaluator) bool) (bool, Enumerable) {
-	ok := e().All(
-		func(index interface{}, value interface{}) bool {
-			return pf(Value(index), Value(value))
-		})
-	return ok, e
-}
-func (e KeyEnumerable) Find(pf func(index Evaluator, value Evaluator) bool) (Pair, Enumerable) {
-	i, v := e().Find(
-		func(index interface{}, value interface{}) bool {
-			return pf(Value(index), Value(value))
-		})
-	return Value(i, v).(Pair), e
-}
-
-//// SLICE ////
 // helper type to convert between slices of interfaces and value slices
-func InterSlice(i interface{}) []interface{} {
-	if s, ok := i.([]interface{}); ok {
-		return s
-	} else {
-		var e = []interface{}{}
-		for _, v := range i.([]interface{}) {
-			v := v
-			e = append(e, v)
-		}
-		return e
-	}
-}
+type Slice []Evaluator
 
-func ValueSlice(i interface{}) []Evaluator {
-	if v, ok := i.([]Evaluator); ok {
-		return v
-	} else {
-		var e = []Evaluator{}
-		for _, val := range i.([]interface{}) {
-			val := Value(val)
-			e = append(e, val)
-		}
-		return e
+func (s Slice) Interfaces() (i []interface{}) {
+	for _, val := range s {
+		i = append(i, val)
 	}
+	return s.Interfaces()
 }
-
-//// KEY ITERATOR ////
-//type KeyIterator func() *hm.IteratorWithKey
-//
-//func (k KeyIterator) Index() (Evaluator, Iterable) { return Value(k()).Index(), k }
-//func (k KeyIterator) Value() (Evaluator, Iterable) { return Value(k().Value()), k }
-//func (k KeyIterator) Next() (bool, Iterable)       { return k().Next(), k }
-//func (k KeyIterator) First() (bool, Iterable)      { return k().First(), k }
-//func (k KeyIterator) Begin() Iterable              { k().Begin(); return k }
-//
-//// reverse iterator interface
-//func (k KeyIterator) End() Iterable          { k().End(); return k }
-//func (k KeyIterator) Prev() (bool, Iterable) { return k().Prev(), k }
-//func (k KeyIterator) Last() (bool, Iterable) { return k().Last(), k }
+func (s Slice) Values() (i []Evaluator) {
+	for _, val := range s {
+		i = append(i, val.(Evaluator))
+	}
+	return i
+}

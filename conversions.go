@@ -9,9 +9,9 @@ import (
 	"math/big"
 )
 
-func ComplexToSimple(b Evaluator) Int {
+func ComplexToSimple(b Evaluator) Val {
 	// define a new closure
-	return Int(func() *big.Int {
+	return Val(func() *big.Int {
 		// allocate a new big Int reference
 		return new(big.Int).SetBytes(
 			// converts string representation of a complex value to
@@ -19,7 +19,7 @@ func ComplexToSimple(b Evaluator) Int {
 			[]byte(b.String()))
 	})
 }
-func SimpleToTuple(b Int) Rat {
+func SimpleToTuple(b Val) Rat {
 	// leaves value uninterpreted but dereferences it
 	var val = *b()
 	// define a new closure
@@ -33,7 +33,7 @@ func SimpleToTuple(b Int) Rat {
 		)
 	})
 }
-func RankedValueToTuple(i int, v Int) Rat {
+func RankedValueToTuple(i int, v Val) Rat {
 	var idx = *big.NewInt(int64(i))
 	var val = *v()
 	return Rat(func() *big.Rat {
@@ -46,7 +46,7 @@ func RankedValueToTuple(i int, v Int) Rat {
 		)
 	})
 }
-func ValuePairToTuple(k Int, v Int) Rat {
+func ValuePairToTuple(k Val, v Val) Rat {
 	var key = *k()
 	var val = *v()
 	return Rat(func() *big.Rat {

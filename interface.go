@@ -1,106 +1,10 @@
 package agiledoc
 
-//go:generate stringer -type Number
-type Number int64
-
-const (
-	ONE Number = 1 + iota
-	TWO
-	THREE
-	FOUR
-	FIVE
-	SIX
-	SEVEN
-	EIGHT
-	NINE
-	TEN
-	ELEVEN
-	TWELVE
-	THIRTEEN
-
-	NEGATIVE_ONE Number = -1
-
-	TEEN     Number = TEN
-	HUNDRED         = 10 * TEN
-	THOUSEND        = 10 * HUNDRED
-	MILLION         = 1000 * THOUSEND
-	BILLION         = 1000 * MILLION
-	TRILLION        = 1000 * BILLION
-)
-
-//go:generate stringer -type ValueType
-type ValueType uint16
-
-// DYNAMIC TYPES
-// All dynamic types are defined as function types. Methods are defined on
-// those functional types, To implement the variable and all higher level
-// interfaces. The typefunction itsef returns a variable of it's type.
-const ( // NUMERIC TYPES
-	// encoded as *big.Int
-	EMPTY ValueType = 0
-	BOOL  ValueType = 1 << iota
-	UINT
-	INTEGER
-	BYTES
-	STRING
-	// FLOAT/PAIR TYPES
-	// encoded as *big.RAT
-	FLOAT
-	RATIONAL
-	KEY_VAL
-	// COLLECTION TYPES
-	FLAG   // *big.Int
-	LIST   // *arraylist.List
-	STACK  // *arraystack.Stack
-	TABLE  // *hashbidimap.Map
-	MATRIX // *arraylist.List
-	SET    // *treeset.Set
-
-	// SEMANTIC SETS
-	NUMERIC  = FLAG | UINT | INTEGER | RATIONAL | FLOAT // int key
-	SYMBOLIC = BYTES | STRING                           // map key
-
-	// SUPER TYPES
-	INT = BOOL | UINT | INTEGER | BYTES | STRING // [2]Value
-	RAT = KEY_VAL | RATIONAL | FLOAT             // [2]Value
-
-	// COLLECTION TYPES (INCLUDES FLAG!)
-	COLLECTED = FLAG | LIST | STACK |
-		TABLE | MATRIX | SET // Collected
-
-	// TYPE OF INDEX TO COLLECT BY
-	// one might argue that surely floarts rationals and arguably even
-	// booleans and flags are numeric by nature… this maps collection types
-	// to the iteration operation there is to perform in a for loop (ether
-	// they are a map, or slice/array)
-	NUM_KEYS = LIST | STACK | FLAG | MATRIX | INTEGER | UINT
-	SYM_KEYS = TABLE | SET | BOOL | FLAG | STRING | BYTES |
-		FLOAT | RATIONAL | KEY_VAL // takes and returns key/val pairs
-
-	// convienient for biteise operations
-	MAX_MASK = (1 << 16) - 1
-)
-
 type Evaluator interface {
 	Type() ValueType   // return designated dynamic type
 	Eval() Evaluator   // produce a value from contained data
-	Base() BaseType    // return plain content as a bytes slice
 	Serialize() []byte // return evaluated content in a byte slice
 	String() string    // return serialized evaluated content
-}
-type BaseType func() interface{}
-
-func (b BaseType) Bytes() []byte {
-	var r []byte
-	switch {
-	case b().(Evaluator).Type()&INT != 0:
-		r = (b().(Evaluator)).(Int).Bytes()
-	case b().(Evaluator).Type()&RAT != 0:
-		r = (b().(Evaluator)).(Rat).Bytes()
-	case b().(Evaluator).Type()&COLLECTED != 0:
-		r = (b().(Evaluator)).(Collected).Bytes()
-	}
-	return r
 }
 
 // COLLECTED META INTERFACE
@@ -108,12 +12,11 @@ func (b BaseType) Bytes() []byte {
 // types that define collections of values
 type Collected interface {
 	Evaluator
+	Clear() Collected
 	Empty() bool
 	Size() int
-	Bytes() []byte
 	Interfaces() []interface{}
 	Values() []Evaluator
-	Iterator() Iterable
 }
 
 // TYPED INTERFACES
@@ -135,61 +38,55 @@ type Flagged interface {
 	Shift(uint, int) Flagged
 	Add(...Evaluator) Flagged
 	Remove(int) Flagged
-	Clear() Flagged
 }
 
 // is a list of values accessed sequencialy
 type Stacked interface {
 	Collected
-	Enumerable
 	Add(...Evaluator) Stacked
 	Remove(int) Stacked
-	Clear() Stacked
 }
 
 // Ranked is a list of values addressed by index.
-type Ranked interface {
+type Listed interface {
 	Collected
-	Add(...Evaluator) Ranked
-	Remove(int) Ranked
-	Clear() Ranked
+	Add(...Evaluator) Listed
+	Remove(int) Listed
 	RankedValues() []Pair
 }
 
 // Contained is intended to be tested against if it contains a certain value,
 // or not.  (Set)
-type Contained interface {
-	Collected
-	Contains(...Evaluator) bool
-	Add(...interface{}) Contained
-	AddValue(...Evaluator) Contained
-	Remove(...Evaluator) Contained
-	Clear() Contained
-}
+//type Appendable interface {
+//	Collected
+//	Contains(...Evaluator) bool
+//	Add(...interface{}) Appendable
+//	AddValue(...Evaluator) Appendable
+//	Remove(...Evaluator) Appendable
+//}
 
 // Map is a collection, with values mapped on to keys
 type Mapped interface {
 	Collected
 	Add(...Pair) Mapped
 	Remove(...Pair) Mapped
-	Clear() Mapped
 	Keys() []Evaluator
 	KeyValues() []Pair
 }
 
 // matrices and tables are tabular
 type Tabular interface {
-	Ranked
+	Listed
 	Shape() []int // [len(x-vector/row),len(y-vector/column),len(z-vector),...]
 	Dim() int     // == len(Shape)
 }
 
 // numeric matrix
 type NumericMatrix interface {
-	Ranked
+	Listed
 	Element(x int, y int) Evaluator
-	Column(i int) Ranked
-	Row(i int) Ranked
+	Column(i int) Listed
+	Row(i int) Listed
 }
 
 // symbolic table
@@ -224,13 +121,13 @@ type Enumerable interface {
 	Each(func(Evaluator, Evaluator)) Enumerable
 
 	// key:int/value ← val:val ←|→ bool
-	Any(func(Evaluator, Evaluator) bool) (Enumerable, bool)
+	Any(func(Evaluator, Evaluator) bool) (bool, Enumerable)
 
 	// key:int/value ← val:val ←|→ bool
-	All(func(Evaluator, Evaluator) bool) (Enumerable, bool)
+	All(func(Evaluator, Evaluator) bool) (bool, Enumerable)
 
 	// key:int/value ← val:val ←|→ pair(value (index|key), value)
-	Find(func(Evaluator, Evaluator) bool) (Enumerable, Pair)
+	Find(func(Evaluator, Evaluator) bool) (Pair, Enumerable)
 }
 
 // Iterables provide a Rev methode, that returns a boolean to indicate wether
@@ -239,7 +136,7 @@ type Enumerable interface {
 type Iterable interface {
 	Next() (bool, Iterable)
 	Value() (Evaluator, Iterable)
-	Index() (int, Iterable)
+	Index() (Evaluator, Iterable)
 	Begin() Iterable
 	First() (bool, Iterable)
 }

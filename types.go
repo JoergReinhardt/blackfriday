@@ -4,9 +4,28 @@ import (
 	//"fmt"
 	// col "github.com/emirpasic/gods/containers"
 	"math/big"
+	"sync"
 )
 
-// ABSOLUTE VALUE IMPLEMENTING FUNCTIONAL TYPES
+type (
+	intPool sync.Pool
+	ratPool sync.Pool
+)
+
+func NewVal() Val { return intGen.New().(Val) }
+func NewRat() Rat { return ratGen.New().(Rat) }
+
+var (
+	intGen intPool = intPool{}
+	ratGen ratPool = ratPool{}
+)
+
+func init() {
+	intGen.New = func() interface{} { return big.NewInt(0) }
+	ratGen.New = func() interface{} { return big.NewRat(1, 1) }
+}
+
+// BASE VALUES IMPLEMENTING FUNCTIONAL TYPES
 // these functional types need to implement the absVal interface to be suitable
 // base types. If called, they return their contained value. A Method set
 // defined on these funtional types, implements the absVal interface, by
@@ -18,7 +37,7 @@ type ( // functional types that form the base of all value implementations
 	Empty func() struct{}
 
 	// simple type
-	Int func() *big.Int
+	Val func() *big.Int
 
 	// paired types
 	Rat  func() *big.Rat
@@ -28,59 +47,59 @@ type ( // functional types that form the base of all value implementations
 )
 
 func (Empty) Type() ValueType   { return EMPTY }
-func (e Empty) Base() BaseType  { return func() interface{} { return e } }
 func (e Empty) Eval() Evaluator { return Empty(func() struct{} { return struct{}{} }) }
 func (Empty) Serialize() []byte { return []byte{0} }
 func (e Empty) String() string  { return e.Type().String() }
 
 /////////////////////////////////////////////////////////////////////////
-func (b Int) Eval() Evaluator   { return Value(b) }
-func (b Int) Base() BaseType    { return func() interface{} { return b } }
-func (b Int) Serialize() []byte { return []byte(b().String()) }
-func (b Int) String() string    { return b().String() }
-func (b Int) Type() ValueType   { return INT }
+func (b Val) Eval() Evaluator   { return Value(b) }
+func (b Val) Serialize() []byte { return []byte(b().String()) }
+func (b Val) String() string    { return b().String() }
+func (b Val) Type() ValueType   { return INT }
 
 ////////////////////////////////////////////////////////////////
-func (b Int) BigInt() *big.Int { return b() }
-func (b Int) Integer() Integer { return Integer(b) }
-func (b Int) Bool() bool {
+func (b Val) BigInt() *big.Int { return b() }
+func (b Val) Integer() Integer { return Integer(b) }
+func (b Val) Bool() bool {
 	if b().Int64() > 0 {
 		return true
 	} else {
 		return false
 	}
 }
-func (b Int) IntUntyped() int    { return int(b().Int64()) }
-func (b Int) Int() int64         { return b().Int64() }
-func (b Int) Unsigned() Unsigned { return Unsigned(b) }
-func (b Int) Uint() uint64       { return b().Uint64() }
-func (b Int) BigRat() *big.Rat   { return new(big.Rat).SetFrac(Value(ONE).(Int)(), b()) }
-func (b Int) Flt() float64       { f, _ := b.BigRat().Float64(); return f }
-func (b Int) Rat() Rat           { return Value(b.BigRat()).(Rat) }
-func (b Int) Pair() [2]Evaluator { return [2]Evaluator{Value(), b} } // negative == index not set
-func (b Int) Bytes() []byte      { return b().Bytes() }
+func (b Val) IntUntyped() int    { return int(b().Int64()) }
+func (b Val) Int() int64         { return b().Int64() }
+func (b Val) Unsigned() Unsigned { return Unsigned(b) }
+func (b Val) Uint() uint64       { return b().Uint64() }
+func (b Val) BigRat() *big.Rat   { return new(big.Rat).SetFrac(Value(ONE).(Val)(), b()) }
+func (b Val) Flt() float64       { f, _ := b.BigRat().Float64(); return f }
+func (b Val) Rat() Rat           { return Value(b.BigRat()).(Rat) }
+func (b Val) Pair() [2]Evaluator { return [2]Evaluator{Value(), b} } // negative == index not set
+func (b Val) Bytes() []byte      { return b().Bytes() }
 
 /////////////////////////////////////////////////////////////////////////
 func (b Pair) Eval() Evaluator { return Value(b) }
 
-func (b Pair) Base() BaseType { return func() interface{} { return b } }
-func (b Pair) Serialize() []byte {
-	return append(
-		b.Key().Serialize(),
-		append(
-			[]byte(": "),
-			append(
-				b.Value().Serialize(),
-				[]byte("\n")...)...)...)
-}
 func (b Pair) Key() Evaluator   { return b()[0].Eval() }
 func (b Pair) Value() Evaluator { return b()[1].Eval() }
 func (b Pair) Index() int {
-	if i, ok := b.Key().(Int); ok {
+	if i, ok := b.Key().(Val); ok {
 		return i.IntUntyped()
 	} else {
 		return -1 // negative → not set
 	}
+}
+func (p Pair) Serialize() []byte {
+	return append(
+		p()[0].Serialize(),
+		append(
+			[]byte(": "),
+			append(
+				p()[1].Serialize(),
+				[]byte("\n")...,
+			)...,
+		)...,
+	)
 }
 
 func (b Pair) String() string  { return string(b.Serialize()) }
@@ -88,8 +107,6 @@ func (b Pair) Type() ValueType { return RAT }
 
 /////////////////////////////////////////////////////////////////////////
 func (r Rat) Eval() Evaluator { return Value(r) }
-
-func (r Rat) Base() BaseType { return func() interface{} { return r } }
 
 // Bytes is supposed to keep as much information as possible, so this converts
 // numerator and denominator to 64 bytes each, ignoring the original accuracy
@@ -107,45 +124,41 @@ func (r Rat) Type() ValueType   { return RAT }
 func (r Rat) Num() Evaluator    { return Value(r().Num()) }
 func (r Rat) Denom() Evaluator  { return Value(r().Denom()) }
 
-func (r Rat) BigInt() *big.Int { return Value(r).(Int)() }
+func (r Rat) BigInt() *big.Int { return Value(r).(Val)() }
 func (r Rat) Float() Float     { return Float(r) }
 func (r Rat) Flt() float64     { f, _ := r().Float64(); return f }
 
 /////////////////////////////////////////////////////////////////////////
 
 // INTEGER
-type Integer Int
+type Integer Val
 
-func (i Integer) Eval() Evaluator   { return Int(i).Eval() }
-func (i Integer) Base() BaseType    { return func() interface{} { return Int(i) } }
-func (i Integer) Serialize() []byte { return []byte(Int(i)().String()) }
+func (i Integer) Eval() Evaluator   { return Val(i).Eval() }
+func (i Integer) Serialize() []byte { return []byte(Val(i)().String()) }
 func (i Integer) String() string    { return i().Text(10) }
 func (i Integer) Type() ValueType   { return INTEGER }
 
 // BYTES
-type Bytes Int
+type Bytes Val
 
-func (b Bytes) Eval() Evaluator   { return Int(b).Eval() }
-func (b Bytes) Base() BaseType    { return func() interface{} { return b } }
-func (b Bytes) Serialize() []byte { return []byte(Int(b)().String()) }
+func (b Bytes) Eval() Evaluator   { return Val(b).Eval() }
+func (b Bytes) Serialize() []byte { return []byte(Val(b)().String()) }
 func (b Bytes) String() string    { return b().Text(8) }
 func (b Bytes) Type() ValueType   { return BYTES }
 
 // STRING
-type String Int
+type String Val
 
-func (s String) Eval() Evaluator   { return Int(s).Eval() }
-func (s String) Base() BaseType    { return func() interface{} { return s } }
-func (s String) Serialize() []byte { return Int(s)().Bytes() }
+func (s String) Eval() Evaluator   { return Val(s).Eval() }
+func (s String) Serialize() []byte { return Val(s)().Bytes() }
 func (s String) String() string    { return s().String() }
 func (s String) Type() ValueType   { return BYTES }
 
 // UNSIGNED INTEGER
-type Unsigned Int
+type Unsigned Val
 
-func (u Unsigned) Eval() Evaluator   { return Int(u).Eval() }
-func (u Unsigned) Base() BaseType    { return func() interface{} { return u } }
-func (u Unsigned) Serialize() []byte { return Int(u)().Bytes() }
+func (u Unsigned) Eval() Evaluator   { return Val(u).Eval() }
+func (u Unsigned) Serialize() []byte { return Val(u)().Bytes() }
 func (u Unsigned) String() string    { return u().Text(2) }
 func (u Unsigned) Type() ValueType   { return UINT }
 
@@ -153,7 +166,6 @@ func (u Unsigned) Type() ValueType   { return UINT }
 type Float Rat
 
 func (f Float) Eval() Evaluator   { return Rat(f).Eval() }
-func (f Float) Base() BaseType    { return func() interface{} { return f } }
 func (f Float) Serialize() []byte { return []byte(f.String()) }
 func (f Float) String() string    { return Value(f()).(Rat).String() }
 func (f Float) Type() ValueType   { return FLOAT }
@@ -162,30 +174,9 @@ func (f Float) Type() ValueType   { return FLOAT }
 type Ratio Rat
 
 func (r Ratio) Eval() Evaluator   { return Rat(r).Eval() }
-func (r Ratio) Base() BaseType    { return func() interface{} { return r } }
 func (r Ratio) Serialize() []byte { return []byte(Rat(r).String()) }
 func (r Ratio) String() string    { return r.String() }
 func (r Ratio) Type() ValueType   { return RATIONAL }
-
-// PAIR
-// implements KeyVal interface
-type KeyValue Pair
-
-func (k KeyValue) Eval() Evaluator   { return Pair(k).Eval() }
-func (k KeyValue) Base() BaseType    { return func() interface{} { return k } }
-func (k KeyValue) Serialize() []byte { return Pair(k).Serialize() }
-func (k KeyValue) Type() ValueType {
-	if k()[0].Eval().Type()&NUM_KEYS != 0 {
-		return NUMERIC
-	} else {
-		return SYMBOLIC
-	}
-}
-func (t KeyValue) Key() Evaluator   { return t()[0].Eval() }
-func (t KeyValue) Value() Evaluator { return t()[1].Eval() }
-func (t KeyValue) String() string {
-	return string(t.Key().Eval().String() + ": " + t.Value().Eval().String())
-}
 
 // INSTANCIATE A NEW VALUE
 //
@@ -197,41 +188,28 @@ func (t KeyValue) String() string {
 // return value.
 func Value(i ...interface{}) Evaluator {
 
-	// allocate a new local variable, to assign the passed, or contructed value
-	// to, that way dispatching from the existing instance
 	var v Evaluator
-
-	// loop over passed values
-	for _, e := range i {
-
-		// if allready a value, return immediatly
-		if val, ok := e.(Evaluator); ok {
-			return val
-		} else { // otherwise, declare a variable from passed parameter.
-			switch {
-
-			// if more than two values got passed, convert slice collection
-			case len(i) > 2: // → pass to evalCollection
-				v = evalCollection(i)
-
-			// if it is a pair of values, allocate size two array and return as pair
-			case len(i) == 2: // → assume key/value pair
-				v = Pair(func() [2]Evaluator { return [2]Evaluator{Value(i[0]), Value(i[1])} })
-
-			// if no value assigned yet, allocate and return empty value
-			case len(i) == 0:
-				fn := Empty(func() struct{} { return struct{}{} })
-				v = fn
-
-			// if length is one and value not implementing Value yet
-			default: // v is converted to value from a its native type
-
-				// from its native tupe.
-				v = nativeToValue(i[0])
-			}
+	// if one Element only
+	if len(i) == 1 {
+		// if allready a value, return that immedeately
+		if v, ok := i[0].(Evaluator); ok {
+			return v
 		}
+		// otherwise convert native to value
+		v = nativeToValue(i[0])
 	}
-	// return the declared variable
+	// if exactly two elements, assume a pair of key/value as element for a map
+	if len(i) == 2 { // convert key and value to be shure they implement value
+		v = newMap(Pair(func() [2]Evaluator { return [2]Evaluator{Value(i[0]), Value(i[1])} }))
+	}
+	if len(i) > 2 { // if more than two values are passed, we assume an indexed list of values. Should they turn out to be key Value Pairs, they will be converted to a list of maps, due to recursion.
+		var vals = []Evaluator{}
+		for _, v := range i {
+			v := v
+			vals = append(vals, Value(v))
+		}
+		v = newList(vals...)
+	}
 	return v
 }
 func nativeToValue(i interface{}) Evaluator {

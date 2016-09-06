@@ -1,8 +1,8 @@
 package agiledoc
 
-type Evaluator interface {
+type Evaluable interface {
 	Type() ValueType   // return designated dynamic type
-	Eval() Evaluator   // produce a value from contained data
+	Eval() Evaluable   // produce a value from contained data
 	Serialize() []byte // return evaluated content in a byte slice
 	String() string    // return serialized evaluated content
 }
@@ -11,12 +11,12 @@ type Evaluator interface {
 // Collected is a super interface, that defines common functionality of all
 // types that define collections of values
 type Collected interface {
-	Evaluator
+	Evaluable
 	Clear() Collected
 	Empty() bool
 	Size() int
 	Interfaces() []interface{}
-	Values() []Evaluator
+	Values() []Evaluable
 }
 
 // TYPED INTERFACES
@@ -36,21 +36,21 @@ type Flagged interface {
 	// shift either one, or zero uint by int digits, to the left, if int is
 	// positive, or right if it's negative.
 	Shift(uint, int) Flagged
-	Add(...Evaluator) Flagged
+	Add(...Evaluable) Flagged
 	Remove(int) Flagged
 }
 
 // is a list of values accessed sequencialy
 type Stacked interface {
 	Collected
-	Add(...Evaluator) Stacked
+	Add(...Evaluable) Stacked
 	Remove(int) Stacked
 }
 
 // Ranked is a list of values addressed by index.
 type Listed interface {
 	Collected
-	Add(...Evaluator) Listed
+	Add(...Evaluable) Listed
 	Remove(int) Listed
 	RankedValues() []Pair
 }
@@ -70,7 +70,7 @@ type Mapped interface {
 	Collected
 	Add(...Pair) Mapped
 	Remove(...Pair) Mapped
-	Keys() []Evaluator
+	Keys() []Evaluable
 	KeyValues() []Pair
 }
 
@@ -84,7 +84,7 @@ type Tabular interface {
 // numeric matrix
 type NumericMatrix interface {
 	Listed
-	Element(x int, y int) Evaluator
+	Element(x int, y int) Evaluable
 	Column(i int) Listed
 	Row(i int) Listed
 }
@@ -92,9 +92,9 @@ type NumericMatrix interface {
 // symbolic table
 type SymbolicTable interface {
 	Mapped
-	Element(Evaluator, Evaluator) Evaluator
-	Column(Evaluator) Mapped
-	Row(Evaluator) Mapped
+	Element(Evaluable, Evaluable) Evaluable
+	Column(Evaluable) Mapped
+	Row(Evaluable) Mapped
 }
 
 // ENUMERABLE & ITERATOR INTERFACES
@@ -118,16 +118,16 @@ type SymbolicTable interface {
 // altered version of the list as return value after each mutation.
 type Enumerable interface {
 	// key:int/value ← val:val ←|→ empty
-	Each(func(Evaluator, Evaluator)) Enumerable
+	Each(func(Evaluable, Evaluable)) Enumerable
 
 	// key:int/value ← val:val ←|→ bool
-	Any(func(Evaluator, Evaluator) bool) (bool, Enumerable)
+	Any(func(Evaluable, Evaluable) bool) (bool, Enumerable)
 
 	// key:int/value ← val:val ←|→ bool
-	All(func(Evaluator, Evaluator) bool) (bool, Enumerable)
+	All(func(Evaluable, Evaluable) bool) (bool, Enumerable)
 
 	// key:int/value ← val:val ←|→ pair(value (index|key), value)
-	Find(func(Evaluator, Evaluator) bool) (Pair, Enumerable)
+	Find(func(Evaluable, Evaluable) bool) (Pair, Enumerable)
 }
 
 // Iterables provide a Rev methode, that returns a boolean to indicate wether
@@ -135,8 +135,8 @@ type Enumerable interface {
 // caller can call them.
 type Iterable interface {
 	Next() (bool, Iterable)
-	Value() (Evaluator, Iterable)
-	Index() (Evaluator, Iterable)
+	Value() (Evaluable, Iterable)
+	Index() (Evaluable, Iterable)
 	Begin() Iterable
 	First() (bool, Iterable)
 }

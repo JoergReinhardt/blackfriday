@@ -41,18 +41,18 @@ type ( // functional types that form the base of all value implementations
 
 	// paired types
 	Rat  func() *big.Rat
-	Pair func() [2]Evaluator
+	Pair func() [2]Evaluable
 
 	// collection types see collection,go
 )
 
 func (Empty) Type() ValueType   { return EMPTY }
-func (e Empty) Eval() Evaluator { return Empty(func() struct{} { return struct{}{} }) }
+func (e Empty) Eval() Evaluable { return Empty(func() struct{} { return struct{}{} }) }
 func (Empty) Serialize() []byte { return []byte{0} }
 func (e Empty) String() string  { return e.Type().String() }
 
 /////////////////////////////////////////////////////////////////////////
-func (b Val) Eval() Evaluator   { return Value(b) }
+func (b Val) Eval() Evaluable   { return Value(b) }
 func (b Val) Serialize() []byte { return []byte(b().String()) }
 func (b Val) String() string    { return b().String() }
 func (b Val) Type() ValueType   { return INT }
@@ -74,14 +74,14 @@ func (b Val) Uint() uint64       { return b().Uint64() }
 func (b Val) BigRat() *big.Rat   { return new(big.Rat).SetFrac(Value(ONE).(Val)(), b()) }
 func (b Val) Flt() float64       { f, _ := b.BigRat().Float64(); return f }
 func (b Val) Rat() Rat           { return Value(b.BigRat()).(Rat) }
-func (b Val) Pair() [2]Evaluator { return [2]Evaluator{Value(), b} } // negative == index not set
+func (b Val) Pair() [2]Evaluable { return [2]Evaluable{Value(), b} } // negative == index not set
 func (b Val) Bytes() []byte      { return b().Bytes() }
 
 /////////////////////////////////////////////////////////////////////////
-func (b Pair) Eval() Evaluator { return Value(b) }
+func (b Pair) Eval() Evaluable { return Value(b) }
 
-func (b Pair) Key() Evaluator   { return b()[0].Eval() }
-func (b Pair) Value() Evaluator { return b()[1].Eval() }
+func (b Pair) Key() Evaluable   { return b()[0].Eval() }
+func (b Pair) Value() Evaluable { return b()[1].Eval() }
 func (b Pair) Index() int {
 	if i, ok := b.Key().(Val); ok {
 		return i.IntUntyped()
@@ -106,7 +106,7 @@ func (b Pair) String() string  { return string(b.Serialize()) }
 func (b Pair) Type() ValueType { return RAT }
 
 /////////////////////////////////////////////////////////////////////////
-func (r Rat) Eval() Evaluator { return Value(r) }
+func (r Rat) Eval() Evaluable { return Value(r) }
 
 // Bytes is supposed to keep as much information as possible, so this converts
 // numerator and denominator to 64 bytes each, ignoring the original accuracy
@@ -121,8 +121,8 @@ func (r Rat) Bytes() []byte {
 func (r Rat) Serialize() []byte { return []byte(r().String()) }
 func (r Rat) String() string    { return r().String() }
 func (r Rat) Type() ValueType   { return RAT }
-func (r Rat) Num() Evaluator    { return Value(r().Num()) }
-func (r Rat) Denom() Evaluator  { return Value(r().Denom()) }
+func (r Rat) Num() Evaluable    { return Value(r().Num()) }
+func (r Rat) Denom() Evaluable  { return Value(r().Denom()) }
 
 func (r Rat) BigInt() *big.Int { return Value(r).(Val)() }
 func (r Rat) Float() Float     { return Float(r) }
@@ -133,7 +133,7 @@ func (r Rat) Flt() float64     { f, _ := r().Float64(); return f }
 // INTEGER
 type Integer Val
 
-func (i Integer) Eval() Evaluator   { return Val(i).Eval() }
+func (i Integer) Eval() Evaluable   { return Val(i).Eval() }
 func (i Integer) Serialize() []byte { return []byte(Val(i)().String()) }
 func (i Integer) String() string    { return i().Text(10) }
 func (i Integer) Type() ValueType   { return INTEGER }
@@ -141,7 +141,7 @@ func (i Integer) Type() ValueType   { return INTEGER }
 // BYTES
 type Bytes Val
 
-func (b Bytes) Eval() Evaluator   { return Val(b).Eval() }
+func (b Bytes) Eval() Evaluable   { return Val(b).Eval() }
 func (b Bytes) Serialize() []byte { return []byte(Val(b)().String()) }
 func (b Bytes) String() string    { return b().Text(8) }
 func (b Bytes) Type() ValueType   { return BYTES }
@@ -149,15 +149,15 @@ func (b Bytes) Type() ValueType   { return BYTES }
 // STRING
 type String Val
 
-func (s String) Eval() Evaluator   { return Val(s).Eval() }
-func (s String) Serialize() []byte { return Val(s)().Bytes() }
-func (s String) String() string    { return s().String() }
-func (s String) Type() ValueType   { return BYTES }
+func (s String) Eval() Evaluable   { return Val(s).Eval() }
+func (s String) Serialize() []byte { return []byte(Val(s)().Bytes()) }
+func (s String) String() string    { return string(s.Serialize()) }
+func (s String) Type() ValueType   { return STRING }
 
 // UNSIGNED INTEGER
 type Unsigned Val
 
-func (u Unsigned) Eval() Evaluator   { return Val(u).Eval() }
+func (u Unsigned) Eval() Evaluable   { return Val(u).Eval() }
 func (u Unsigned) Serialize() []byte { return Val(u)().Bytes() }
 func (u Unsigned) String() string    { return u().Text(2) }
 func (u Unsigned) Type() ValueType   { return UINT }
@@ -165,7 +165,7 @@ func (u Unsigned) Type() ValueType   { return UINT }
 // FLOAT
 type Float Rat
 
-func (f Float) Eval() Evaluator   { return Rat(f).Eval() }
+func (f Float) Eval() Evaluable   { return Rat(f).Eval() }
 func (f Float) Serialize() []byte { return []byte(f.String()) }
 func (f Float) String() string    { return Value(f()).(Rat).String() }
 func (f Float) Type() ValueType   { return FLOAT }
@@ -173,7 +173,7 @@ func (f Float) Type() ValueType   { return FLOAT }
 // PAIREDIONAL
 type Ratio Rat
 
-func (r Ratio) Eval() Evaluator   { return Rat(r).Eval() }
+func (r Ratio) Eval() Evaluable   { return Rat(r).Eval() }
 func (r Ratio) Serialize() []byte { return []byte(Rat(r).String()) }
 func (r Ratio) String() string    { return r.String() }
 func (r Ratio) Type() ValueType   { return RATIONAL }
@@ -186,13 +186,13 @@ func (r Ratio) Type() ValueType   { return RATIONAL }
 // an Instance of the Collection interface. A Method set defined on the
 // function type implements the absVal interface, by manipulating the main
 // return value.
-func Value(i ...interface{}) Evaluator {
+func Value(i ...interface{}) Evaluable {
 
-	var v Evaluator
+	var v Evaluable
 	// if one Element only
 	if len(i) == 1 {
 		// if allready a value, return that immedeately
-		if v, ok := i[0].(Evaluator); ok {
+		if v, ok := i[0].(Evaluable); ok {
 			return v
 		}
 		// otherwise convert native to value
@@ -200,10 +200,10 @@ func Value(i ...interface{}) Evaluator {
 	}
 	// if exactly two elements, assume a pair of key/value as element for a map
 	if len(i) == 2 { // convert key and value to be shure they implement value
-		v = newMap(Pair(func() [2]Evaluator { return [2]Evaluator{Value(i[0]), Value(i[1])} }))
+		v = newMap(Pair(func() [2]Evaluable { return [2]Evaluable{Value(i[0]), Value(i[1])} }))
 	}
 	if len(i) > 2 { // if more than two values are passed, we assume an indexed list of values. Should they turn out to be key Value Pairs, they will be converted to a list of maps, due to recursion.
-		var vals = []Evaluator{}
+		var vals = []Evaluable{}
 		for _, v := range i {
 			v := v
 			vals = append(vals, Value(v))
@@ -212,9 +212,9 @@ func Value(i ...interface{}) Evaluator {
 	}
 	return v
 }
-func nativeToValue(i interface{}) Evaluator {
+func nativeToValue(i interface{}) Evaluable {
 
-	var retFn Evaluator
+	var retFn Evaluable
 
 	switch i.(type) {
 	case bool: // a boolean returns a flag with the first bit set
@@ -245,7 +245,7 @@ func nativeToValue(i interface{}) Evaluator {
 
 	case int, int8, int16, int32, int64: // integers are integer
 		v := (new(big.Int).SetInt64(int64(i.(int))))
-		var Fn Integer = func() *big.Int { return v }
+		var Fn Integer = Integer(func() *big.Int { return v })
 		retFn = Fn
 
 	case []byte: // a bytes slice gets assigned as bytes
@@ -253,7 +253,7 @@ func nativeToValue(i interface{}) Evaluator {
 		retFn = Bytes(func() *big.Int { return v })
 
 	case uint8, uint32:
-		v := (new(big.Int).SetBytes(i.([]byte)))
+		v := new(big.Int).SetBytes(i.([]byte))
 		retFn = String(func() *big.Int { return v })
 
 	case string: // a string gets assigned by its bislice as well

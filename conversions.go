@@ -9,7 +9,7 @@ import (
 	"math/big"
 )
 
-func ComplexToSimple(b Evaluator) Val {
+func ComplexToSimple(b Evaluable) Val {
 	// define a new closure
 	return Val(func() *big.Int {
 		// allocate a new big Int reference

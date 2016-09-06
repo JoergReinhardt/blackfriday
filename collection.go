@@ -34,7 +34,7 @@ type (
 ////////////////////////////////////////////////////////////////////////////////////
 //// LIST ////
 //////////////
-func (l List) Eval() Evaluator  { return Value(l) }
+func (l List) Eval() Evaluable  { return Value(l) }
 func (l List) Type() ValueType  { return LIST }
 func (l List) Size() int        { return l().Size() }
 func (l List) Empty() bool      { return l().Empty() }
@@ -44,7 +44,7 @@ func (l List) AddInterface(v ...interface{}) List {
 	(*retval).Add(v...)
 	return List(func() *al.List { return retval })
 }
-func (l List) Add(v ...Evaluator) List {
+func (l List) Add(v ...Evaluable) List {
 	var retval = l()
 	for _, value := range v {
 		value := value
@@ -74,8 +74,8 @@ func (l List) Interfaces() []interface{} {
 	return l().Values()
 }
 
-func (l List) Values() []Evaluator {
-	var retval []Evaluator
+func (l List) Values() []Evaluable {
+	var retval []Evaluable
 	// parameter function to convert slice of interfaces to slice of
 	// values once.
 	var fn = func(index int, value interface{}) {
@@ -130,7 +130,7 @@ func (l List) Enum() Enumerable {
 }
 
 // LIST FROM SLICE OF VALUES
-var newList = func(v ...Evaluator) List {
+var newList = func(v ...Evaluable) List {
 	var l = al.New()
 	(*l).Add(InterSlice(v)...)
 	var fn List = func() *al.List { return l }
@@ -147,7 +147,7 @@ var newList = func(v ...Evaluator) List {
 
 // wrap flag in a fresh closure and return that.
 // TODO: chaeck if this pull's parameters on the stack that evaluation time
-func (f BitFlag) Eval() Evaluator { return Value(f) }
+func (f BitFlag) Eval() Evaluable { return Value(f) }
 
 // uses byte method of contained big int
 func (f BitFlag) Serialize() []byte { return f().Bytes() }
@@ -171,7 +171,7 @@ func (f BitFlag) Clear() Collected {
 	r.Set(ZERO.Flag())
 	return BitFlag(func() *big.Int { return r })
 }
-func (f BitFlag) Values() []Evaluator {
+func (f BitFlag) Values() []Evaluable {
 	return ValueSlice(f.Values())
 }
 func (f BitFlag) Interfaces() []interface{} {
@@ -193,8 +193,8 @@ func (f BitFlag) Interfaces() []interface{} {
 // returned each time.
 type IdxIterator func() *al.Iterator
 
-func (l IdxIterator) Index() (Evaluator, Iterable) { return Value(l().Index()), l }
-func (l IdxIterator) Value() (Evaluator, Iterable) { return Value(l().Value()), l }
+func (l IdxIterator) Index() (Evaluable, Iterable) { return Value(l().Index()), l }
+func (l IdxIterator) Value() (Evaluable, Iterable) { return Value(l().Value()), l }
 func (l IdxIterator) Next() (bool, Iterable)       { return l().Next(), l }
 func (l IdxIterator) First() (bool, Iterable)      { return l().First(), l }
 func (l IdxIterator) Begin() Iterable              { l.Begin(); return l }
@@ -213,7 +213,7 @@ func (l IdxIterator) Last() (bool, Iterable) { return l().Last(), l }
 // the Pair type instead
 type IdxEnumerable func() con.EnumerableWithIndex
 
-func (e IdxEnumerable) Each(pf func(index Evaluator, value Evaluator)) Enumerable {
+func (e IdxEnumerable) Each(pf func(index Evaluable, value Evaluable)) Enumerable {
 	e().Each(
 		func(index int, value interface{}) {
 			pf(Value(index), Value(value)) // each does not return a boolean
@@ -221,21 +221,21 @@ func (e IdxEnumerable) Each(pf func(index Evaluator, value Evaluator)) Enumerabl
 	return IdxEnumerable(e)
 }
 
-func (e IdxEnumerable) Any(pf func(index Evaluator, value Evaluator) bool) (bool, Enumerable) {
+func (e IdxEnumerable) Any(pf func(index Evaluable, value Evaluable) bool) (bool, Enumerable) {
 	ok := e().Any(
 		func(index int, value interface{}) bool {
 			return pf(Value(index), Value(value))
 		})
 	return ok, e
 }
-func (e IdxEnumerable) All(pf func(index Evaluator, value Evaluator) bool) (bool, Enumerable) {
+func (e IdxEnumerable) All(pf func(index Evaluable, value Evaluable) bool) (bool, Enumerable) {
 	ok := e().All(
 		func(index int, value interface{}) bool {
 			return pf(Value(index), Value(value))
 		})
 	return ok, e
 }
-func (e IdxEnumerable) Find(pf func(index Evaluator, value Evaluator) bool) (Pair, Enumerable) {
+func (e IdxEnumerable) Find(pf func(index Evaluable, value Evaluable) bool) (Pair, Enumerable) {
 	i, v := e().Find(
 		func(index int, value interface{}) bool {
 			return pf(Value(index), Value(value))
@@ -246,20 +246,20 @@ func (e IdxEnumerable) Find(pf func(index Evaluator, value Evaluator) bool) (Pai
 ////////////////////////////////////////////////////////////////////////////////////
 //// MAP ////
 //////////////
-func (m Map) Eval() Evaluator  { return Value(m) }
+func (m Map) Eval() Evaluable  { return Value(m) }
 func (m Map) Type() ValueType  { return TABLE }
 func (m Map) Size() int        { return m().Size() }
 func (m Map) Empty() bool      { return m().Empty() }
 func (m Map) Clear() Collected { m().Clear(); return m }
-func (m Map) Add(v ...Evaluator) Map {
+func (m Map) Add(v ...Evaluable) Map {
 	var r = m()
 	for i, v := range v {
 		i, v := i, v
 		switch {
-		case v.(Evaluator).Type()&PAIR != 0:
+		case v.(Evaluable).Type()&PAIR != 0:
 			(*r).Put(v.(Pair).Key(), v.(Pair).Value())
 
-		case v.(Evaluator).Type()&RAT != 0:
+		case v.(Evaluable).Type()&RAT != 0:
 			(*r).Put(Value(i), Value(v.(Rat).Num(), v.(Rat).Denom()).(Pair))
 		default:
 			(*r).Put(Value(i), v.(Rat).Denom())
@@ -284,7 +284,7 @@ func (m Map) Interfaces() []interface{} {
 	return m().Values()
 }
 
-func (m Map) Values() []Evaluator {
+func (m Map) Values() []Evaluable {
 	return ValueSlice(m.Interfaces())
 }
 
@@ -323,7 +323,7 @@ var newMap = func(v ...Pair) Map {
 //// KEY ENUMERABLE ////
 type KeyEnumerable func() con.EnumerableWithKey
 
-func (e KeyEnumerable) Each(pf func(index Evaluator, value Evaluator)) Enumerable {
+func (e KeyEnumerable) Each(pf func(index Evaluable, value Evaluable)) Enumerable {
 	e().Each(
 		func(index interface{}, value interface{}) {
 			pf(Value(index), Value(value)) // each does not return a boolean
@@ -331,21 +331,21 @@ func (e KeyEnumerable) Each(pf func(index Evaluator, value Evaluator)) Enumerabl
 	return e
 }
 
-func (e KeyEnumerable) Any(pf func(index Evaluator, value Evaluator) bool) (bool, Enumerable) {
+func (e KeyEnumerable) Any(pf func(index Evaluable, value Evaluable) bool) (bool, Enumerable) {
 	ok := e().Any(
 		func(index interface{}, value interface{}) bool {
 			return pf(Value(index), Value(value))
 		})
 	return ok, e
 }
-func (e KeyEnumerable) All(pf func(index Evaluator, value Evaluator) bool) (bool, Enumerable) {
+func (e KeyEnumerable) All(pf func(index Evaluable, value Evaluable) bool) (bool, Enumerable) {
 	ok := e().All(
 		func(index interface{}, value interface{}) bool {
 			return pf(Value(index), Value(value))
 		})
 	return ok, e
 }
-func (e KeyEnumerable) Find(pf func(index Evaluator, value Evaluator) bool) (Pair, Enumerable) {
+func (e KeyEnumerable) Find(pf func(index Evaluable, value Evaluable) bool) (Pair, Enumerable) {
 	i, v := e().Find(
 		func(index interface{}, value interface{}) bool {
 			return pf(Value(index), Value(value))
@@ -368,11 +368,11 @@ func InterSlice(i interface{}) []interface{} {
 	}
 }
 
-func ValueSlice(i interface{}) []Evaluator {
-	if v, ok := i.([]Evaluator); ok {
+func ValueSlice(i interface{}) []Evaluable {
+	if v, ok := i.([]Evaluable); ok {
 		return v
 	} else {
-		var e = []Evaluator{}
+		var e = []Evaluable{}
 		for _, val := range i.([]interface{}) {
 			val := Value(val)
 			e = append(e, val)

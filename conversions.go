@@ -9,9 +9,9 @@ import (
 	"math/big"
 )
 
-func ComplexToSimple(b Evaluable) Val {
+func ComplexToSimple(b Evaluable) val {
 	// define a new closure
-	return Val(func() *big.Int {
+	return val(func() *big.Int {
 		// allocate a new big Int reference
 		return new(big.Int).SetBytes(
 			// converts string representation of a complex value to
@@ -19,11 +19,11 @@ func ComplexToSimple(b Evaluable) Val {
 			[]byte(b.String()))
 	})
 }
-func SimpleToTuple(b Val) Rat {
+func SimpleToTuple(b val) rat {
 	// leaves value uninterpreted but dereferences it
 	var val = *b()
 	// define a new closure
-	return Rat(func() *big.Rat {
+	return rat(func() *big.Rat {
 		// allocate a new big Rat reference
 		return new(big.Rat).SetFrac(
 			// since no key is known yet, set numerable to one and
@@ -33,10 +33,10 @@ func SimpleToTuple(b Val) Rat {
 		)
 	})
 }
-func RankedValueToTuple(i int, v Val) Rat {
+func RankedValueToTuple(i int, v val) rat {
 	var idx = *big.NewInt(int64(i))
 	var val = *v()
-	return Rat(func() *big.Rat {
+	return rat(func() *big.Rat {
 		// allocate a new big Rat reference
 		return new(big.Rat).SetFrac(
 			// since no key is known yet, set numerable to one and
@@ -46,10 +46,10 @@ func RankedValueToTuple(i int, v Val) Rat {
 		)
 	})
 }
-func ValuePairToTuple(k Val, v Val) Rat {
+func ValuePairToTuple(k val, v val) rat {
 	var key = *k()
 	var val = *v()
-	return Rat(func() *big.Rat {
+	return rat(func() *big.Rat {
 		// allocate a new big Rat reference
 		return new(big.Rat).SetFrac(
 			// since no key is known yet, set numerable to one and

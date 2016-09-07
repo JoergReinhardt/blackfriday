@@ -82,7 +82,7 @@ type Tabular interface {
 }
 
 // numeric matrix
-type NumericMatrix interface {
+type NumericMatrickable interface {
 	Listed
 	Element(x int, y int) Evaluable
 	Column(i int) Listed
@@ -90,11 +90,19 @@ type NumericMatrix interface {
 }
 
 // symbolic table
-type SymbolicTable interface {
-	Mapped
+type SymbolicTabular interface {
+	abs() []Mapped
 	Element(Evaluable, Evaluable) Evaluable
 	Column(Evaluable) Mapped
 	Row(Evaluable) Mapped
+}
+
+// symbolic table
+type NumericTabular interface {
+	abs() []Listed
+	Element(int, Evaluable) Evaluable
+	Column(int) Listed
+	Row(int) Listed
 }
 
 // ENUMERABLE & ITERATOR INTERFACES

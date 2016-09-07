@@ -12,8 +12,8 @@ type (
 	ratPool sync.Pool
 )
 
-func NewVal() Val { return intGen.New().(Val) }
-func NewRat() Rat { return ratGen.New().(Rat) }
+func NewVal() val { return intGen.New().(val) }
+func NewRat() rat { return ratGen.New().(rat) }
 
 var (
 	intGen intPool = intPool{}
@@ -34,48 +34,43 @@ func init() {
 // completing the method set.
 type ( // functional types that form the base of all value implementations
 	// empty Value
-	Empty func() struct{}
+	empty func() struct{}
 
 	// simple type
-	Val func() *big.Int
+	val func() *big.Int
 
 	// paired types
-	Rat  func() *big.Rat
+	rat  func() *big.Rat
 	Pair func() [2]Evaluable
 
 	// collection types see collection,go
 )
 
-func (Empty) Type() ValueType   { return EMPTY }
-func (e Empty) Eval() Evaluable { return Empty(func() struct{} { return struct{}{} }) }
-func (Empty) Serialize() []byte { return []byte{0} }
-func (e Empty) String() string  { return e.Type().String() }
-
 /////////////////////////////////////////////////////////////////////////
-func (b Val) Eval() Evaluable   { return Value(b) }
-func (b Val) Serialize() []byte { return []byte(b().String()) }
-func (b Val) String() string    { return b().String() }
-func (b Val) Type() ValueType   { return INT }
+func (b val) Eval() Evaluable   { return Value(b) }
+func (b val) Serialize() []byte { return []byte(b().String()) }
+func (b val) String() string    { return b().String() }
+func (b val) Type() ValueType   { return INT }
 
 ////////////////////////////////////////////////////////////////
-func (b Val) BigInt() *big.Int { return b() }
-func (b Val) Integer() Integer { return Integer(b) }
-func (b Val) Bool() bool {
+func (b val) BigInt() *big.Int { return b() }
+func (b val) Integer() Integer { return Integer(b) }
+func (b val) Bool() bool {
 	if b().Int64() > 0 {
 		return true
 	} else {
 		return false
 	}
 }
-func (b Val) IntUntyped() int    { return int(b().Int64()) }
-func (b Val) Int() int64         { return b().Int64() }
-func (b Val) Unsigned() Unsigned { return Unsigned(b) }
-func (b Val) Uint() uint64       { return b().Uint64() }
-func (b Val) BigRat() *big.Rat   { return new(big.Rat).SetFrac(Value(ONE).(Val)(), b()) }
-func (b Val) Flt() float64       { f, _ := b.BigRat().Float64(); return f }
-func (b Val) Rat() Rat           { return Value(b.BigRat()).(Rat) }
-func (b Val) Pair() [2]Evaluable { return [2]Evaluable{Value(), b} } // negative == index not set
-func (b Val) Bytes() []byte      { return b().Bytes() }
+func (b val) IntUntyped() int    { return int(b().Int64()) }
+func (b val) Int() int64         { return b().Int64() }
+func (b val) Unsigned() Unsigned { return Unsigned(b) }
+func (b val) Uint() uint64       { return b().Uint64() }
+func (b val) BigRat() *big.Rat   { return new(big.Rat).SetFrac(Value(ONE).(val)(), b()) }
+func (b val) Flt() float64       { f, _ := b.BigRat().Float64(); return f }
+func (b val) Rat() rat           { return Value(b.BigRat()).(rat) }
+func (b val) Pair() [2]Evaluable { return [2]Evaluable{Value(), b} } // negative == index not set
+func (b val) Bytes() []byte      { return b().Bytes() }
 
 /////////////////////////////////////////////////////////////////////////
 func (b Pair) Eval() Evaluable { return Value(b) }
@@ -83,7 +78,7 @@ func (b Pair) Eval() Evaluable { return Value(b) }
 func (b Pair) Key() Evaluable   { return b()[0].Eval() }
 func (b Pair) Value() Evaluable { return b()[1].Eval() }
 func (b Pair) Index() int {
-	if i, ok := b.Key().(Val); ok {
+	if i, ok := b.Key().(val); ok {
 		return i.IntUntyped()
 	} else {
 		return -1 // negative → not set
@@ -106,78 +101,90 @@ func (b Pair) String() string  { return string(b.Serialize()) }
 func (b Pair) Type() ValueType { return RAT }
 
 /////////////////////////////////////////////////////////////////////////
-func (r Rat) Eval() Evaluable { return Value(r) }
+func (r rat) Eval() Evaluable { return Value(r) }
 
 // Bytes is supposed to keep as much information as possible, so this converts
 // numerator and denominator to 64 bytes each, ignoring the original accuracy
 // (length), to make them divideable again. Accuracys greater 64bit should not
 // be serialized, but kept in absolute numbers in memoru during calculations,
-func (r Rat) Bytes() []byte {
+func (r rat) Bytes() []byte {
 	return append(
 		new(big.Int).SetInt64(r().Num().Int64()).Bytes(),
 		new(big.Int).SetInt64(r().Denom().Int64()).Bytes()...,
 	)
 }
-func (r Rat) Serialize() []byte { return []byte(r().String()) }
-func (r Rat) String() string    { return r().String() }
-func (r Rat) Type() ValueType   { return RAT }
-func (r Rat) Num() Evaluable    { return Value(r().Num()) }
-func (r Rat) Denom() Evaluable  { return Value(r().Denom()) }
+func (r rat) Serialize() []byte { return []byte(r().String()) }
+func (r rat) String() string    { return r().String() }
+func (r rat) Type() ValueType   { return RAT }
+func (r rat) Num() Evaluable    { return Value(r().Num()) }
+func (r rat) Denom() Evaluable  { return Value(r().Denom()) }
 
-func (r Rat) BigInt() *big.Int { return Value(r).(Val)() }
-func (r Rat) Float() Float     { return Float(r) }
-func (r Rat) Flt() float64     { f, _ := r().Float64(); return f }
+func (r rat) BigInt() *big.Int { return Value(r).(val)() }
+func (r rat) Float() Float     { return Float(r) }
+func (r rat) Flt() float64     { f, _ := r().Float64(); return f }
 
 /////////////////////////////////////////////////////////////////////////
+// EMPTY
+func (empty) Type() ValueType   { return EMPTY }
+func (e empty) Eval() Evaluable { return empty(func() struct{} { return struct{}{} }) }
+func (empty) Serialize() []byte { return []byte{0} }
+func (e empty) String() string  { return e.Type().String() }
 
+/////////////////////////////////////////////////////////////////////////
 // INTEGER
-type Integer Val
+type Integer val
 
-func (i Integer) Eval() Evaluable   { return Val(i).Eval() }
-func (i Integer) Serialize() []byte { return []byte(Val(i)().String()) }
+func (i Integer) Eval() Evaluable   { return val(i).Eval() }
+func (i Integer) Serialize() []byte { return []byte(val(i)().String()) }
 func (i Integer) String() string    { return i().Text(10) }
 func (i Integer) Type() ValueType   { return INTEGER }
 
+/////////////////////////////////////////////////////////////////////////
 // BYTES
-type Bytes Val
+type Bytes val
 
-func (b Bytes) Eval() Evaluable   { return Val(b).Eval() }
-func (b Bytes) Serialize() []byte { return []byte(Val(b)().String()) }
+func (b Bytes) Eval() Evaluable   { return val(b).Eval() }
+func (b Bytes) Serialize() []byte { return []byte(val(b)().String()) }
 func (b Bytes) String() string    { return b().Text(8) }
 func (b Bytes) Type() ValueType   { return BYTES }
 
+/////////////////////////////////////////////////////////////////////////
 // STRING
-type String Val
+type String val
 
-func (s String) Eval() Evaluable   { return Val(s).Eval() }
-func (s String) Serialize() []byte { return []byte(Val(s)().Bytes()) }
+func (s String) Eval() Evaluable   { return val(s).Eval() }
+func (s String) Serialize() []byte { return []byte(val(s)().Bytes()) }
 func (s String) String() string    { return string(s.Serialize()) }
 func (s String) Type() ValueType   { return STRING }
 
+/////////////////////////////////////////////////////////////////////////
 // UNSIGNED INTEGER
-type Unsigned Val
+type Unsigned val
 
-func (u Unsigned) Eval() Evaluable   { return Val(u).Eval() }
-func (u Unsigned) Serialize() []byte { return Val(u)().Bytes() }
+func (u Unsigned) Eval() Evaluable   { return val(u).Eval() }
+func (u Unsigned) Serialize() []byte { return val(u)().Bytes() }
 func (u Unsigned) String() string    { return u().Text(2) }
 func (u Unsigned) Type() ValueType   { return UINT }
 
+/////////////////////////////////////////////////////////////////////////
 // FLOAT
-type Float Rat
+type Float rat
 
-func (f Float) Eval() Evaluable   { return Rat(f).Eval() }
+func (f Float) Eval() Evaluable   { return rat(f).Eval() }
 func (f Float) Serialize() []byte { return []byte(f.String()) }
-func (f Float) String() string    { return Value(f()).(Rat).String() }
+func (f Float) String() string    { return Value(f()).(rat).String() }
 func (f Float) Type() ValueType   { return FLOAT }
 
+/////////////////////////////////////////////////////////////////////////
 // PAIREDIONAL
-type Ratio Rat
+type Ratio rat
 
-func (r Ratio) Eval() Evaluable   { return Rat(r).Eval() }
-func (r Ratio) Serialize() []byte { return []byte(Rat(r).String()) }
+func (r Ratio) Eval() Evaluable   { return rat(r).Eval() }
+func (r Ratio) Serialize() []byte { return []byte(rat(r).String()) }
 func (r Ratio) String() string    { return r.String() }
 func (r Ratio) Type() ValueType   { return RATIONAL }
 
+/////////////////////////////////////////////////////////////////////////
 // INSTANCIATE A NEW VALUE
 //
 // values are represented internaly by either a Big, Rat, or Col type instance,

@@ -54,7 +54,6 @@ func (b val) Type() ValueType   { return INT }
 
 ////////////////////////////////////////////////////////////////
 func (b val) BigInt() *big.Int { return b() }
-func (b val) Integer() Integer { return Integer(b) }
 func (b val) Bool() bool {
 	if b().Int64() > 0 {
 		return true
@@ -64,13 +63,19 @@ func (b val) Bool() bool {
 }
 func (b val) IntUntyped() int    { return int(b().Int64()) }
 func (b val) Int() int64         { return b().Int64() }
-func (b val) Unsigned() Unsigned { return Unsigned(b) }
 func (b val) Uint() uint64       { return b().Uint64() }
 func (b val) BigRat() *big.Rat   { return new(big.Rat).SetFrac(Value(ONE).(val)(), b()) }
 func (b val) Flt() float64       { f, _ := b.BigRat().Float64(); return f }
 func (b val) Rat() rat           { return Value(b.BigRat()).(rat) }
 func (b val) Pair() [2]Evaluable { return [2]Evaluable{Value(), b} } // negative == index not set
 func (b val) Bytes() []byte      { return b().Bytes() }
+
+// type converting methods
+func (b val) flag() BitFlag      { return BitFlag(b) }
+func (b val) uinteger() Unsigned { return Unsigned(b) }
+func (b val) integer() Integer   { return Integer(b) }
+func (b val) bytes() Bytes       { return Bytes(b) }
+func (b val) strings() String    { return String(b) }
 
 /////////////////////////////////////////////////////////////////////////
 func (b Pair) Eval() Evaluable { return Value(b) }

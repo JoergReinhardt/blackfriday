@@ -59,6 +59,8 @@ func (i *Generator) Reset() { *i = 0 }
 func NewGenerator() *Generator { var i int = 0; return (*Generator)(&i) }
 
 var G = NewGenerator()
+var I []Evaluable
+var S []Evaluable
 
 func TestValueFromNative(t *testing.T) {
 	c := G
@@ -67,6 +69,7 @@ func TestValueFromNative(t *testing.T) {
 		(*t).Log(
 			spew.Sprint("Type: ", v.Type(), " serialized: ", v.Serialize(), " string: ", v.String()),
 		)
+		I = append(I, v)
 		a := Value((*c).NextChar())
 		(*t).Log(
 			spew.Sprint("Chars: ", a.Type(), " serialized: ", a.Serialize(), " string: ", a.String()),
@@ -75,6 +78,7 @@ func TestValueFromNative(t *testing.T) {
 		(*t).Log(
 			spew.Sprint("Words: ", s.Type(), " serialized: ", s.Serialize(), " string: ", s.String()),
 		)
+		S = append(S, s)
 		l := Value((*c).NextLine())
 		(*t).Log(
 			spew.Sprint("Lines: ", l.Type(), " serialized: ", l.Serialize(), " string: ", l.String()),
@@ -84,4 +88,25 @@ func TestValueFromNative(t *testing.T) {
 			spew.Sprint("Lines: ", p.Type(), " serialized: ", p.Serialize(), " string: ", p.String()),
 		)
 	}
+}
+func TestCollectionFromNatives(t *testing.T) {
+
+	col := newList(S...)
+
+	t.Log(
+		col.Type(),
+		col.Size(),
+	)
+
+	iter := col.Iter()
+	iter.Begin()
+	(*t).Log(iter)
+
+	ok := iter.Next()
+	(*t).Log(ok)
+	(*t).Log(iter)
+
+	val := iter.Value()
+	(*t).Log(iter)
+	(*t).Log(val)
 }

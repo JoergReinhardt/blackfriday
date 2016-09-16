@@ -52,7 +52,7 @@ type Listed interface {
 	Collected
 	Add(...Evaluable) Listed
 	Remove(int) Listed
-	RankedValues() []Pair
+	Ordered() []Pair
 }
 
 // Contained is intended to be tested against if it contains a certain value,
@@ -142,15 +142,15 @@ type Enumerable interface {
 // or not the reversable methodes exist and an instance of Reverse so that the
 // caller can call them.
 type Iterable interface {
-	Next() (bool, Iterable)
-	Value() (Evaluable, Iterable)
-	Index() (Evaluable, Iterable)
-	Begin() Iterable
-	First() (bool, Iterable)
+	Next() bool
+	Value() Evaluable
+	Index() Integer
+	Begin()
+	First() bool
 }
 type Reverse interface {
 	Iterable
-	Prev() (bool, Reverse)
-	End() Reverse
-	Last() (bool, Reverse)
+	Prev() bool
+	End()
+	Last() bool
 }

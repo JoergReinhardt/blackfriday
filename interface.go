@@ -6,6 +6,11 @@ type Evaluable interface {
 	Serialize() []byte // return evaluated content in a byte slice
 	String() string    // return serialized evaluated content
 }
+type Paired interface {
+	Index() int
+	Key() Evaluable
+	Value() Evaluable
+}
 
 // COLLECTED META INTERFACE
 // Collected is a super interface, that defines common functionality of all
@@ -52,7 +57,7 @@ type Listed interface {
 	Collected
 	Add(...Evaluable) Listed
 	Remove(int) Listed
-	Ordered() []Pair
+	Ordered() []pair
 }
 
 // Contained is intended to be tested against if it contains a certain value,
@@ -68,10 +73,10 @@ type Listed interface {
 // Map is a collection, with values mapped on to keys
 type Mapped interface {
 	Collected
-	Add(...Pair) Mapped
-	Remove(...Pair) Mapped
+	Add(...pair) Mapped
+	Remove(...pair) Mapped
 	Keys() []Evaluable
-	KeyValues() []Pair
+	KeyValues() []pair
 }
 
 // matrices and tables are tabular
@@ -135,7 +140,7 @@ type Enumerable interface {
 	All(func(Evaluable, Evaluable) bool) (bool, Enumerable)
 
 	// key:int/value ← val:val ←|→ pair(value (index|key), value)
-	Find(func(Evaluable, Evaluable) bool) (Pair, Enumerable)
+	Find(func(Evaluable, Evaluable) bool) (pair, Enumerable)
 }
 
 // Iterables provide a Rev methode, that returns a boolean to indicate wether

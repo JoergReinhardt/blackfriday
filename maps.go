@@ -11,28 +11,28 @@ import (
 ////////////////////////////////////////////////////////////////////////////////////
 //// MAP ////
 //////////////
-func (m BidiMap) Eval() Evaluable  { return Value(m) }
-func (m BidiMap) Type() ValueType  { return TABLE }
-func (m BidiMap) Size() int        { return m().Size() }
-func (m BidiMap) Empty() bool      { return m().Empty() }
-func (m BidiMap) Clear() Collected { m().Clear(); return m }
-func (m BidiMap) Add(v ...Evaluable) BidiMap {
+func (m UnorderedBidiMap) Eval() Evaluable  { return Value(m) }
+func (m UnorderedBidiMap) Type() ValueType  { return TABLE }
+func (m UnorderedBidiMap) Size() int        { return m().Size() }
+func (m UnorderedBidiMap) Empty() bool      { return m().Empty() }
+func (m UnorderedBidiMap) Clear() Collected { m().Clear(); return m }
+func (m UnorderedBidiMap) Add(v ...Evaluable) UnorderedBidiMap {
 	var r = m()
 	for i, v := range v {
 		i, v := i, v
 		switch {
 		case v.(Evaluable).Type()&PAIR != 0:
-			(*r).Put(v.(Pair).Key(), v.(Pair).Value())
+			(*r).Put(v.(pair).Key(), v.(pair).Value())
 
-		case v.(Evaluable).Type()&RAT != 0:
-			(*r).Put(Value(i), Value(v.(rat).Num(), v.(rat).Denom()).(Pair))
+		case v.(Evaluable).Type()&REAL != 0:
+			(*r).Put(Value(i), Value(v.(rat).Num(), v.(rat).Denom()).(pair))
 		default:
 			(*r).Put(Value(i), v.(rat).Denom())
 		}
 	}
 	return func() *hm.Map { return r }
 }
-func (m BidiMap) AddInterface(v ...interface{}) BidiMap {
+func (m UnorderedBidiMap) AddInterface(v ...interface{}) UnorderedBidiMap {
 	var r = m()
 	for i, val := range v {
 		i, val := i, val
@@ -40,23 +40,23 @@ func (m BidiMap) AddInterface(v ...interface{}) BidiMap {
 	}
 	return func() *hm.Map { return r }
 }
-func (m BidiMap) Remove(i int) BidiMap {
+func (m UnorderedBidiMap) Remove(i int) UnorderedBidiMap {
 	var retval = m()
 	(*retval).Remove(i)
 	return func() *hm.Map { return retval }
 }
-func (m BidiMap) Interfaces() []interface{} {
+func (m UnorderedBidiMap) Interfaces() []interface{} {
 	return m().Values()
 }
 
-func (m BidiMap) Values() []Evaluable {
-	return ValueSlice(m.Interfaces())
+func (m UnorderedBidiMap) Values() []Evaluable {
+	return valueSlice(m.Interfaces())
 }
 
-func (m BidiMap) Serialize() []byte {
+func (m UnorderedBidiMap) Serialize() []byte {
 	var retval []byte
-	var keys = ValueSlice(m().Keys())
-	var values = ValueSlice(m().Values())
+	var keys = valueSlice(m().Keys())
+	var values = valueSlice(m().Values())
 	for i := len(values); i > 0; i-- {
 		i := i
 		retval = append(keys[i].Serialize(),
@@ -73,4 +73,4 @@ func (m BidiMap) Serialize() []byte {
 }
 
 // use serialization as string format base
-func (m BidiMap) String() string { return string(m.Serialize()) }
+func (m UnorderedBidiMap) String() string { return string(m.Serialize()) }

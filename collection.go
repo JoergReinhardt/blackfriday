@@ -4,26 +4,30 @@ import (
 	//"fmt"
 	con "github.com/emirpasic/gods/containers"
 	al "github.com/emirpasic/gods/lists/arraylist"
+	dl "github.com/emirpasic/gods/lists/doublylinkedlist"
 	hm "github.com/emirpasic/gods/maps/hashbidimap"
 	ts "github.com/emirpasic/gods/sets/treeset"
 	as "github.com/emirpasic/gods/stacks/arraystack"
+	ls "github.com/emirpasic/gods/stacks/linkedliststack"
 	"math/big"
 )
 
 //////////////////////// FUNCTIONAL TYPES TO REPRESENT VALUES /////////////////////
 type (
 	// collections with numeric indices
-	BitFlag func() *big.Int
-	List    func() *al.List
-	Stack   func() *as.Stack
+	BitFlag        func() *big.Int
+	OrderedList    func() *al.List
+	LinkedList     func() *dl.List
+	UnorderedStack func() *as.Stack
+	IterableStack  func() *ls.Stack
 	// collections with symbolic indices
-	BidiMap func() *hm.Map
-	Set     func() *ts.Set
+	UnorderedBidiMap func() *hm.Map
+	TreeSet          func() *ts.Set
 
-	NumericTable  func() []List
-	SymbolicTable func() []Set
+	NumericTable  func() []OrderedList
+	SymbolicTable func() []TreeSet
 
-	Matrix List // gonum
+	Matrix OrderedList // gonum
 )
 
 //////////////////////////////////////////////////////////////////////////
@@ -39,11 +43,11 @@ type IdxIterator struct {
 	con.IteratorWithIndex
 }
 
-func (l IdxIterator) Index() Integer   { return Value(l.IteratorWithIndex.Index()).(Integer) }
-func (l IdxIterator) Value() Evaluable { return Value(l.IteratorWithIndex.Value()) }
-func (l IdxIterator) Next() bool       { return l.IteratorWithIndex.Next() }
-func (l IdxIterator) First() bool      { return l.IteratorWithIndex.First() }
-func (l IdxIterator) Begin()           { l.IteratorWithIndex.Begin() }
+func (l IdxIterator) Index() Integer   { return Value((l.IteratorWithIndex).Index()).(Integer) }
+func (l IdxIterator) Value() Evaluable { return Value((l.IteratorWithIndex).Value()) }
+func (l IdxIterator) Next() bool       { return (l.IteratorWithIndex).Next() }
+func (l IdxIterator) First() bool      { return (l.IteratorWithIndex).First() }
+func (l IdxIterator) Begin()           { (l.IteratorWithIndex).Begin() }
 
 //// KEY ITERATOR ////
 type KeyIterator struct {
@@ -110,12 +114,12 @@ func (e IdxEnumerable) All(pf func(index Evaluable, value Evaluable) bool) (bool
 		})
 	return ok, e
 }
-func (e IdxEnumerable) Find(pf func(index Evaluable, value Evaluable) bool) (Pair, Enumerable) {
+func (e IdxEnumerable) Find(pf func(index Evaluable, value Evaluable) bool) (pair, Enumerable) {
 	i, v := e().Find(
 		func(index int, value interface{}) bool {
 			return pf(Value(index), Value(value))
 		})
-	return Value(i, v).(Pair), e
+	return Value(i, v).(pair), e
 }
 
 //// KEY ENUMERABLE ////
@@ -143,19 +147,19 @@ func (e KeyEnumerable) All(pf func(index Evaluable, value Evaluable) bool) (bool
 		})
 	return ok, e
 }
-func (e KeyEnumerable) Find(pf func(index Evaluable, value Evaluable) bool) (Pair, Enumerable) {
+func (e KeyEnumerable) Find(pf func(index Evaluable, value Evaluable) bool) (pair, Enumerable) {
 	i, v := e().Find(
 		func(index interface{}, value interface{}) bool {
 			return pf(Value(index), Value(value))
 		})
-	return Value(i, v).(Pair), e
+	return Value(i, v).(pair), e
 }
 
 type EnumParameter func(index, value Evaluable) bool
 
 //// SLICE ////
 // helper type to convert between slices of interfaces and slices of value
-func InterSlice(i interface{}) []interface{} {
+func interfaceSlice(i interface{}) []interface{} {
 	if s, ok := i.([]interface{}); ok {
 		return s
 	} else {
@@ -168,7 +172,7 @@ func InterSlice(i interface{}) []interface{} {
 	}
 }
 
-func ValueSlice(i interface{}) []Evaluable {
+func valueSlice(i interface{}) []Evaluable {
 	if v, ok := i.([]Evaluable); ok {
 		return v
 	} else {
@@ -182,19 +186,26 @@ func ValueSlice(i interface{}) []Evaluable {
 }
 
 // LIST FROM SLICE OF VALUES
-var newList = func(v ...Evaluable) List {
+func newOrderedList(v ...Evaluable) OrderedList {
 	var l = al.New()
-	(*l).Add(InterSlice(v)...)
-	var fn List = func() *al.List { return l }
-	return fn
+	(*l).Add(interfaceSlice(v)...)
+	return func() *al.List { return l }
 }
 
 // MAP FROM PAIRS OF VALUES
-var newMap = func(v ...Pair) BidiMap {
+func unorderedBidiMapFromPairs(v ...pair) UnorderedBidiMap {
 	var r = hm.New()
 	for _, v := range v {
-		v := v
-		(*r).Put(v.Key(), v.Value())
+		k := v.Key()
+		v := v.Value()
+		switch {
+		case k.Type()&SYMBOLIC != 0:
+			(*r).Put(k.Serialize(), v)
+		case k.Type()&NATURAL != 0:
+			(*r).Put(k.(val).int(), v)
+		case k.Type()&REAL != 0:
+			(*r).Put(val(k.(rat).Num()).int(), v)
+		}
 	}
 	return func() *hm.Map { return r }
 }

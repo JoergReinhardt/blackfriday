@@ -16,7 +16,7 @@ type Generator int
 func (i *Generator) NextInt() int { *i = (*i) + 1; return int(*i) - 1 }
 func (i *Generator) NextRat() float64 {
 	*i = (*i) + 1
-	j := new(val).BigInt().Rand(&rand.Rand{}, new(big.Int).SetInt64(int64(*i)))
+	j := new(val).bigInt().Rand(&rand.Rand{}, new(big.Int).SetInt64(int64(*i)))
 	return float64(*i) * float64(j.Int64())
 }
 func (i *Generator) NextChar() string {
@@ -69,7 +69,6 @@ func TestValueFromNative(t *testing.T) {
 		(*t).Log(
 			spew.Sprint("Type: ", v.Type(), " serialized: ", v.Serialize(), " string: ", v.String()),
 		)
-		I = append(I, v)
 		a := Value((*c).NextChar())
 		(*t).Log(
 			spew.Sprint("Chars: ", a.Type(), " serialized: ", a.Serialize(), " string: ", a.String()),
@@ -83,6 +82,7 @@ func TestValueFromNative(t *testing.T) {
 		(*t).Log(
 			spew.Sprint("Lines: ", l.Type(), " serialized: ", l.Serialize(), " string: ", l.String()),
 		)
+		I = append(I, v)
 		p := Value((*c).NextParagraph())
 		(*t).Log(
 			spew.Sprint("Lines: ", p.Type(), " serialized: ", p.Serialize(), " string: ", p.String()),
@@ -90,8 +90,12 @@ func TestValueFromNative(t *testing.T) {
 	}
 }
 func TestCollectionFromNatives(t *testing.T) {
-
-	col := newList(S...)
+	var l []Evaluable = []Evaluable{}
+	for _, s := range strings.Split(L, " ") {
+		s := Value(s)
+		l = append(l, s)
+	}
+	col := newOrderedList(l...)
 
 	t.Log(
 		col.Type(),
@@ -99,14 +103,36 @@ func TestCollectionFromNatives(t *testing.T) {
 	)
 
 	iter := col.Iter()
-	iter.Begin()
+
 	(*t).Log(iter)
 
-	ok := iter.Next()
-	(*t).Log(ok)
+	for iter.Next() {
+		iter = iter
+		(*t).Log(iter.Value())
+		(*t).Log(iter.Index())
+	}
+}
+func TestCollectionPairsFromNatives(t *testing.T) {
+	var l []Evaluable = []Evaluable{}
+	for i, s := range strings.Split(L, " ") {
+		s := Value(Value(i).(Integer)().Int64(), Value(s))
+		l = append(l, s)
+	}
+	col := newOrderedList(l...)
+
+	t.Log(
+		col.Type(),
+		col.Size(),
+	)
+
+	iter := col.Iter()
+
 	(*t).Log(iter)
 
-	val := iter.Value()
-	(*t).Log(iter)
-	(*t).Log(val)
+	for iter.Next() {
+		iter = iter
+		(*t).Log(iter.Value().(pair).Key())
+		(*t).Log(iter.Value().(pair).Value().String())
+		(*t).Log(iter.Index())
+	}
 }

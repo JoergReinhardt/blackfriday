@@ -8,12 +8,12 @@ import (
 type Number int64
 
 func (n Number) Flag() *big.Int {
-	return NewVal().BigInt().SetInt64(int64(n))
+	return newVal().bigInt().SetInt64(int64(n))
 }
 
 const (
-	NEGATIVE_ONE Number = -1
-	ZERO         Number = 0
+	NEGATIVE Number = -1
+	ZERO     Number = 0
 
 	ONE Number = 1 + iota
 	TWO
@@ -30,6 +30,9 @@ const (
 	THIRTEEN
 
 	TEEN     Number = TEN
+	TY              = TEN
+	TWEN            = 2 * TY
+	THIR            = 3 * TY
 	HUNDRED         = 10 * TEN
 	THOUSEND        = 10 * HUNDRED
 	MILLION         = 1000 * THOUSEND
@@ -39,6 +42,8 @@ const (
 
 //go:generate stringer -type ValueType
 type ValueType uint16
+
+func (v ValueType) Uint() uint { return uint(v) }
 
 // DYNAMIC TYPES
 // All dynamic types are defined as function types. Methods are defined on
@@ -51,7 +56,7 @@ const ( // NUMERIC TYPES
 	UINT
 	INTEGER
 	BYTES
-	STRING
+	TEXT
 	// FLOAT/PAIR TYPES
 	// encoded as *big.RAT
 	FLOAT
@@ -65,27 +70,34 @@ const ( // NUMERIC TYPES
 	MATRIX // *arraylist.List
 	SET    // *treeset.Set
 
-	// SEMANTIC SETS
-	NUMERIC  = FLAG | UINT | INTEGER | RATIONAL | FLOAT // int key
-	SYMBOLIC = BYTES | STRING                           // map key
+	//// BIT FLAG SETS ////
+	//// SEMANTIC SETS:
+	SYMBOLIC = BYTES | TEXT
+	NUMERIC  = BOOL | FLAG | UINT | INTEGER |
+		RATIONAL | FLOAT
+	// NUMERIC SUBSETS:
+	NATURAL = BOOL | UINT | FLAG | INTEGER // sign for arrithmetics
+	REAL    = FLOAT | RATIONAL             // both get stored as natural
+	// nunber pair, quotient might be irrational nevertheless.
+	//
+	// When flattend to a List from a Map, Numerator is kept Denominator
+	// discarded, since Denominator is often identical for all values in a
+	// list:
+	//
+	// e.g. probabilitys get calculated by dividing occurrences per item,
+	// by the number of all occurrences counted on any item, in which case
+	// all probabilitys share a common denominator (sum of occurences
+	// counted), while carrying individual numerators (number of
+	// positive/negative occurences involving a particular item)
+	//
+	//// SYNTACTIC SETS
+	TERMINAL = BOOL | FLAG | UINT | // ← flat base types
+		INTEGER | BYTES | TEXT
+	TUPLE     = FLOAT | RATIONAL | PAIR // ← two parted tyoes (FLOAT's get represented as ratio)
+	COLLECTED = LIST | STACK | SET |    // ← (possibly nested) collections
+		TABLE | MATRIX | FLAG //  (FLAG is implemented as big.Int but…
+	// …handled like a list of bools)
 
-	// SUPER TYPES
-	INT = BOOL | UINT | INTEGER | BYTES | STRING // [2]Value
-	RAT = RATIONAL | FLOAT                       // [2]Value
-
-	// COLLECTION TYPES (INCLUDES FLAG!)
-	COLLECTED = FLAG | LIST | STACK |
-		TABLE | MATRIX | SET // Collected
-
-	// TYPE OF INDEX TO COLLECT BY
-	// one might argue that surely floarts rationals and arguably even
-	// booleans and flags are numeric by nature… this maps collection types
-	// to the iteration operation there is to perform in a for loop (ether
-	// they are a map, or slice/array)
-	NUM_KEYS = LIST | STACK | FLAG | MATRIX | INTEGER | UINT
-	SYM_KEYS = TABLE | SET | BOOL | FLAG | STRING | BYTES |
-		FLOAT | RATIONAL | PAIR // takes and returns key/val pairs
-
-	// convienient for biteise operations
-	MAX_MASK = (1 << 16) - 1
+	// convienient for bitwise operations
+	MASK = (1 << 16) - 1
 )

@@ -1,1 +1,4 @@
-FAIL	github.com/joergreinhardt/agiledoc [build failed]
+=== RUN   TestValueFromNative
+--- FAIL: TestValueFromNative (0.00s)
+exit status 2
+FAIL	github.com/joergreinhardt/agiledoc	0.005s

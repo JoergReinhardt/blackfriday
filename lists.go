@@ -17,49 +17,51 @@ import (
 // COLLECTED IMPLEMENTING METHODS
 
 ////////////////////////////////////////////////////////////////////////////////////
-//// LIST ////
+//// LISTS ////
 //////////////
-func (l List) Eval() Evaluable  { return Value(l) }
-func (l List) Type() ValueType  { return LIST }
-func (l List) Size() int        { return l().Size() }
-func (l List) Empty() bool      { return l().Empty() }
-func (l List) Clear() Collected { l().Clear(); return l }
-func (l List) AddInterface(v ...interface{}) List {
+//// ORDERED LIST ////
+// wraps the array-list
+func (l OrderedList) Eval() Evaluable  { return Value(l) }
+func (l OrderedList) Type() ValueType  { return LIST }
+func (l OrderedList) Size() int        { return l().Size() }
+func (l OrderedList) Empty() bool      { return l().Empty() }
+func (l OrderedList) Clear() Collected { l().Clear(); return l }
+func (l OrderedList) AddInterface(v ...interface{}) OrderedList {
 	var retval = l()
 	(*retval).Add(v...)
-	return List(func() *al.List { return retval })
+	return OrderedList(func() *al.List { return retval })
 }
-func (l List) Add(v ...Evaluable) List {
+func (l OrderedList) Add(v ...Evaluable) OrderedList {
 	var retval = l()
 	for _, value := range v {
 		value := value
 		(*retval).Add(value)
 	}
-	return List(func() *al.List { return retval })
+	return OrderedList(func() *al.List { return retval })
 }
-func (l List) Remove(i int) List {
+func (l OrderedList) Remove(i int) OrderedList {
 	var retval = l()
 	(*retval).Remove(i)
-	return List(func() *al.List { return retval })
+	return OrderedList(func() *al.List { return retval })
 }
 
-func (l List) RankedValues() []Pair {
-	var retval []Pair
+func (l OrderedList) RankedValues() []pair {
+	var retval []pair
 	var fn = func(index int, value interface{}) {
 		i := Value(index)
 		v := Value(value)
 		// pass both values as paired parameter, will trigger eval to
 		// produce a key/value tuple type
-		retval = append(retval, Value(i, v).(Pair))
+		retval = append(retval, Value(i, v).(pair))
 	}
 	l().Each(fn)
 	return retval
 }
-func (l List) Interfaces() []interface{} {
+func (l OrderedList) Interfaces() []interface{} {
 	return l().Values()
 }
 
-func (l List) Values() []Evaluable {
+func (l OrderedList) Values() []Evaluable {
 	var retval []Evaluable
 	// parameter function to convert slice of interfaces to slice of
 	// values once.
@@ -72,7 +74,7 @@ func (l List) Values() []Evaluable {
 	return retval
 }
 
-func (l List) Serialize() []byte {
+func (l OrderedList) Serialize() []byte {
 	// allocate return byte slice, so it can be enclosed by the parameter
 	// function.
 	var retval []byte
@@ -105,26 +107,17 @@ func (l List) Serialize() []byte {
 }
 
 // use serialization as string format base
-func (l List) String() string { return string(l.Serialize()) }
-func (l List) Iter() Iterable {
+func (l OrderedList) String() string { return string(l.Serialize()) }
+func (l OrderedList) Iter() Iterable {
 	iter := l().Iterator()
 	return IdxIterator{&iter}
 }
-func (l List) Enum() Enumerable {
+func (l OrderedList) Enum() Enumerable {
 	var r IdxEnumerable = func() con.EnumerableWithIndex { return l() }
 	return r
 }
 
 //////////////////////////////////////////////////////////////////////////
-// The Type and Value methods can be pre-assigned at the level of distinct
-// functional types, representing each dynamic type
-// BOOLEAN VALUE (JACOBI)
-
-// The Type and Value methods can be pre-assigned at the level of distinct
-// functional types, representing each dynamic type
-
-// wrap flag in a fresh closure and return that.
-// TODO: chaeck if this pull's parameters on the stack that evaluation time
 func (f BitFlag) Eval() Evaluable { return Value(f) }
 
 // uses byte method of contained big int
@@ -150,7 +143,7 @@ func (f BitFlag) Clear() Collected {
 	return BitFlag(func() *big.Int { return r })
 }
 func (f BitFlag) Values() []Evaluable {
-	return ValueSlice(f.Values())
+	return valueSlice(f.Values())
 }
 func (f BitFlag) Interfaces() []interface{} {
 	var v []interface{}

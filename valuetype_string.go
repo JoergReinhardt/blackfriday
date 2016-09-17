@@ -4,7 +4,7 @@ package agiledoc
 
 import "fmt"
 
-const _ValueType_name = "EMPTYBOOLUINTINTEGERBYTESSTRINGFLOATRATIONALPAIRFLAGLISTSTACKTABLEMATRIXSET"
+const _ValueType_name = "EMPTYBOOLUINTINTEGERBYTESTEXTFLOATRATIONALPAIRFLAGLISTSTACKTABLEMATRIXSET"
 
 var _ValueType_map = map[ValueType]string{
 	0:     _ValueType_name[0:5],
@@ -12,16 +12,16 @@ var _ValueType_map = map[ValueType]string{
 	4:     _ValueType_name[9:13],
 	8:     _ValueType_name[13:20],
 	16:    _ValueType_name[20:25],
-	32:    _ValueType_name[25:31],
-	64:    _ValueType_name[31:36],
-	128:   _ValueType_name[36:44],
-	256:   _ValueType_name[44:48],
-	512:   _ValueType_name[48:52],
-	1024:  _ValueType_name[52:56],
-	2048:  _ValueType_name[56:61],
-	4096:  _ValueType_name[61:66],
-	8192:  _ValueType_name[66:72],
-	16384: _ValueType_name[72:75],
+	32:    _ValueType_name[25:29],
+	64:    _ValueType_name[29:34],
+	128:   _ValueType_name[34:42],
+	256:   _ValueType_name[42:46],
+	512:   _ValueType_name[46:50],
+	1024:  _ValueType_name[50:54],
+	2048:  _ValueType_name[54:59],
+	4096:  _ValueType_name[59:64],
+	8192:  _ValueType_name[64:70],
+	16384: _ValueType_name[70:73],
 }
 
 func (i ValueType) String() string {

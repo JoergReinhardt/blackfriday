@@ -5,12 +5,12 @@ package agiledoc
 import "fmt"
 
 const (
-	_Number_name_0 = "NEGATIVE_ONEZERO"
+	_Number_name_0 = "NEGATIVEZERO"
 	_Number_name_1 = "ONETWOTHREEFOURFIVESIXSEVENEIGHTNINETENELEVENTWELVETHIRTEEN"
 )
 
 var (
-	_Number_index_0 = [...]uint8{0, 12, 16}
+	_Number_index_0 = [...]uint8{0, 8, 12}
 	_Number_index_1 = [...]uint8{0, 3, 6, 11, 15, 19, 22, 27, 32, 36, 39, 45, 51, 59}
 )
 

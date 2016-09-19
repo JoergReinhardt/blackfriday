@@ -4,7 +4,7 @@ package agiledoc
 
 import "fmt"
 
-const _ValueType_name = "EMPTYBOOLUINTINTEGERBYTESTEXTFLOATRATIONALPAIRFLAGLISTSTACKTABLEMATRIXSET"
+const _ValueType_name = "EMPTYBOOLUINTINTEGERBYTESTEXTFLOATRATIONALPAIRFLAGLISTSTACKTABLEMATRIXSETMAP"
 
 var _ValueType_map = map[ValueType]string{
 	0:     _ValueType_name[0:5],
@@ -22,6 +22,7 @@ var _ValueType_map = map[ValueType]string{
 	4096:  _ValueType_name[59:64],
 	8192:  _ValueType_name[64:70],
 	16384: _ValueType_name[70:73],
+	32768: _ValueType_name[73:76],
 }
 
 func (i ValueType) String() string {

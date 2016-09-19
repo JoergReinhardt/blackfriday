@@ -19,44 +19,43 @@ import (
 //////////////
 //// ITERABLE STACK ////
 // wraps the array-stack
-func (l UnorderedStack) Eval() Evaluable  { return Value(l) }
-func (l UnorderedStack) Type() ValueType  { return LIST }
-func (l UnorderedStack) Size() int        { return l().Size() }
-func (l UnorderedStack) Empty() bool      { return l().Empty() }
-func (l UnorderedStack) Clear() Collected { l().Clear(); return l }
-func (l UnorderedStack) AddInterface(v ...interface{}) UnorderedStack {
+func (a ArrayStack) Eval() Evaluable                 { return evalCollection(a()) }
+func (a ArrayStack) Type() ValueType                 { return STACK }
+func (a ArrayStack) Size() int                       { return collectionSize(a()) }
+func (a ArrayStack) Empty() bool                     { return emptyCollection(a()) }
+func (a ArrayStack) Clear() Collected                { return clearCollection(a()) }
+func (a ArrayStack) Push(v Evaluable) Stacked        { return pushToStack(a, v) }
+func (a ArrayStack) Pop() (Evaluable, bool, Stacked) { return popFromStack(a) }
+func (a ArrayStack) Peek() (Evaluable, bool)         { return peekOnStack(a) }
+
+func (l ArrayStack) AddInterface(v ...interface{}) ArrayStack {
 	var retval = l()
 	for _, val := range v {
 		(*retval).Push(val)
 	}
-	return UnorderedStack(func() *as.Stack { return retval })
+	return ArrayStack(func() *as.Stack { return retval })
 }
-func (l UnorderedStack) Add(v ...Evaluable) UnorderedStack {
+func (l ArrayStack) Add(v ...Evaluable) Stacked {
 	var retval = l()
 	for _, value := range v {
 		value := value
 		(*retval).Push(value)
 	}
-	return UnorderedStack(func() *as.Stack { return retval })
+	return ArrayStack(func() *as.Stack { return retval })
 }
-func (l UnorderedStack) Pop() (Evaluable, bool, UnorderedStack) {
-	v, ok := l().Pop()
-	return Value(v), ok, l
-}
-func (l UnorderedStack) Peek() (Evaluable, bool, UnorderedStack) {
-	v, ok := l().Peek()
-	return Value(v), ok, l
-}
-func (l UnorderedStack) Push(v Evaluable) UnorderedStack { l().Push(v); return l }
-func (l UnorderedStack) Interfaces() []interface{} {
+func (l ArrayStack) Interfaces() []interface{} {
 	return l().Values()
 }
 
-func (l UnorderedStack) Values() []Evaluable {
+func (l ArrayStack) Values() []Evaluable {
 	return valueSlice(l.Values())
 }
-
-func (l UnorderedStack) Serialize() []byte {
+func (l ArrayStack) Iter() Iterable {
+	iter := l().Iterator()
+	return IdxIterator{&iter}
+}
+func (l ArrayStack) String() string { return string(l.Serialize()) }
+func (l ArrayStack) Serialize() []byte {
 	// allocate return byte slice, so it can be enclosed by the parameter
 	// function.
 	var retval []byte
@@ -91,43 +90,37 @@ func (l UnorderedStack) Serialize() []byte {
 //// ITERABLE STACK ////
 // wraps the linked-list-stack
 // use serialization as string format base
-func (l UnorderedStack) String() string { return string(l.Serialize()) }
 
-func (l IterableStack) Eval() Evaluable                { return Value(l) }
-func (l IterableStack) Type() ValueType                { return LIST }
-func (l IterableStack) Size() int                      { return l().Size() }
-func (l IterableStack) Empty() bool                    { return l().Empty() }
-func (l IterableStack) Clear() Collected               { l().Clear(); return l }
-func (l IterableStack) Push(v Evaluable) IterableStack { l().Push(v); return l }
-func (l IterableStack) Pop() (Evaluable, bool, IterableStack) {
-	v, ok := l().Pop()
-	return Value(v), ok, l
-}
-func (l IterableStack) Peek() (Evaluable, bool, IterableStack) {
-	v, ok := l().Peek()
-	return Value(v), ok, l
-}
-func (l IterableStack) AddInterface(v ...interface{}) IterableStack {
+func (l LinkedStack) Eval() Evaluable                 { return evalCollection(l()) }
+func (l LinkedStack) Type() ValueType                 { return STACK }
+func (l LinkedStack) Size() int                       { return collectionSize(l()) }
+func (l LinkedStack) Empty() bool                     { return emptyCollection(l()) }
+func (l LinkedStack) Clear() Collected                { return clearCollection(l()) }
+func (l LinkedStack) Push(v Evaluable) Stacked        { return pushToStack(l, v) }
+func (l LinkedStack) Pop() (Evaluable, bool, Stacked) { return popFromStack(l) }
+func (l LinkedStack) Peek() (Evaluable, bool)         { return peekOnStack(l) }
+
+func (l LinkedStack) AddInterface(v ...interface{}) Stacked {
 	var retval = l()
 	for _, val := range v {
 		val := val
 		(*retval).Push(val)
 	}
-	return IterableStack(func() *ls.Stack { return retval })
+	return LinkedStack(func() *ls.Stack { return retval })
 }
-func (l IterableStack) Add(v ...Evaluable) IterableStack {
+func (l LinkedStack) Add(v ...Evaluable) Stacked {
 	var retval = l()
 	for _, value := range v {
 		value := value
 		(*retval).Push(value)
 	}
-	return IterableStack(func() *ls.Stack { return retval })
+	return LinkedStack(func() *ls.Stack { return retval })
 }
-func (l IterableStack) Interfaces() []interface{} {
+func (l LinkedStack) Interfaces() []interface{} {
 	return l().Values()
 }
 
-func (l IterableStack) Values() []Evaluable {
+func (l LinkedStack) Values() []Evaluable {
 	var retval []Evaluable
 	// parameter function to convert slice of interfaces to slice of
 	// values once.
@@ -138,7 +131,7 @@ func (l IterableStack) Values() []Evaluable {
 	return retval
 }
 
-func (l IterableStack) Serialize() []byte {
+func (l LinkedStack) Serialize() []byte {
 	// allocate return byte slice, so it can be enclosed by the parameter
 	// function.
 	var retval []byte
@@ -169,8 +162,8 @@ func (l IterableStack) Serialize() []byte {
 }
 
 // use serialization as string format base
-func (l IterableStack) String() string { return string(l.Serialize()) }
-func (l IterableStack) Iter() Iterable {
+func (l LinkedStack) String() string { return string(l.Serialize()) }
+func (l LinkedStack) Iter() Iterable {
 	iter := l().Iterator()
 	return IdxIterator{&iter}
 }

@@ -1,76 +1,60 @@
 package agiledoc
 
-import (
-	//"fmt"
-	//con "github.com/emirpasic/gods/containers"
-	hm "github.com/emirpasic/gods/maps/hashbidimap"
-	//ts "github.com/emirpasic/gods/sets/treeset"
-	//"math/big"
-)
-
 ////////////////////////////////////////////////////////////////////////////////////
-//// MAP ////
+//// MAPS ////
 //////////////
-func (m UnorderedBidiMap) Eval() Evaluable  { return Value(m) }
-func (m UnorderedBidiMap) Type() ValueType  { return TABLE }
-func (m UnorderedBidiMap) Size() int        { return m().Size() }
-func (m UnorderedBidiMap) Empty() bool      { return m().Empty() }
-func (m UnorderedBidiMap) Clear() Collected { m().Clear(); return m }
-func (m UnorderedBidiMap) Add(v ...Evaluable) UnorderedBidiMap {
-	var r = m()
-	for i, v := range v {
-		i, v := i, v
-		switch {
-		case v.(Evaluable).Type()&PAIR != 0:
-			(*r).Put(v.(pair).Key(), v.(pair).Value())
+func (m HashMap) Eval() Evaluable                     { return evalCollection(m()) }
+func (m HashMap) Type() ValueType                     { return MAP }
+func (m HashMap) Size() int                           { return collectionSize(m()) }
+func (m HashMap) Empty() bool                         { return emptyCollection(m()) }
+func (m HashMap) Clear() Collected                    { return clearCollection(m()) }
+func (m HashMap) Put(k Evaluable, v Evaluable) Mapped { return putToMap(m, k, v) }
+func (m HashMap) Get(v Evaluable) (Evaluable, bool)   { return getFromMap(m, v) }
+func (m HashMap) Keys() []Evaluable                   { return keysOfMap(m) }
+func (m HashMap) Values() []Evaluable                 { return collectionValues(m()) }
+func (m HashMap) Remove(v Evaluable) Mapped           { return removeFromMap(m, v) }
+func (m HashMap) Serialize() []byte                   { return serializeMap(m) }
+func (m HashMap) Interfaces() []interface{}           { return interfacesFromMap(m) }
+func (m HashMap) String() string                      { return mapToString(m) }
 
-		case v.(Evaluable).Type()&REAL != 0:
-			(*r).Put(Value(i), Value(v.(rat).Num(), v.(rat).Denom()).(pair))
-		default:
-			(*r).Put(Value(i), v.(rat).Denom())
-		}
-	}
-	return func() *hm.Map { return r }
-}
-func (m UnorderedBidiMap) AddInterface(v ...interface{}) UnorderedBidiMap {
-	var r = m()
-	for i, val := range v {
-		i, val := i, val
-		r.Put(Value(i), Value(val))
-	}
-	return func() *hm.Map { return r }
-}
-func (m UnorderedBidiMap) Remove(i int) UnorderedBidiMap {
-	var retval = m()
-	(*retval).Remove(i)
-	return func() *hm.Map { return retval }
-}
-func (m UnorderedBidiMap) Interfaces() []interface{} {
-	return m().Values()
-}
+func (m HashBidiMap) Eval() Evaluable                     { return evalCollection(m()) }
+func (m HashBidiMap) Type() ValueType                     { return MAP }
+func (m HashBidiMap) Size() int                           { return collectionSize(m()) }
+func (m HashBidiMap) Empty() bool                         { return emptyCollection(m()) }
+func (m HashBidiMap) Clear() Collected                    { return clearCollection(m()) }
+func (m HashBidiMap) Put(k Evaluable, v Evaluable) Mapped { return putToMap(m, k, v) }
+func (m HashBidiMap) Get(v Evaluable) (Evaluable, bool)   { return getFromMap(m, v) }
+func (m HashBidiMap) Keys() []Evaluable                   { return keysOfMap(m) }
+func (m HashBidiMap) Values() []Evaluable                 { return collectionValues(m()) }
+func (m HashBidiMap) Remove(v Evaluable) Mapped           { return removeFromMap(m, v) }
+func (m HashBidiMap) Serialize() []byte                   { return serializeMap(m) }
+func (m HashBidiMap) Interfaces() []interface{}           { return interfacesFromMap(m) }
+func (m HashBidiMap) String() string                      { return mapToString(m) }
 
-func (m UnorderedBidiMap) Values() []Evaluable {
-	return valueSlice(m.Interfaces())
-}
+func (m TreeMap) Eval() Evaluable                     { return evalCollection(m()) }
+func (m TreeMap) Type() ValueType                     { return MAP }
+func (m TreeMap) Size() int                           { return collectionSize(m()) }
+func (m TreeMap) Empty() bool                         { return emptyCollection(m()) }
+func (m TreeMap) Clear() Collected                    { return clearCollection(m()) }
+func (m TreeMap) Put(k Evaluable, v Evaluable) Mapped { return putToMap(m, k, v) }
+func (m TreeMap) Get(v Evaluable) (Evaluable, bool)   { return getFromMap(m, v) }
+func (m TreeMap) Keys() []Evaluable                   { return keysOfMap(m) }
+func (m TreeMap) Values() []Evaluable                 { return collectionValues(m()) }
+func (m TreeMap) Remove(v Evaluable) Mapped           { return removeFromMap(m, v) }
+func (m TreeMap) Serialize() []byte                   { return serializeMap(m) }
+func (m TreeMap) Interfaces() []interface{}           { return interfacesFromMap(m) }
+func (m TreeMap) String() string                      { return mapToString(m) }
 
-func (m UnorderedBidiMap) Serialize() []byte {
-	var retval []byte
-	var keys = valueSlice(m().Keys())
-	var values = valueSlice(m().Values())
-	for i := len(values); i > 0; i-- {
-		i := i
-		retval = append(keys[i].Serialize(),
-			append([]byte(": "),
-				append(values[i].Serialize(),
-					[]byte("\n")...,
-				)...,
-			)...,
-		)
-
-	}
-
-	return retval
-}
-
-// use serialization as string format base
-func (m UnorderedBidiMap) String() string { return string(m.Serialize()) }
+func (m TreeBidiMap) Eval() Evaluable                     { return evalCollection(m()) }
+func (m TreeBidiMap) Type() ValueType                     { return MAP }
+func (m TreeBidiMap) Size() int                           { return collectionSize(m()) }
+func (m TreeBidiMap) Empty() bool                         { return emptyCollection(m()) }
+func (m TreeBidiMap) Clear() Collected                    { return clearCollection(m()) }
+func (m TreeBidiMap) Put(k Evaluable, v Evaluable) Mapped { return putToMap(m, k, v) }
+func (m TreeBidiMap) Get(v Evaluable) (Evaluable, bool)   { return getFromMap(m, v) }
+func (m TreeBidiMap) Keys() []Evaluable                   { return keysOfMap(m) }
+func (m TreeBidiMap) Values() []Evaluable                 { return collectionValues(m()) }
+func (m TreeBidiMap) Remove(v Evaluable) Mapped           { return removeFromMap(m, v) }
+func (m TreeBidiMap) Serialize() []byte                   { return serializeMap(m) }
+func (m TreeBidiMap) Interfaces() []interface{}           { return interfacesFromMap(m) }
+func (m TreeBidiMap) String() string                      { return mapToString(m) }

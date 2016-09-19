@@ -3,32 +3,195 @@ package agiledoc
 import (
 	//"fmt"
 	con "github.com/emirpasic/gods/containers"
+	cl "github.com/emirpasic/gods/lists"
 	al "github.com/emirpasic/gods/lists/arraylist"
 	dl "github.com/emirpasic/gods/lists/doublylinkedlist"
-	hm "github.com/emirpasic/gods/maps/hashbidimap"
+	sl "github.com/emirpasic/gods/lists/singlylinkedlist"
+	cm "github.com/emirpasic/gods/maps"
+	hbm "github.com/emirpasic/gods/maps/hashbidimap"
+	hm "github.com/emirpasic/gods/maps/hashmap"
+	tbm "github.com/emirpasic/gods/maps/treebidimap"
+	tm "github.com/emirpasic/gods/maps/treemap"
+	cs "github.com/emirpasic/gods/sets"
+	hs "github.com/emirpasic/gods/sets/hashset"
 	ts "github.com/emirpasic/gods/sets/treeset"
+	csa "github.com/emirpasic/gods/stacks"
 	as "github.com/emirpasic/gods/stacks/arraystack"
 	ls "github.com/emirpasic/gods/stacks/linkedliststack"
+	"github.com/emirpasic/gods/utils"
 	"math/big"
+	"sync"
 )
 
 //////////////////////// FUNCTIONAL TYPES TO REPRESENT VALUES /////////////////////
 type (
 	// collections with numeric indices
-	BitFlag        func() *big.Int
-	OrderedList    func() *al.List
-	LinkedList     func() *dl.List
-	UnorderedStack func() *as.Stack
-	IterableStack  func() *ls.Stack
+	// LISTS
+	BitFlag   func() *big.Int
+	ArrayList func() *al.List
+	DLList    func() *dl.List
+	SLList    func() *sl.List
+	// STACKS
+	ArrayStack  func() *as.Stack
+	LinkedStack func() *ls.Stack
 	// collections with symbolic indices
-	UnorderedBidiMap func() *hm.Map
-	TreeSet          func() *ts.Set
-
-	NumericTable  func() []OrderedList
-	SymbolicTable func() []TreeSet
-
-	Matrix OrderedList // gonum
+	// MAPS
+	HashMap     func() *hm.Map
+	HashBidiMap func() *hbm.Map
+	TreeMap     func() *tm.Map
+	TreeBidiMap func() *tbm.Map
+	// SETS
+	TreeSet func() *ts.Set
+	HashSet func() *hs.Set
+	// TREES
 )
+
+//// FUNCTIONS COMMON TO ALL COLLECTIONS
+func evalCollection(c con.Container) Evaluable           { return Value(c) }
+func collectionSize(c con.Container) int                 { return c.(con.Container).Size() }
+func emptyCollection(c con.Container) bool               { return c.(con.Container).Empty() }
+func collectionValues(c con.Container) []Evaluable       { return valueSlice(c.(con.Container).Values()) }
+func collectionInterfaces(c con.Container) []interface{} { return c.(con.Container).Values() }
+func clearCollection(c con.Container) Collected          { c.(con.Container).Clear(); return c.(Collected) }
+func serializeCollection(c Collected, delims ...[]byte) []byte {
+	// serialize collection expects between zero and three byte slices to keep
+	// elements of the serialization seperated from one another and to seperate
+	// between key, or index and the value for all tuple types,
+	//
+	// allocate return slice, element End marker, key value delimiter and list delimiter
+	var r, elementEndMark, keyValDelim, collectionEndMark []byte
+
+	// unroll and assign passed delimiters at there designated positions
+	for i, d := range delims {
+		i, d := i, d
+		switch i {
+		case 0: // most important, since all collections feature elements
+			elementEndMark = d
+		case 1: // second most important, for all types of tuple nature
+			keyValDelim = d
+		case 2: // to keep several lists apart (optional)
+			collectionEndMark = d
+
+		}
+	}
+
+	// prepare parameter function to pass on to internal enumerable method
+	// (val integer key and plain interface expected)
+	for index, value := range c.Values() {
+
+		// convert passed plain interfaces to evaluables (which they
+		// most likely allready are anyway). Serialize each passed
+		// value using its types val serialize method (works
+		// recursively, in case of nested collections).
+		i := Value(index).Serialize()
+		v := Value(value).Serialize()
+
+		// format each collected entry, divided by the passed delimiters,
+		r = append(
+			r, // append to pre-assigned return value…
+			append(
+				i, // …current elements index (converted to an evaluable)…
+				append(
+					keyValDelim, // …the passed key, or index and value delimiter…
+					append(
+						v,                 // …the value…
+						elementEndMark..., // … and the end of element marker
+					)...,
+				)...,
+			)...,
+		)
+	}
+	// append end of collection marker, if present
+	if len(delims) >= 3 {
+		r = append(r, collectionEndMark...)
+	}
+	return r
+}
+
+//// FUNCTIONS COMMON TO ALL LISTS
+func listToString(l Listed) string                                 { return string(serializeCollection(l, []byte("\n"))) }
+func serializeList(l Listed) []byte                                { return serializeCollection(l, []byte("\n")) }
+func getFromList(l Listed, i int) (Evaluable, bool)                { v, ok := l.(cl.List).Get(i); return Value(v), ok }
+func removeFromList(l Listed, i int) Listed                        { l.(cl.List).Remove(i); return l }
+func addToList(l Listed, v ...Evaluable) Listed                    { l.(cl.List).Add(interfaceSlice(v)...); return l }
+func addSliceOfInterfacesToList(l Listed, v ...interface{}) Listed { l.(cl.List).Add(v...); return l }
+func listContains(l Listed, v ...Evaluable) bool                   { return l.(cl.List).Contains(interfaceSlice(v)...) }
+func sortList(l Listed, c Compareable) Listed                      { l.(cl.List).Sort(c.InterfaceComparator()); return l }
+func swapList(l Listed, idx int, idy int) Listed                   { l.(cl.List).Swap(idx, idy); return l }
+func insertList(l Listed, i int, v ...Evaluable) Listed {
+	l.(cl.List).Insert(i, interfaceSlice(v)...)
+	return l
+}
+
+//// FUNCTIONS COMMON TO All STACKS
+func pushToStack(s Stacked, v Evaluable) Stacked { s.Push(v); return s }
+func popFromStack(s Stacked) (Evaluable, bool, Stacked) {
+	v, ok := s.(csa.Stack).Pop()
+	return Value(v), ok, s
+}
+func peekOnStack(s Stacked) (Evaluable, bool) {
+	v, ok := s.(csa.Stack).Peek()
+	return Value(v), ok
+}
+
+//// FUNCTIONS COMMON TO All MAPS
+func putToMap(m Mapped, k Evaluable, v Evaluable) Mapped { m.(cm.Map).Put(m, v); return m }
+func getFromMap(m Mapped, v Evaluable) (Evaluable, bool) {
+	val, ok := m.(cm.Map).Get(v)
+	return Value(val), ok
+}
+func removeFromMap(m Mapped, v Evaluable) Mapped { m.(cm.Map).Remove(v); return m }
+func keysOfMap(m Mapped) []Evaluable             { return valueSlice(m.(cm.Map).Keys()) }
+func valuesFromMap(m Mapped) []Evaluable         { return valueSlice(m.(con.Container).Values()) }
+
+func serializeMap(m Mapped) []byte {
+	var retval []byte
+	var keys = valueSlice(m.Keys())
+	var values = valueSlice(m.Values())
+	for i := len(values); i > 0; i-- {
+		i := i
+		retval = append(keys[i].Serialize(),
+			append([]byte(": "),
+				append(values[i].Serialize(),
+					[]byte("\n")...,
+				)...,
+			)...,
+		)
+
+	}
+
+	return retval
+}
+func interfacesFromMap(m Mapped) []interface{} { return m.(cm.Map).Values() }
+func mapToString(m Mapped) string              { return string(m.Serialize()) }
+
+//// FUNCTIONS COMMON TO All BIDIRECTIONAL MAPS
+func getKeyFromMap(m Mapped, v Evaluable) (Evaluable, bool) {
+	r, ok := m.(cm.BidiMap).GetKey(v)
+	return Value(r), ok
+}
+
+//// FUNCTIONS COMMON TO All SETS OF UNIQUE ELEMENTS
+func removeFromSet(u DeDublicated, i int) DeDublicated { u.(cs.Set).Remove(i); return u }
+func addToSet(u DeDublicated, v ...Evaluable) DeDublicated {
+	u.(cs.Set).Add(interfaceSlice(v)...)
+	return u
+}
+func setContains(u DeDublicated, v ...Evaluable) bool {
+	return u.(cs.Set).Contains(interfaceSlice(v)...)
+}
+func interfacesFromSet(u DeDublicated) []interface{} { return interfaceSlice(u.Values()) }
+
+////////////////////////////////////////////////
+//// COMPARARATOR IMPLEMENTED BY A FUNCTION TYPE
+type Compareable func(a, b Evaluable) int
+
+/// method to cast evaluable parameters as interfaces with empty method set, as
+// expected by the underlying collection implementation by a comparator
+// implementation
+func (c Compareable) InterfaceComparator() utils.Comparator {
+	return func(a, b interface{}) int { return c(Value(a), Value(b)) }
+}
 
 //////////////////////////////////////////////////////////////////////////
 //
@@ -69,18 +232,22 @@ type IdxRevIterator struct {
 }
 
 // reverse iterator interface (works for indexed as well as key mapped iterables)
-func (l IdxRevIterator) End()       { l.ReverseIteratorWithIndex.End() }
-func (l IdxRevIterator) Prev() bool { return l.ReverseIteratorWithIndex.Prev() }
-func (l IdxRevIterator) Last() bool { return l.ReverseIteratorWithIndex.Last() }
+func (l IdxRevIterator) End()             { l.ReverseIteratorWithIndex.End() }
+func (l IdxRevIterator) Prev() bool       { return l.ReverseIteratorWithIndex.Prev() }
+func (l IdxRevIterator) Last() bool       { return l.ReverseIteratorWithIndex.Last() }
+func (l IdxRevIterator) Index() Integer   { return Value(l.ReverseIteratorWithIndex.Index()).(Integer) }
+func (l IdxRevIterator) Value() Evaluable { return Value(l.ReverseIteratorWithIndex.Value()) }
 
 type KeyRevIterator struct {
 	con.ReverseIteratorWithKey
 }
 
 // reverse iterator interface (works for indexed as well as key mapped iterables)
-func (l KeyRevIterator) End()       { l.ReverseIteratorWithKey.End() }
-func (l KeyRevIterator) Prev() bool { return l.ReverseIteratorWithKey.Prev() }
-func (l KeyRevIterator) Last() bool { return l.ReverseIteratorWithKey.Last() }
+func (l KeyRevIterator) End()             { l.ReverseIteratorWithKey.End() }
+func (l KeyRevIterator) Prev() bool       { return l.ReverseIteratorWithKey.Prev() }
+func (l KeyRevIterator) Last() bool       { return l.ReverseIteratorWithKey.Last() }
+func (l KeyRevIterator) Key() Evaluable   { return Value(l.ReverseIteratorWithKey.Key()) }
+func (l KeyRevIterator) Value() Evaluable { return Value(l.ReverseIteratorWithKey.Value()) }
 
 // ENUMERABLE IMPLEMENTING TYPE
 // the enumerator is imolemented by the list itself and alters it's State. Two
@@ -186,15 +353,15 @@ func valueSlice(i interface{}) []Evaluable {
 }
 
 // LIST FROM SLICE OF VALUES
-func newOrderedList(v ...Evaluable) OrderedList {
+func newOrderedList(v ...Evaluable) ArrayList {
 	var l = al.New()
 	(*l).Add(interfaceSlice(v)...)
 	return func() *al.List { return l }
 }
 
 // MAP FROM PAIRS OF VALUES
-func unorderedBidiMapFromPairs(v ...pair) UnorderedBidiMap {
-	var r = hm.New()
+func unorderedBidiMapFromPairs(v ...pair) HashBidiMap {
+	var r = hbm.New()
 	for _, v := range v {
 		k := v.Key()
 		v := v.Value()
@@ -202,10 +369,29 @@ func unorderedBidiMapFromPairs(v ...pair) UnorderedBidiMap {
 		case k.Type()&SYMBOLIC != 0:
 			(*r).Put(k.Serialize(), v)
 		case k.Type()&NATURAL != 0:
-			(*r).Put(k.(val).int(), v)
+			(*r).Put(k.(native).Int(), v)
 		case k.Type()&REAL != 0:
-			(*r).Put(val(k.(rat).Num()).int(), v)
+			(*r).Put(native(k.(ratio).Num()).Int(), v)
 		}
 	}
-	return func() *hm.Map { return r }
+	return func() *hbm.Map { return r }
+}
+
+//// ALLOCATION POOLS ////
+type (
+	listPool sync.Pool
+	mapPool  sync.Pool
+)
+
+var (
+	listGen listPool = listPool{}
+	mapGen  mapPool  = mapPool{}
+)
+
+func newList() ArrayList { return func() *al.List { return listGen.New().(*al.List) } }
+func newMap() HashMap    { return func() *hm.Map { return mapGen.New().(*hm.Map) } }
+
+func init() {
+	listGen.New = func() interface{} { return new(al.List) }
+	mapGen.New = func() interface{} { return new(hm.Map) }
 }

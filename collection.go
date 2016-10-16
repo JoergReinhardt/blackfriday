@@ -18,10 +18,32 @@ import (
 	csa "github.com/emirpasic/gods/stacks"
 	as "github.com/emirpasic/gods/stacks/arraystack"
 	ls "github.com/emirpasic/gods/stacks/linkedliststack"
+	//ct "github.com/emirpasic/gods/trees"
+	ht "github.com/emirpasic/gods/trees/binaryheap"
+	rbt "github.com/emirpasic/gods/trees/redblacktree"
 	"github.com/emirpasic/gods/utils"
 	"math/big"
 	"sync"
 )
+
+//// ALLOCATION POOLS ////
+type (
+	listPool sync.Pool
+	mapPool  sync.Pool
+)
+
+var (
+	listGen listPool = listPool{}
+	mapGen  mapPool  = mapPool{}
+)
+
+func newList() ArrayList { return func() *al.List { return listGen.New().(*al.List) } }
+func newMap() HashMap    { return func() *hm.Map { return mapGen.New().(*hm.Map) } }
+
+func init() {
+	listGen.New = func() interface{} { return new(al.List) }
+	mapGen.New = func() interface{} { return new(hm.Map) }
+}
 
 //////////////////////// FUNCTIONAL TYPES TO REPRESENT VALUES /////////////////////
 type (
@@ -44,7 +66,18 @@ type (
 	TreeSet func() *ts.Set
 	HashSet func() *hs.Set
 	// TREES
+	Heap     func() *ht.Heap
+	RedBlack func() *rbt.Tree
 )
+
+////  BIT-FLAG METHODS
+/// a bit-flag differs signifficantly from all other collection
+// implementations. It is expressed as a big int, like the scalar types are used
+// to. This type implements a collection of bools, that provides the methods
+// needed to implement the stack interface. Apart from that, method are
+// provided to convert to a slice of bools, slice of native bools, as well as
+// one that returns an iterator over the contained boolean values. There is a
+// boolean scalar, that considers the first bit for a value as well.
 
 //// FUNCTIONS COMMON TO ALL COLLECTIONS
 func evalCollection(c con.Container) Evaluable           { return Value(c) }
@@ -123,6 +156,23 @@ func insertList(l Listed, i int, v ...Evaluable) Listed {
 	return l
 }
 
+// LIST GENERATORS
+func newArrayList() (r ArrayList) {
+	l := al.New()
+	r = func() *al.List { return l }
+	return r
+}
+func newDLLList() (r DLList) {
+	l := dl.New()
+	r = func() *dl.List { return l }
+	return r
+}
+func newSLLList() (r SLList) {
+	l := sl.New()
+	r = func() *sl.List { return l }
+	return r
+}
+
 //// FUNCTIONS COMMON TO All STACKS
 func pushToStack(s Stacked, v Evaluable) Stacked { s.Push(v); return s }
 func popFromStack(s Stacked) (Evaluable, bool, Stacked) {
@@ -133,8 +183,19 @@ func peekOnStack(s Stacked) (Evaluable, bool) {
 	v, ok := s.(csa.Stack).Peek()
 	return Value(v), ok
 }
+func newArraystack() (r ArrayStack) {
+	s := as.New()
+	r = func() *as.Stack { return s }
+	return r
+}
+func newLinkedStack() (r LinkedStack) {
+	s := ls.New()
+	r = func() *ls.Stack { return s }
+	return r
+}
 
 //// FUNCTIONS COMMON TO All MAPS
+func Add(m Mapped, k Evaluable, v Evaluable) Mapped      { return putToMap(m, k, v) }
 func putToMap(m Mapped, k Evaluable, v Evaluable) Mapped { m.(cm.Map).Put(m, v); return m }
 func getFromMap(m Mapped, v Evaluable) (Evaluable, bool) {
 	val, ok := m.(cm.Map).Get(v)
@@ -170,6 +231,36 @@ func getKeyFromMap(m Mapped, v Evaluable) (Evaluable, bool) {
 	r, ok := m.(cm.BidiMap).GetKey(v)
 	return Value(r), ok
 }
+func newHashMap() (r HashMap) {
+	m := hm.New()
+	r = func() *hm.Map { return m }
+	return r
+}
+func newHashBidiMap() (r HashBidiMap) {
+	m := hbm.New()
+	r = func() *hbm.Map { return m }
+	return r
+}
+func newTreeMapNumeric() (r TreeMap) {
+	m := tm.NewWithIntComparator()
+	r = func() *tm.Map { return m }
+	return r
+}
+func newTreeMapSymbolic() (r TreeMap) {
+	m := tm.NewWithStringComparator()
+	r = func() *tm.Map { return m }
+	return r
+}
+func newTreeBidiMapNumeric() (r TreeBidiMap) {
+	m := tbm.NewWithIntComparators()
+	r = func() *tbm.Map { return m }
+	return r
+}
+func newTreeBidiMapSymbolic() (r TreeBidiMap) {
+	m := tbm.NewWithStringComparators()
+	r = func() *tbm.Map { return m }
+	return r
+}
 
 //// FUNCTIONS COMMON TO All SETS OF UNIQUE ELEMENTS
 func removeFromSet(u DeDublicated, i int) DeDublicated { u.(cs.Set).Remove(i); return u }
@@ -181,6 +272,33 @@ func setContains(u DeDublicated, v ...Evaluable) bool {
 	return u.(cs.Set).Contains(interfaceSlice(v)...)
 }
 func interfacesFromSet(u DeDublicated) []interface{} { return interfaceSlice(u.Values()) }
+func newHashSet(v ...Evaluable) (r HashSet) {
+	m := hs.New()
+	r = func() *hs.Set { return m }
+	return r
+}
+func newTreeSetNumeric() (r TreeSet) {
+	m := ts.NewWithIntComparator()
+	r = func() *ts.Set { return m }
+	return r
+}
+func newTreeSetSymbolic() (r TreeSet) {
+	m := ts.NewWithStringComparator()
+	r = func() *ts.Set { return m }
+	return r
+}
+
+/////////////// TREE /////////////////
+func newHeap() (r Heap) {
+	m := ht.NewWithIntComparator()
+	r = func() *ht.Heap { return m }
+	return r
+}
+func newRedBlack() (r RedBlack) {
+	m := rbt.NewWithStringComparator()
+	r = func() *rbt.Tree { return m }
+	return r
+}
 
 ////////////////////////////////////////////////
 //// COMPARARATOR IMPLEMENTED BY A FUNCTION TYPE
@@ -369,29 +487,12 @@ func unorderedBidiMapFromPairs(v ...pair) HashBidiMap {
 		case k.Type()&SYMBOLIC != 0:
 			(*r).Put(k.Serialize(), v)
 		case k.Type()&NATURAL != 0:
-			(*r).Put(k.(native).Int(), v)
+			(*r).Put(k.(val).Int(), v)
 		case k.Type()&REAL != 0:
-			(*r).Put(native(k.(ratio).Num()).Int(), v)
+			// both parts of ratio are stored in the value field,
+			// numerator is taken as the index
+			(*r).Put(val(k.(ratio).Num()).Int(), v)
 		}
 	}
 	return func() *hbm.Map { return r }
-}
-
-//// ALLOCATION POOLS ////
-type (
-	listPool sync.Pool
-	mapPool  sync.Pool
-)
-
-var (
-	listGen listPool = listPool{}
-	mapGen  mapPool  = mapPool{}
-)
-
-func newList() ArrayList { return func() *al.List { return listGen.New().(*al.List) } }
-func newMap() HashMap    { return func() *hm.Map { return mapGen.New().(*hm.Map) } }
-
-func init() {
-	listGen.New = func() interface{} { return new(al.List) }
-	mapGen.New = func() interface{} { return new(hm.Map) }
 }

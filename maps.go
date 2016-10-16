@@ -3,6 +3,17 @@ package agiledoc
 ////////////////////////////////////////////////////////////////////////////////////
 //// MAPS ////
 //////////////
+func (m HashMap) Add(v ...Evaluable) (r Mapped) {
+	for i, v := range v {
+		if v, ok := v.(Tupled); ok {
+			k := v.Key()
+			v := v.Value()
+			r = putToMap(m, k, v)
+		}
+		r = putToMap(m, Value(i), v)
+	}
+	return r
+}
 func (m HashMap) Eval() Evaluable                     { return evalCollection(m()) }
 func (m HashMap) Type() ValueType                     { return MAP }
 func (m HashMap) Size() int                           { return collectionSize(m()) }
@@ -17,6 +28,17 @@ func (m HashMap) Serialize() []byte                   { return serializeMap(m) }
 func (m HashMap) Interfaces() []interface{}           { return interfacesFromMap(m) }
 func (m HashMap) String() string                      { return mapToString(m) }
 
+func (m HashBidiMap) Add(v ...Evaluable) (r Mapped) {
+	for i, v := range v {
+		if v, ok := v.(Tupled); ok {
+			k := v.Key()
+			v := v.Value()
+			r = putToMap(m, k, v)
+		}
+		r = putToMap(m, Value(i), v)
+	}
+	return r
+}
 func (m HashBidiMap) Eval() Evaluable                     { return evalCollection(m()) }
 func (m HashBidiMap) Type() ValueType                     { return MAP }
 func (m HashBidiMap) Size() int                           { return collectionSize(m()) }
@@ -31,6 +53,17 @@ func (m HashBidiMap) Serialize() []byte                   { return serializeMap(
 func (m HashBidiMap) Interfaces() []interface{}           { return interfacesFromMap(m) }
 func (m HashBidiMap) String() string                      { return mapToString(m) }
 
+func (m TreeMap) Add(v ...Evaluable) (r Mapped) {
+	for i, v := range v {
+		if v, ok := v.(Tupled); ok {
+			k := v.Key()
+			v := v.Value()
+			r = putToMap(m, k, v)
+		}
+		r = putToMap(m, Value(i), v)
+	}
+	return r
+}
 func (m TreeMap) Eval() Evaluable                     { return evalCollection(m()) }
 func (m TreeMap) Type() ValueType                     { return MAP }
 func (m TreeMap) Size() int                           { return collectionSize(m()) }
@@ -45,6 +78,17 @@ func (m TreeMap) Serialize() []byte                   { return serializeMap(m) }
 func (m TreeMap) Interfaces() []interface{}           { return interfacesFromMap(m) }
 func (m TreeMap) String() string                      { return mapToString(m) }
 
+func (m TreeBidiMap) Add(v ...Evaluable) (r Mapped) {
+	for i, v := range v {
+		if v, ok := v.(Tupled); ok {
+			k := v.Key()
+			v := v.Value()
+			r = putToMap(m, k, v)
+		}
+		r = putToMap(m, Value(i), v)
+	}
+	return r
+}
 func (m TreeBidiMap) Eval() Evaluable                     { return evalCollection(m()) }
 func (m TreeBidiMap) Type() ValueType                     { return MAP }
 func (m TreeBidiMap) Size() int                           { return collectionSize(m()) }

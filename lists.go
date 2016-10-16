@@ -172,7 +172,8 @@ func (f BitFlag) Empty() bool {
 		return true
 	}
 }
-func (f BitFlag) Size() int { return f().BitLen() }
+func (f BitFlag) Size() int                  { return f().BitLen() }
+func (f BitFlag) Or(v Evaluable) (r BitFlag) { return valWrap(f().Or(f(), r())).toBitFlag() }
 func (f BitFlag) Clear() Collected {
 	var r *big.Int = f()
 	r.Set(ZERO.Flag())

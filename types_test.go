@@ -16,7 +16,7 @@ type Generator int
 func (i *Generator) NextInt() int { *i = (*i) + 1; return int(*i) - 1 }
 func (i *Generator) NextRat() float64 {
 	*i = (*i) + 1
-	j := new(native).bigInt().Rand(&rand.Rand{}, new(big.Int).SetInt64(int64(*i)))
+	j := new(val).bigInt().Rand(&rand.Rand{}, new(big.Int).SetInt64(int64(*i)))
 	return float64(*i) * float64(j.Int64())
 }
 func (i *Generator) NextChar() string {

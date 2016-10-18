@@ -23,7 +23,7 @@ func nativeToValue(i interface{}) (r Evaluable) {
 	case int, int16, int32, int64: // integers are integer
 		r = divideInts(i)
 	case float32: // floating point values get assigned to rationals
-		r = Ratio(ratioWrap(newRat()().SetFloat64(float64(i.(float32)))))
+		r = ratioWrap(newRat()().SetFloat64(float64(i.(float32))))
 	case float64: // floating point values get assigned to rationals
 		r = Ratio(ratioWrap(newRat()().SetFloat64(i.(float64))))
 	case []byte: // == uint8
@@ -56,7 +56,7 @@ func divideUints(i interface{}) (r Evaluable) {
 func divideInts(i interface{}) (r Evaluable) {
 	switch i.(type) {
 	case int:
-		r = BitFlag(valWrap(newVal()().SetInt64(int64(i.(int)))))
+		r = BitFlag(val(valWrap(newVal()().SetInt64(int64(i.(int))))))
 	case int16:
 		r = BitFlag(valWrap(newVal()().SetInt64(int64(i.(int16)))))
 	case int32:

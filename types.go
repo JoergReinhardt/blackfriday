@@ -108,9 +108,9 @@ func newPair() pair { return pairGen.New().(pair) }
 // finally, after possibly setting, or mutating the raw instance, returned by
 // functional type, it needs to be wrapped in the appropriate type of closure
 // again, to implement evaluable
-func valWrap(v *big.Int) val               { return func() *big.Int { return v } }
-func ratioWrap(v *big.Rat) func() *big.Rat { return func() *big.Rat { return v } }
-func pairWrap(k, v Evaluable) pair         { return func() [2]Evaluable { return [2]Evaluable{k, v} } }
+func valWrap(v *big.Int) val       { return func() *big.Int { return v } }
+func ratioWrap(v *big.Rat) ratio   { return func() *big.Rat { return v } }
+func pairWrap(k, v Evaluable) pair { return func() [2]Evaluable { return [2]Evaluable{k, v} } }
 
 ///// VALUE RECYCLING /////
 ///

@@ -65,7 +65,7 @@ var S []Evaluable
 func TestValueFromNative(t *testing.T) {
 	c := G
 	for n := 0; n <= 10; n++ {
-		v := Value((*c).NextInt())
+		v := nativeToValue((*c).NextInt())
 		(*t).Log(
 			spew.Sprint("Type: ", v.Type(), " serialized: ", v.Serialize(), " string: ", v.String()),
 		)

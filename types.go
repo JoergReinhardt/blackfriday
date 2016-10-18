@@ -74,9 +74,10 @@ lazyly pull values on stack whenever it makes sense.
 package agiledoc
 
 import (
-	//"fmt"
+	"fmt"
 	// col "github.com/emirpasic/gods/containers"
 	"math/big"
+	"math/rand"
 	"sync"
 )
 
@@ -84,53 +85,45 @@ import (
 /////////////// IN THREE SIMPLE STEPS /////////////////
 ////
 /// to keep allocation pressure flat, cache instances of underlying native base
-//values in sync pools for instance recycling.
+//  values in sync pools for instance recycling.
 var (
-	intGen  = sync.Pool{}
-	ratGen  = sync.Pool{}
-	pairGen = sync.Pool{}
+	intPool = sync.Pool{}
+	ratPool = sync.Pool{}
 )
 
 // initializes pools with appropriate new function to return an instance of
 // the type, that gets returned by this functional type
 func init() {
-	intGen.New = func() interface{} { return big.NewInt(0) }
-	ratGen.New = func() interface{} { return big.NewRat(1, 1) }
-	pairGen.New = func() interface{} { return [2]Evaluable{} }
+	intPool.New = func() interface{} { return big.NewInt(0) }
+	ratPool.New = func() interface{} { return big.NewRat(1, 1) }
 }
-
-// retrieve recycled empty instance of return type, for each of the functional
-// base types
-func newVal() val   { return intGen.New().(val) }
-func newRat() ratio { return ratGen.New().(ratio) }
-func newPair() pair { return pairGen.New().(pair) }
-
-// finally, after possibly setting, or mutating the raw instance, returned by
-// functional type, it needs to be wrapped in the appropriate type of closure
-// again, to implement evaluable
-func valWrap(v *big.Int) val       { return func() *big.Int { return v } }
-func ratioWrap(v *big.Rat) ratio   { return func() *big.Rat { return v } }
-func pairWrap(k, v Evaluable) pair { return func() [2]Evaluable { return [2]Evaluable{k, v} } }
 
 ///// VALUE RECYCLING /////
 ///
 // puts evaluables enclosed return value back in the appropriate pool for later
 // reuse
-func DiscardEvaluable(v Evaluable) {
+func discard(v Evaluable) {
 	switch { //…discard each in appropriate pool
 	case v.Type()&NATURAL != 0:
 		discardInt(v.(val)())
 	case v.Type()&REAL != 0:
 		discardRat(v.(ratio)())
-	case v.Type()&PAIR != 0:
-		discardPair(v.(pair)())
 	}
 }
 
 // typed discard functions
-func discardInt(v *big.Int)      { intGen.Put(v) }
-func discardRat(v *big.Rat)      { ratGen.Put(v) }
-func discardPair(v [2]Evaluable) { pairGen.Put(v) }
+func discardInt(v *big.Int) { intPool.Put(v) }
+func discardRat(v *big.Rat) { ratPool.Put(v) }
+
+func wrap(i nativeBig) (r Evaluable) {
+	switch i.(type) {
+	case *big.Int:
+		r = val(func() *big.Int { return i.(*big.Int) })
+	case *big.Rat:
+		r = ratio(func() *big.Rat { return i.(*big.Rat) })
+	}
+	return r
+}
 
 // BASE VALUES IMPLEMENTING FUNCTIONAL TYPES
 // these functional types need to implement the absVal interface to be suitable
@@ -155,6 +148,62 @@ type ( // functional types that form the base of all value implementations
 
 /////////////////////////////////////////////////////////////////////////
 /////// VAL /////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////
+/// wrapper methods for each native big.Int method
+func (v val) abs(x *big.Int) *big.Int                       { return v().Abs(x) }
+func (v val) add(x, y *big.Int) *big.Int                    { return v().Add(x, y) }
+func (v val) and(x, y *big.Int) *big.Int                    { return v().And(x, y) }
+func (v val) andNot(x, y *big.Int) *big.Int                 { return v().And(x, y) }
+func (v val) append(buf []byte, base int) []byte            { return v().Append(buf, base) }
+func (v val) binomial(n, k int64) *big.Int                  { return v().Binomial(n, k) }
+func (v val) bit(i int) uint                                { return v().Bit(i) }
+func (v val) bitLen() int                                   { return v().BitLen() }
+func (v val) bits() []big.Word                              { return v().Bits() }
+func (v val) bytes() []byte                                 { return v().Bytes() }
+func (v val) cmp(y *big.Int) (r int)                        { return v().Cmp(y) }
+func (v val) div(x, y *big.Int) *big.Int                    { return v().Div(x, y) }
+func (v val) divMod(x, y, m *big.Int) (*big.Int, *big.Int)  { return v().DivMod(x, y, m) }
+func (v val) exp(x, y, m *big.Int) *big.Int                 { return v().Exp(x, y, m) }
+func (v val) format(s fmt.State, ch rune)                   { v().Format(s, ch) }
+func (v val) gCD(x, y, a, b *big.Int) *big.Int              { return v().GCD(x, y, a, b) }
+func (v val) gobDecode(buf []byte) error                    { return v().GobDecode(buf) }
+func (v val) gobEncode() ([]byte, error)                    { return v().GobEncode() }
+func (v val) int64() int64                                  { return v().Int64() }
+func (v val) lsh(x *big.Int, n uint) *big.Int               { return v().Lsh(x, n) }
+func (v val) marshalJSON() ([]byte, error)                  { return v().MarshalJSON() }
+func (v val) marshalText() (text []byte, err error)         { return v().MarshalText() }
+func (v val) mod(x, y *big.Int) *big.Int                    { return v().Mod(x, y) }
+func (v val) modInverse(g, n *big.Int) *big.Int             { return v().ModInverse(g, n) }
+func (v val) modSqrt(x, p *big.Int) *big.Int                { return v().ModSqrt(x, p) }
+func (v val) mul(x, y *big.Int) *big.Int                    { return v().Mul(x, y) }
+func (v val) mulRange(a, b int64) *big.Int                  { return v().MulRange(a, b) }
+func (v val) neg(x *big.Int) *big.Int                       { return v().Neg(x) }
+func (v val) not(x *big.Int) *big.Int                       { return v().Not(x) }
+func (v val) or(x, y *big.Int) *big.Int                     { return v().Or(x, y) }
+func (v val) probablyPrime(n int) bool                      { return v().ProbablyPrime(n) }
+func (v val) quo(x, y *big.Int) *big.Int                    { return v().Quo(x, y) }
+func (v val) quoRem(x, y, r *big.Int) (*big.Int, *big.Int)  { return v().QuoRem(x, y, r) }
+func (v val) rand(rnd *rand.Rand, n *big.Int) *big.Int      { return v().Rand(rnd, n) }
+func (v val) rem(x, y *big.Int) *big.Int                    { return v().Rem(x, y) }
+func (v val) rsh(x *big.Int, n uint) *big.Int               { return v().Rsh(x, n) }
+func (v val) scan(s fmt.ScanState, ch rune) error           { return v().Scan(s, ch) }
+func (v val) set(x *big.Int) *big.Int                       { return v().Set(x) }
+func (v val) setBit(x *big.Int, i int, b uint) *big.Int     { return v().SetBit(x, i, b) }
+func (v val) setBits(abs []big.Word) *big.Int               { return v().SetBits(abs) }
+func (v val) setBytes(buf []byte) *big.Int                  { return v().SetBytes(buf) }
+func (v val) setInt64(x int64) *big.Int                     { return v().SetInt64(x) }
+func (v val) setString(s string, base int) (*big.Int, bool) { return v().SetString(s, base) }
+func (v val) setUint64(x uint64) *big.Int                   { return v().SetUint64(x) }
+func (v val) sign() int                                     { return v().Sign() }
+func (v val) string() string                                { return v().String() }
+func (v val) sub(x, y *big.Int) *big.Int                    { return v().Sub(x, y) }
+func (v val) text(base int) string                          { return v().Text(base) }
+func (v val) uint64() uint64                                { return v().Uint64() }
+func (v val) unmarshalJSON(text []byte) error               { return v().UnmarshalJSON(text) }
+func (v val) unmarshalText(text []byte) error               { return v().UnmarshalText(text) }
+func (v val) xor(x, y *big.Int) *big.Int                    { return v().Xor(x, y) }
+
+/////////////////////////////////////////////////
 func (b val) bool() bool {
 	if b().Int64() > 0 {
 		return true
@@ -162,14 +211,12 @@ func (b val) bool() bool {
 		return false
 	}
 }
-func (b val) set(i int64) val   { return valWrap(b().SetInt64(i)) }
 func (b val) Type() ValueType   { return EMPTY }
 func (b val) Eval() Evaluable   { return Value(b) }
 func (b val) Serialize() []byte { return []byte(b().String()) }
 func (b val) String() string    { return b().String() }
 
 func (b val) bigInt() *big.Int { return b() }
-func (b val) BigRat() *big.Rat { ; return newRat()().SetFloat64(float64(b().Int64())) }
 func (b val) Int() int         { return int(b().Int64()) }
 func (b val) Int64() int64     { return b().Int64() }
 func (b val) Uint64() uint64   { return b().Uint64() }
@@ -183,20 +230,50 @@ func (b val) toText() Text       { return Text(b) }
 
 // assign receiver value as returnvalue, set key to zero
 func (b val) toPair() pair {
-	var r = newPair()
-	r.SetValue(b)
+	var r pair
 	return r
 }
 
 // set receivers value as numerator and denomintor to one (don't devide by zero).
-func (b val) toRational() ratio {
-	var r = newRat()
-	r.SetNum(b.toInteger())
+func (b val) toRational() (r ratio) {
 	return r
 }
 
 /////////////////////////////////////////////////////////////////////////
 //////// RATIONAL ///////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////
+// private wrapper methods for big Rat methods
+func (r ratio) abs(x *big.Rat) *big.Rat               { return r().Abs(x) }
+func (r ratio) add(x, y *big.Rat) *big.Rat            { return r().Add(x, y) }
+func (r ratio) cmp(y *big.Rat) int                    { return r().Cmp(y) }
+func (r ratio) denom() *big.Int                       { return r().Denom() }
+func (r ratio) float32() (f float32, exact bool)      { return r().Float32() }
+func (r ratio) float64() (f float64, exact bool)      { return r().Float64() }
+func (r ratio) floatString(prec int) string           { return r().FloatString(prec) }
+func (r ratio) gobDecode(buf []byte) error            { return r().GobDecode(buf) }
+func (r ratio) gobEncode() ([]byte, error)            { return r().GobEncode() }
+func (r ratio) inv(x *big.Rat) *big.Rat               { return r().Inv(x) }
+func (r ratio) isInt() bool                           { return r().IsInt() }
+func (r ratio) marshalText() (text []byte, err error) { return r().MarshalText() }
+func (r ratio) mul(x, y *big.Rat) *big.Rat            { return r().Mul(x, y) }
+func (r ratio) neg(x *big.Rat) *big.Rat               { return r().Neg(x) }
+func (r ratio) num() *big.Int                         { return r().Num() }
+func (r ratio) quo(x, y *big.Rat) *big.Rat            { return r().Quo(x, y) }
+func (r ratio) ratString() string                     { return r().RatString() }
+func (r ratio) scan(s fmt.ScanState, ch rune) error   { return r().Scan(s, ch) }
+func (r ratio) set(x *big.Rat) *big.Rat               { return r().Set(x) }
+func (r ratio) setFloat64(f float64) *big.Rat         { return r().SetFloat64(f) }
+func (r ratio) setFrac(a, b *big.Int) *big.Rat        { return r().SetFrac(a, b) }
+func (r ratio) setFrac64(a, b int64) *big.Rat         { return r().SetFrac64(a, b) }
+func (r ratio) setInt(x *big.Int) *big.Rat            { return r().SetInt(x) }
+func (r ratio) setInt64(x int64) *big.Rat             { return r().SetInt64(x) }
+func (r ratio) setString(s string) (*big.Rat, bool)   { return r().SetString(s) }
+func (r ratio) sign() int                             { return r().Sign() }
+func (r ratio) string() string                        { return r().String() }
+func (r ratio) sub(x, y *big.Rat) *big.Rat            { return r().Sub(x, y) }
+func (r ratio) unmarshalText(text []byte) error       { return r().UnmarshalText(text) }
+
+/////////////////////////////////////////////////////////////////////////
 func (r ratio) Eval() Evaluable { return Value(r) }
 
 // Bytes is supposed to keep as much information as possible, so this converts
@@ -215,7 +292,6 @@ func (r ratio) Type() ValueType   { return REAL }
 
 ////////////////////////////////////////////////////////////////
 // private methods, to convert to native types
-func (r ratio) float64() float64 { f, _ := r().Float64(); return f }
 func (r ratio) bigRat() *big.Rat { return Value(r).(ratio)() }
 
 // public methods to convert to other implementations of evaluable
@@ -226,11 +302,8 @@ func (r ratio) Pair() pair {
 }
 
 // methods that take or return the integer type, to set, or get contained values
-func (r ratio) Num() Integer               { return Value(r().Num()).(Integer) }
-func (r ratio) Denom() Integer             { return Value(r().Denom()).(Integer) }
-func (r ratio) SetNum(v Integer) ratio     { r().SetFrac(v(), newVal()().SetInt64(1)); return r }
-func (r ratio) SetDenom(v Integer) ratio   { r().SetFrac(newVal()().SetInt64(1), v()); return r }
-func (r ratio) SetFrac(n, d Integer) ratio { r().SetFrac(n(), d()); return r }
+func (r ratio) Num() Integer   { return Value(r().Num()).(Integer) }
+func (r ratio) Denom() Integer { return Value(r().Denom()).(Integer) }
 
 /////////////////////////////////////////////////////////////////////////
 /////// PAIR ////////////////////////////////////////////////////////////

@@ -12,6 +12,10 @@ type Tupled interface {
 	Value() Evaluable
 }
 
+type nativeBig interface {
+	String() string
+}
+
 // COLLECTED META INTERFACE
 // Collected is a super interface, that defines common functionality of all
 // types that define collections of values

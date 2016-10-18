@@ -6,7 +6,8 @@
 package agiledoc
 
 import (
-	al "github.com/emirpasic/gods/lists/arraylist"
+	//al "github.com/emirpasic/gods/lists/arraylist"
+	"math/big"
 )
 
 func nativeToValue(i interface{}) (r Evaluable) {
@@ -14,24 +15,24 @@ func nativeToValue(i interface{}) (r Evaluable) {
 	switch i.(type) {
 	case bool: // a boolean returns a flag with the first bit set
 		if i.(bool) {
-			r = BitFlag(valWrap(newVal()().SetInt64(1)))
+			r = wrap(intPool.Get().(*big.Int).SetInt64(1)).(BitFlag)
 		} else {
-			r = BitFlag(valWrap(newVal()().SetInt64(0)))
+			r = wrap(intPool.Get().(*big.Int).SetInt64(0)).(BitFlag)
 		}
 	case uint, uint8, uint16, uint32, uint64, ValueType: // a uint is assumed to be a single byte
 		r = divideUints(i)
 	case int, int16, int32, int64: // integers are integer
 		r = divideInts(i)
 	case float32: // floating point values get assigned to rationals
-		r = ratioWrap(newRat()().SetFloat64(float64(i.(float32))))
+		r = wrap(ratPool.Get().(*big.Rat).SetFloat64(float64(i.(float32))))
 	case float64: // floating point values get assigned to rationals
-		r = Ratio(ratioWrap(newRat()().SetFloat64(i.(float64))))
+		r = wrap(ratPool.Get().(*big.Rat).SetFloat64(i.(float64)))
 	case []byte: // == uint8
-		r = Bytes(valWrap(newVal()().SetBytes(i.([]byte))))
+		r = wrap(intPool.Get().(*big.Int).SetBytes(i.([]byte)))
 	case string: // a string gets assigned by its bislice as well
-		str, ok := newVal()().SetString(i.(string), 10)
+		val, ok := intPool.Get().(*big.Int).SetString(i.(string), 10)
 		if ok {
-			r = Text(valWrap(str))
+			r = wrap(val)
 		}
 	}
 	return r
@@ -39,30 +40,30 @@ func nativeToValue(i interface{}) (r Evaluable) {
 func divideUints(i interface{}) (r Evaluable) {
 	switch i.(type) {
 	case ValueType:
-		r = BitFlag(valWrap(newVal()().SetUint64(uint64(i.(ValueType)))))
+		r = wrap(intPool.Get().(*big.Int).SetUint64(uint64(i.(ValueType))))
 	case byte:
-		r = BitFlag(valWrap(newVal()().SetBytes([]byte{i.(byte)})))
+		r = wrap(intPool.Get().(*big.Int).SetBytes([]byte(i.([]byte))))
 	case rune:
-		r = BitFlag(valWrap(newVal()().SetUint64(uint64(i.(uint32)))))
+		r = wrap(intPool.Get().(*big.Int).SetUint64(uint64(i.(uint32))))
 	case uint:
-		r = BitFlag(valWrap(newVal()().SetUint64(uint64(i.(uint)))))
+		r = wrap(intPool.Get().(*big.Int).SetUint64(uint64(i.(uint))))
 	case uint16:
-		r = BitFlag(valWrap(newVal()().SetUint64(uint64(i.(uint16)))))
+		r = wrap(intPool.Get().(*big.Int).SetUint64(uint64(i.(uint16))))
 	case uint64:
-		r = BitFlag(valWrap(newVal()().SetUint64(i.(uint64))))
+		r = wrap(intPool.Get().(*big.Int).SetUint64(i.(uint64)))
 	}
 	return r
 }
 func divideInts(i interface{}) (r Evaluable) {
 	switch i.(type) {
 	case int:
-		r = BitFlag(val(valWrap(newVal()().SetInt64(int64(i.(int))))))
+		r = wrap(intPool.Get().(*big.Int).SetInt64(int64(i.(int))))
 	case int16:
-		r = BitFlag(valWrap(newVal()().SetInt64(int64(i.(int16)))))
+		r = wrap(intPool.Get().(*big.Int).SetInt64(int64(i.(int16))))
 	case int32:
-		r = BitFlag(valWrap(newVal()().SetInt64(int64(i.(int32)))))
+		r = wrap(intPool.Get().(*big.Int).SetInt64(int64(i.(int32))))
 	case int64:
-		r = BitFlag(valWrap(newVal()().SetInt64(i.(int64))))
+		r = wrap(intPool.Get().(*big.Int).SetInt64(int64(i.(int64))))
 	}
 	return r
 }
@@ -116,17 +117,5 @@ comes with the nesccessary features to implement- and therefore comes with the
 methods to convert to the wanted third level type.
 */
 func Collect(v ...Evaluable) (r Collected) {
-	// instanciate a BitFlag to mark contained element types
-	var flag uint = 0
-	// initialize simple arraylist, to initially hold elements
-	list := newArrayList()()
-
-	// for loop to check elements for type and add them into initial list, as pair containing an integer that encodes the place of the particular element in order of arguments
-	for n, val := range v {
-		n, v := n, val
-		// set the Flag
-		flag = flag | v.Type().Uint()
-		list.Add(pairWrap(valWrap(newVal()().SetInt64(int64(n))), v))
-	}
-	return ArrayList(func() *al.List { return list })
+	return r
 }

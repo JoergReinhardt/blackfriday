@@ -204,6 +204,9 @@ func (v val) unmarshalText(text []byte) error               { return v().Unmarsh
 func (v val) xor(x, y *big.Int) *big.Int                    { return v().Xor(x, y) }
 
 /////////////////////////////////////////////////
+////// METHODS TO IMPLEMENT EVALUABLE ///////////
+/////////////////////////////////////////////////
+
 func (b val) bool() bool {
 	if b().Int64() > 0 {
 		return true
@@ -273,7 +276,9 @@ func (r ratio) string() string                        { return r().String() }
 func (r ratio) sub(x, y *big.Rat) *big.Rat            { return r().Sub(x, y) }
 func (r ratio) unmarshalText(text []byte) error       { return r().UnmarshalText(text) }
 
-/////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////
+////// METHODS TO IMPLEMENT EVALUABLE ///////////
+/////////////////////////////////////////////////
 func (r ratio) Eval() Evaluable { return Value(r) }
 
 // Bytes is supposed to keep as much information as possible, so this converts
@@ -305,8 +310,9 @@ func (r ratio) Pair() pair {
 func (r ratio) Num() Integer   { return Value(r().Num()).(Integer) }
 func (r ratio) Denom() Integer { return Value(r().Denom()).(Integer) }
 
-/////////////////////////////////////////////////////////////////////////
-/////// PAIR ////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////
+/////// PAIR ////////////////////////////////////
+/////////////////////////////////////////////////
 func (b pair) Eval() Evaluable { return Value(b) }
 
 func (b pair) Value() Evaluable { return b()[1].Eval() }
@@ -383,20 +389,32 @@ func (e Empty) String() string  { return e.Type().String() }
 // uint representation)
 type Bool val
 
-func (u Bool) Eval() Evaluable   { return u }
-func (u Bool) Serialize() []byte { return []byte(u().String()) }
-func (u Bool) String() string    { return u().Text(2) }
-func (u Bool) Type() ValueType   { return BOOL }
+func (u Bool) Eval() Evaluable                 { return u }
+func (u Bool) Serialize() []byte               { return val(u).bytes() }
+func (u Bool) String() string                  { return val(u).text(2) }
+func (u Bool) Type() ValueType                 { return BOOL }
+func (u Bool) And(x, y Evaluable) Evaluable    { return wrap(val(u).and(x.(val)(), y.(val)())) }
+func (u Bool) AndNot(x, y Evaluable) Evaluable { return wrap(val(u).andNot(x.(val)(), y.(val)())) }
+func (u Bool) Not(x Evaluable) Evaluable       { return wrap(val(u).not(x.(val)())) }
+func (u Bool) Or(x, y Evaluable) Evaluable     { return wrap(val(u).or(x.(val)(), y.(val)())) }
+func (u Bool) Xor(x, y Evaluable) Evaluable    { return wrap(val(u).xor(x.(val)(), y.(val)())) }
 
 /////////////////////////////////////////////////////////////////////////
 // INTEGER
 type Integer val
 
-func (i Integer) Eval() Evaluable   { return i }
-func (i Integer) Serialize() []byte { return []byte(val(i)().String()) }
-func (i Integer) String() string    { return i().Text(10) }
-func (i Integer) Type() ValueType   { return INTEGER }
-func (i Integer) Int64() int64      { return i().Int64() }
+func (i Integer) Eval() Evaluable              { return i }
+func (i Integer) Serialize() []byte            { return []byte(val(i)().String()) }
+func (i Integer) String() string               { return i().Text(10) }
+func (i Integer) Type() ValueType              { return INTEGER }
+func (i Integer) Int64() int64                 { return i().Int64() }
+func (i Integer) Add(x, y Evaluable) Evaluable { return wrap(val(i).add(x.(val)(), y.(val)())) }
+func (i Integer) Cmp(x Evaluable) Evaluable    { return wrap(intPool.Get().(*big.Int).Add(i(), x.(val)())) }
+func (i Integer) Div(x, y Evaluable) Evaluable { return wrap(val(i).div(x.(val)(), y.(val)())) }
+func (i Integer) DivMod(x, y, m Evaluable) (Evaluable, Evaluable) {
+	a, b := val(i).divMod(x.(val)(), y.(val)(), m.(val)())
+	return wrap(a), wrap(b)
+}
 
 /////////////////////////////////////////////////////////////////////////
 // BYTES

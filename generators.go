@@ -62,6 +62,47 @@ import (
 	"math/big"
 )
 
+/////////////////////////////////////////////////////////////////////////////
+// INSTANCIATE NEW VALUE(S) FROM GOLANG NATIVE VALUES
+//
+// 1.) chack number of passed values:
+//	- one: pass on to convert from native type
+//	- two: pass on to create a pair of values
+//	- > two:  pass on to create a collection
+func Value(i ...interface{}) (v Evaluable) {
+
+	// IF SINGLE ELEMENT GOT PASSED
+	//
+	//// TEST IF ALLREADY EVALUABLE ////
+	if len(i) == 1 { // value generation is indempotent and just ommitted,
+		// if parameter is allready evaluable.
+		if v, ok := i[0].(Evaluable); ok {
+			// !!! EARLY BIRD RETURN SPECIAL !!!
+			return v
+		}
+
+		// NATIVE INTENDED FOR CONVERSION TO EVALUABLE
+		v = nativeToValue(i[0])
+	}
+
+	// IF TWO ELEMENTS GOT PASSED
+	//
+	// if exactly two elements, assume a pair of key/value as element for a map
+	if len(i) == 2 { // convert key and value recursively to make shure
+		// they implement evaluate
+		v = pairFromValues(Value(i[0]), Value(i[1]))
+	}
+
+	// MORE THAN TWO ELEMENTS GOT PASSED
+	//
+	// if more than two values are passed, we assume an
+	// slice of values to be converted to some kind of collection.
+	if len(i) > 2 {
+		v = Collect(valueSlice(i)...)
+	}
+	return v
+}
+
 func nativeToValue(i interface{}) (r Evaluable) {
 
 	switch i.(type) {

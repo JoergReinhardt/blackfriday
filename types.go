@@ -135,27 +135,6 @@ func wrap(i nativeBig) (r Evaluable) {
 	return r
 }
 
-// BASE VALUES IMPLEMENTING FUNCTIONAL TYPES
-// these functional types need to implement the absVal interface to be suitable
-// base types. If called, they return their contained value. A Method set
-// defined on these funtional types, implements the absVal interface, by
-// manipulating the returned content. Each can implement ia couple of dynamic
-// types by defining further types based on it, while overwriting and/or
-// completing the method set.
-type ( // functional types that form the base of all value implementations
-	// empty Value
-	Empty func() struct{}
-
-	// simple type
-	val func() *big.Int
-
-	// paired types
-	ratio func() *big.Rat
-	pair  func() [2]Evaluable
-
-	// collection types see collection,go
-)
-
 /////////////////////////////////////////////////////////////////////////
 /////// VAL /////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////
@@ -213,8 +192,17 @@ func (v val) unmarshalJSON(text []byte) error               { return v().Unmarsh
 func (v val) unmarshalText(text []byte) error               { return v().UnmarshalText(text) }
 func (v val) xor(x, y *big.Int) *big.Int                    { return v().Xor(x, y) }
 
+///////////////////////////////////////////////////
+// VAL METHODS TO CONVERT TO DIFFERENT EVALUABLE //
+///////////////////////////////////////////////////
+
+func (v val) Integer() Integer { return Integer(v) }
+func (v val) Bool() Bool       { return Bool(v) }
+func (v val) Bytes() Bytes     { return Bytes(v) }
+func (v val) Text() Text       { return Text(v) }
+
 /////////////////////////////////////////////////
-////// METHODS TO IMPLEMENT EVALUABLE ///////////
+////// VAL METHODS TO IMPLEMENT EVALUABLE ///////
 /////////////////////////////////////////////////
 
 func (b val) bool() bool {
@@ -233,7 +221,6 @@ func (b val) bigInt() *big.Int { return b() }
 func (b val) Int() int         { return int(b().Int64()) }
 func (b val) Int64() int64     { return b().Int64() }
 func (b val) Uint64() uint64   { return b().Uint64() }
-func (b val) Bytes() []byte    { return b().Bytes() }
 
 // methods to convert to other type that share common base value
 func (b val) toBitFlag() BitFlag { return BitFlag(b) }
@@ -286,6 +273,9 @@ func (r ratio) string() string                        { return r().String() }
 func (r ratio) sub(x, y *big.Rat) *big.Rat            { return r().Sub(x, y) }
 func (r ratio) unmarshalText(text []byte) error       { return r().UnmarshalText(text) }
 
+func (r ratio) Float() Float { return Float(r) }
+func (r ratio) Ratio() Ratio { return Ratio(r) }
+
 /////////////////////////////////////////////////
 ////// METHODS TO IMPLEMENT EVALUABLE ///////////
 /////////////////////////////////////////////////
@@ -301,16 +291,19 @@ func (r ratio) Bytes() []byte {
 		r().Denom().Bytes()...,
 	)
 }
+func (r ratio) Type() ValueType { return REAL }
+
+///////////////////////////////////////////////////
+////// METHODS TO CONVERT TO DIFFERENT EVALUABLE //
+///////////////////////////////////////////////////
 func (r ratio) Serialize() []byte { return []byte(r().String()) }
 func (r ratio) String() string    { return r().String() }
-func (r ratio) Type() ValueType   { return REAL }
 
 ////////////////////////////////////////////////////////////////
 // private methods, to convert to native types
 func (r ratio) bigRat() *big.Rat { return Value(r).(ratio)() }
 
 // public methods to convert to other implementations of evaluable
-func (r ratio) Float() Float    { return Float(r) }
 func (r ratio) Rational() ratio { return r }
 func (r ratio) Pair() pair {
 	return pair(func() [2]Evaluable { return [2]Evaluable{r.Num(), r.Denom()} })
@@ -382,216 +375,3 @@ func (b pair) Type() ValueType { return TUPLE }
 
 // generate pair from evaluables
 func pairFromValues(k, v Evaluable) (r pair) { return r }
-
-/////////////////////////////////////////////////////////////////////////
-/////////// PUBLIC IMPLEMENTAIONS OF EVALUABLES /////////////////////////
-///////////////// BASED ON VAL, RAT & PAIR //////////////////////////////
-/////////////////////////////////////////////////////////////////////////
-
-//////// EMPTY //////////////////////////////////////////////////////////
-func (Empty) Type() ValueType   { return EMPTY }
-func (e Empty) Eval() Evaluable { return Empty(func() struct{} { return struct{}{} }) }
-func (Empty) Serialize() []byte { return []byte{0} }
-func (e Empty) String() string  { return e.Type().String() }
-
-/////// BOOL ////////////////////////////////////////////////////////////
-// booleans allways come in slices (encoded as big.int, handled bitwise using
-// uint representation)
-type Bool val
-
-func (u Bool) Eval() Evaluable   { return u }
-func (u Bool) Serialize() []byte { return val(u).bytes() }
-func (u Bool) String() string    { return val(u).text(2) }
-func (u Bool) Type() ValueType   { return BOOL }
-func (u Bool) And(x, y Bool) Bool {
-	defer discardInt(x(), y())
-	return wrap(val(u).and(x(), y())).(Bool)
-}
-func (u Bool) AndNot(x, y Bool) Bool {
-	defer discardInt(x(), y())
-	return wrap(val(u).andNot(x(), y())).(Bool)
-}
-func (u Bool) Not(x Bool) Bool {
-	defer discardInt(x())
-	return wrap(val(u).not(x())).(Bool)
-}
-func (u Bool) Or(x, y Bool) Bool {
-	defer discardInt(x(), y())
-	return wrap(val(u).or(x(), y())).(Bool)
-}
-func (u Bool) Xor(x, y Bool) Bool {
-	defer discardInt(x(), y())
-	return wrap(val(u).xor(x(), y())).(Bool)
-}
-
-/////////////////////////////////////////////////////////////////////////
-// INTEGER
-type Integer val
-
-func (i Integer) Eval() Evaluable { return i }
-func (i Integer) Serialize() []byte {
-	defer discardInt(i())
-	return []byte(val(i)().String())
-}
-func (i Integer) String() string  { return val(i).text(10) }
-func (i Integer) Type() ValueType { return INTEGER }
-func (i Integer) Int64() int64    { return val(i).int64() }
-func (i Integer) Add(x, y Evaluable) Evaluable {
-	defer discardInt(x.(val)(), y.(val)())
-	return wrap(val(i).add(x.(val)(), y.(val)()))
-}
-func (i Integer) Cmp(x Integer) Integer {
-	defer discardInt(x())
-	return wrap(intPool.Get().(*big.Int).Add(i(), x())).(Integer)
-}
-func (i Integer) Div(x, y Evaluable) Evaluable {
-	defer discardInt(x.(val)(), y.(val)())
-	return wrap(val(i).div(x.(val)(), y.(val)()))
-}
-func (i Integer) DivMod(x, y, m Integer) (Integer, Integer) {
-	defer discardInt(x(), y(), m())
-	a, b := val(i).divMod(x(), y(), m())
-	return wrap(a).(Integer), wrap(b).(Integer)
-}
-func (i Integer) Exp(x, y, m Integer) Integer {
-	defer discardInt(x(), y(), m())
-	return wrap(val(i).exp(x(), y(), m())).(Integer)
-}
-func (i Integer) Mod(x, y Integer) Integer {
-	defer discardInt(x(), y())
-	return wrap(val(i).mod(x(), y())).(Integer)
-}
-func (i Integer) ModInverse(x, y Integer) Integer {
-	defer discardInt(x(), y())
-	return wrap(val(i).modInverse(x(), y())).(Integer)
-}
-func (i Integer) ModSqrt(x, y Integer) Integer {
-	defer discardInt(x(), y())
-	return wrap(val(i).modSqrt(x(), y())).(Integer)
-}
-func (i Integer) Mul(x, y Integer) Integer {
-	defer discardInt(x(), y())
-	return wrap(val(i).mul(x(), y())).(Integer)
-}
-func (i Integer) MulRange(a, b int64) Integer {
-	return wrap(val(i).mulRange(a, b)).(Integer)
-}
-func (i Integer) Neg(x Integer) Integer {
-	return wrap(val(i).neg(x())).(Integer)
-}
-func (i Integer) ProbablyPrime(n int) bool {
-	return val(i).probablyPrime(n)
-}
-func (i Integer) Quo(x, y Integer) Integer {
-	defer discardInt(x(), y())
-	return wrap(val(i).quo(x(), y())).(Integer)
-}
-func (i Integer) QuoRem(x, y, r Integer) (Integer, Integer) {
-	defer discardInt(x(), y(), r())
-	a, b := val(i).quoRem(x(), y(), r())
-	return wrap(a).(Integer), wrap(b).(Integer)
-}
-func (i Integer) Rand(rnd *rand.Rand, x Integer) Integer {
-	defer discardInt(x())
-	return wrap(val(i).rand(rnd, x())).(Integer)
-}
-func (i Integer) Rem(x, y Integer) Integer {
-	defer discardInt(x(), y())
-	return wrap(val(i).rem(x(), y())).(Integer)
-}
-func (i Integer) Set(x Integer) Integer {
-	defer discardInt(x())
-	return wrap(val(i).set(x())).(Integer)
-}
-func (i Integer) SetInt64(x int64) Integer {
-	return wrap(val(i).setInt64(x)).(Integer)
-}
-func (i Integer) SetUint64(x uint64) Integer {
-	return wrap(val(i).setUint64(x)).(Integer)
-}
-func (i Integer) SetString(s string, b int) (Integer, bool) {
-	x, y := val(i).setString(s, b)
-	return wrap(x).(Integer), y
-}
-func (i Integer) Sub(x, y Evaluable) Evaluable {
-	defer discardInt(x.(val)(), y.(val)())
-	return wrap(val(i).sub(x.(val)(), y.(val)()))
-}
-func (i Integer) Uint64() uint64 { return val(i).uint64() }
-
-/////////////////////////////////////////////////////////////////////////
-// BYTES
-type Bytes val
-
-func (b Bytes) Eval() Evaluable   { return b }
-func (b Bytes) Serialize() []byte { return []byte(val(b)().String()) }
-func (b Bytes) String() string    { return b().Text(8) }
-func (b Bytes) Type() ValueType   { return BYTES }
-
-/////////////////////////////////////////////////////////////////////////
-// STRING
-type Text val
-
-func (s Text) Eval() Evaluable   { return s }
-func (s Text) Serialize() []byte { return []byte(s().Bytes()) }
-func (s Text) String() string    { return string(s.Serialize()) }
-func (s Text) Type() ValueType   { return TEXT }
-
-/////////////////////////////////////////////////////////////////////////
-// FLOAT
-type Float ratio
-
-func (f Float) Eval() Evaluable   { return f }
-func (f Float) Serialize() []byte { return []byte(f.String()) }
-func (f Float) String() string    { return f().FloatString(10) }
-func (f Float) Type() ValueType   { return FLOAT }
-
-/////////////////////////////////////////////////////////////////////////
-// RATIONAL
-type Ratio ratio
-
-func (r Ratio) Eval() Evaluable   { return r }
-func (r Ratio) Serialize() []byte { return []byte(ratio(r).String()) }
-func (r Ratio) String() string    { return r().String() }
-func (r Ratio) Type() ValueType   { return RATIONAL }
-
-/////////////////////////////////////////////////////////////////////////////
-// INSTANCIATE NEW VALUE(S) FROM GOLANG NATIVE VALUES
-//
-// 1.) chack number of passed values:
-//	- one: pass on to convert from native type
-//	- two: pass on to create a pair of values
-//	- > two:  pass on to create a collection
-func Value(i ...interface{}) (v Evaluable) {
-
-	// IF SINGLE ELEMENT GOT PASSED
-	//
-	//// TEST IF ALLREADY EVALUABLE ////
-	if len(i) == 1 { // value generation is indempotent and just ommitted,
-		// if parameter is allready evaluable.
-		if v, ok := i[0].(Evaluable); ok {
-			// !!! EARLY BIRD RETURN SPECIAL !!!
-			return v
-		}
-
-		// NATIVE INTENDED FOR CONVERSION TO EVALUABLE
-		v = nativeToValue(i[0])
-	}
-
-	// IF TWO ELEMENTS GOT PASSED
-	//
-	// if exactly two elements, assume a pair of key/value as element for a map
-	if len(i) == 2 { // convert key and value recursively to make shure
-		// they implement evaluate
-		v = pairFromValues(Value(i[0]), Value(i[1]))
-	}
-
-	// MORE THAN TWO ELEMENTS GOT PASSED
-	//
-	// if more than two values are passed, we assume an
-	// slice of values to be converted to some kind of collection.
-	if len(i) > 2 {
-		v = Collect(valueSlice(i)...)
-	}
-	return v
-}

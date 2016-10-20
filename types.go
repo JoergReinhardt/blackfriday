@@ -112,8 +112,18 @@ func discard(v Evaluable) {
 }
 
 // typed discard functions
-func discardInt(v *big.Int) { intPool.Put(v) }
-func discardRat(v *big.Rat) { ratPool.Put(v) }
+func discardInt(v ...*big.Int) {
+	for n := 0; n < len(v); n++ {
+		n := n
+		intPool.Put(v[n])
+	}
+}
+func discardRat(v ...*big.Rat) {
+	for n := 0; n < len(v); n++ {
+		n := n
+		ratPool.Put(v[n])
+	}
+}
 
 func wrap(i nativeBig) (r Evaluable) {
 	switch i.(type) {
@@ -393,34 +403,25 @@ func (u Bool) Eval() Evaluable   { return u }
 func (u Bool) Serialize() []byte { return val(u).bytes() }
 func (u Bool) String() string    { return val(u).text(2) }
 func (u Bool) Type() ValueType   { return BOOL }
-func (u Bool) And(x, y Evaluable) Evaluable {
-	defer discardInt(u())
-	defer discardInt(x.(val)())
-	defer discardInt(y.(val)())
-	return wrap(val(u).and(x.(val)(), y.(val)()))
+func (u Bool) And(x, y Bool) Bool {
+	defer discardInt(x(), y())
+	return wrap(val(u).and(x(), y())).(Bool)
 }
-func (u Bool) AndNot(x, y Evaluable) Evaluable {
-	defer discardInt(u())
-	defer discardInt(x.(val)())
-	defer discardInt(y.(val)())
-	return wrap(val(u).andNot(x.(val)(), y.(val)()))
+func (u Bool) AndNot(x, y Bool) Bool {
+	defer discardInt(x(), y())
+	return wrap(val(u).andNot(x(), y())).(Bool)
 }
-func (u Bool) Not(x Evaluable) Evaluable {
-	defer discardInt(u())
-	defer discardInt(x.(val)())
-	return wrap(val(u).not(x.(val)()))
+func (u Bool) Not(x Bool) Bool {
+	defer discardInt(x())
+	return wrap(val(u).not(x())).(Bool)
 }
-func (u Bool) Or(x, y Evaluable) Evaluable {
-	defer discardInt(u())
-	defer discardInt(x.(val)())
-	defer discardInt(y.(val)())
-	return wrap(val(u).or(x.(val)(), y.(val)()))
+func (u Bool) Or(x, y Bool) Bool {
+	defer discardInt(x(), y())
+	return wrap(val(u).or(x(), y())).(Bool)
 }
-func (u Bool) Xor(x, y Evaluable) Evaluable {
-	defer discardInt(u())
-	defer discardInt(x.(val)())
-	defer discardInt(y.(val)())
-	return wrap(val(u).xor(x.(val)(), y.(val)()))
+func (u Bool) Xor(x, y Bool) Bool {
+	defer discardInt(x(), y())
+	return wrap(val(u).xor(x(), y())).(Bool)
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -432,34 +433,91 @@ func (i Integer) Serialize() []byte {
 	defer discardInt(i())
 	return []byte(val(i)().String())
 }
-func (i Integer) String() string  { return i().Text(10) }
+func (i Integer) String() string  { return val(i).text(10) }
 func (i Integer) Type() ValueType { return INTEGER }
-func (i Integer) Int64() int64    { return i().Int64() }
+func (i Integer) Int64() int64    { return val(i).int64() }
 func (i Integer) Add(x, y Evaluable) Evaluable {
-	defer discardInt(i())
-	defer discardInt(x.(val)())
-	defer discardInt(y.(val)())
+	defer discardInt(x.(val)(), y.(val)())
 	return wrap(val(i).add(x.(val)(), y.(val)()))
 }
-func (i Integer) Cmp(x Evaluable) Evaluable {
-	defer discardInt(i())
-	defer discardInt(x.(val)())
-	return wrap(intPool.Get().(*big.Int).Add(i(), x.(val)()))
+func (i Integer) Cmp(x Integer) Integer {
+	defer discardInt(x())
+	return wrap(intPool.Get().(*big.Int).Add(i(), x())).(Integer)
 }
 func (i Integer) Div(x, y Evaluable) Evaluable {
-	defer discardInt(i())
-	defer discardInt(x.(val)())
-	defer discardInt(y.(val)())
+	defer discardInt(x.(val)(), y.(val)())
 	return wrap(val(i).div(x.(val)(), y.(val)()))
 }
-func (i Integer) DivMod(x, y, m Evaluable) (Evaluable, Evaluable) {
-	defer discardInt(i())
-	defer discardInt(x.(val)())
-	defer discardInt(y.(val)())
-	defer discardInt(m.(val)())
-	a, b := val(i).divMod(x.(val)(), y.(val)(), m.(val)())
-	return wrap(a), wrap(b)
+func (i Integer) DivMod(x, y, m Integer) (Integer, Integer) {
+	defer discardInt(x(), y(), m())
+	a, b := val(i).divMod(x(), y(), m())
+	return wrap(a).(Integer), wrap(b).(Integer)
 }
+func (i Integer) Exp(x, y, m Integer) Integer {
+	defer discardInt(x(), y(), m())
+	return wrap(val(i).exp(x(), y(), m())).(Integer)
+}
+func (i Integer) Mod(x, y Integer) Integer {
+	defer discardInt(x(), y())
+	return wrap(val(i).mod(x(), y())).(Integer)
+}
+func (i Integer) ModInverse(x, y Integer) Integer {
+	defer discardInt(x(), y())
+	return wrap(val(i).modInverse(x(), y())).(Integer)
+}
+func (i Integer) ModSqrt(x, y Integer) Integer {
+	defer discardInt(x(), y())
+	return wrap(val(i).modSqrt(x(), y())).(Integer)
+}
+func (i Integer) Mul(x, y Integer) Integer {
+	defer discardInt(x(), y())
+	return wrap(val(i).mul(x(), y())).(Integer)
+}
+func (i Integer) MulRange(a, b int64) Integer {
+	return wrap(val(i).mulRange(a, b)).(Integer)
+}
+func (i Integer) Neg(x Integer) Integer {
+	return wrap(val(i).neg(x())).(Integer)
+}
+func (i Integer) ProbablyPrime(n int) bool {
+	return val(i).probablyPrime(n)
+}
+func (i Integer) Quo(x, y Integer) Integer {
+	defer discardInt(x(), y())
+	return wrap(val(i).quo(x(), y())).(Integer)
+}
+func (i Integer) QuoRem(x, y, r Integer) (Integer, Integer) {
+	defer discardInt(x(), y(), r())
+	a, b := val(i).quoRem(x(), y(), r())
+	return wrap(a).(Integer), wrap(b).(Integer)
+}
+func (i Integer) Rand(rnd *rand.Rand, x Integer) Integer {
+	defer discardInt(x())
+	return wrap(val(i).rand(rnd, x())).(Integer)
+}
+func (i Integer) Rem(x, y Integer) Integer {
+	defer discardInt(x(), y())
+	return wrap(val(i).rem(x(), y())).(Integer)
+}
+func (i Integer) Set(x Integer) Integer {
+	defer discardInt(x())
+	return wrap(val(i).set(x())).(Integer)
+}
+func (i Integer) SetInt64(x int64) Integer {
+	return wrap(val(i).setInt64(x)).(Integer)
+}
+func (i Integer) SetUint64(x uint64) Integer {
+	return wrap(val(i).setUint64(x)).(Integer)
+}
+func (i Integer) SetString(s string, b int) (Integer, bool) {
+	x, y := val(i).setString(s, b)
+	return wrap(x).(Integer), y
+}
+func (i Integer) Sub(x, y Evaluable) Evaluable {
+	defer discardInt(x.(val)(), y.(val)())
+	return wrap(val(i).sub(x.(val)(), y.(val)()))
+}
+func (i Integer) Uint64() uint64 { return val(i).uint64() }
 
 /////////////////////////////////////////////////////////////////////////
 // BYTES

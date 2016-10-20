@@ -108,9 +108,9 @@ func nativeToValue(i interface{}) (r Evaluable) {
 	switch i.(type) {
 	case bool: // a boolean returns a flag with the first bit set
 		if i.(bool) {
-			r = wrap(intPool.Get().(*big.Int).SetInt64(1)).(BitFlag)
+			r = wrap(intPool.Get().(*big.Int).SetInt64(1)).(val).Bool()
 		} else {
-			r = wrap(intPool.Get().(*big.Int).SetInt64(0)).(BitFlag)
+			r = wrap(intPool.Get().(*big.Int).SetInt64(0)).(val).Bool()
 		}
 	case uint, uint8, uint16, uint32, uint64, ValueType: // a uint is assumed to be a single byte
 		r = divideUints(i)

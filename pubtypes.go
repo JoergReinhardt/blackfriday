@@ -51,23 +51,23 @@ func (u Bool) String() string    { return val(u).text(2) }
 func (u Bool) Type() ValueType   { return BOOL }
 func (u Bool) And(x, y Bool) Bool {
 	defer discardInt(x(), y())
-	return wrap(val(u).and(x(), y())).(Bool)
+	return wrap(val(u).and(x(), y())).(val).Bool()
 }
 func (u Bool) AndNot(x, y Bool) Bool {
 	defer discardInt(x(), y())
-	return wrap(val(u).andNot(x(), y())).(Bool)
+	return wrap(val(u).andNot(x(), y())).(val).Bool()
 }
 func (u Bool) Not(x Bool) Bool {
 	defer discardInt(x())
-	return wrap(val(u).not(x())).(Bool)
+	return wrap(val(u).not(x())).(val).Bool()
 }
 func (u Bool) Or(x, y Bool) Bool {
 	defer discardInt(x(), y())
-	return wrap(val(u).or(x(), y())).(Bool)
+	return wrap(val(u).or(x(), y())).(val).Bool()
 }
 func (u Bool) Xor(x, y Bool) Bool {
 	defer discardInt(x(), y())
-	return wrap(val(u).xor(x(), y())).(Bool)
+	return wrap(val(u).xor(x(), y())).(val).Bool()
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -84,84 +84,84 @@ func (i Integer) Type() ValueType { return INTEGER }
 func (i Integer) Int64() int64    { return val(i).int64() }
 func (i Integer) Add(x, y Integer) Integer {
 	defer discardInt(x(), y())
-	return wrap(val(i).add(x(), y())).(Integer)
+	return wrap(val(i).add(x(), y())).(val).Integer()
 }
 func (i Integer) Cmp(x Integer) Integer {
 	defer discardInt(x())
-	return wrap(intPool.Get().(*big.Int).Add(i(), x())).(Integer)
+	return wrap(intPool.Get().(*big.Int).Add(i(), x())).(val).Integer()
 }
 func (i Integer) Div(x, y Integer) Integer {
 	defer discardInt(x(), y())
-	return wrap(val(i).div(x(), y())).(Integer)
+	return wrap(val(i).div(x(), y())).(val).Integer()
 }
 func (i Integer) DivMod(x, y, m Integer) (Integer, Integer) {
 	defer discardInt(x(), y(), m())
 	a, b := val(i).divMod(x(), y(), m())
-	return wrap(a).(Integer), wrap(b).(Integer)
+	return wrap(a).(val).Integer(), wrap(b).(val).Integer()
 }
 func (i Integer) Exp(x, y, m Integer) Integer {
 	defer discardInt(x(), y(), m())
-	return wrap(val(i).exp(x(), y(), m())).(Integer)
+	return wrap(val(i).exp(x(), y(), m())).(val).Integer()
 }
 func (i Integer) Mod(x, y Integer) Integer {
 	defer discardInt(x(), y())
-	return wrap(val(i).mod(x(), y())).(Integer)
+	return wrap(val(i).mod(x(), y())).(val).Integer()
 }
 func (i Integer) ModInverse(x, y Integer) Integer {
 	defer discardInt(x(), y())
-	return wrap(val(i).modInverse(x(), y())).(Integer)
+	return wrap(val(i).modInverse(x(), y())).(val).Integer()
 }
 func (i Integer) ModSqrt(x, y Integer) Integer {
 	defer discardInt(x(), y())
-	return wrap(val(i).modSqrt(x(), y())).(Integer)
+	return wrap(val(i).modSqrt(x(), y())).(val).Integer()
 }
 func (i Integer) Mul(x, y Integer) Integer {
 	defer discardInt(x(), y())
-	return wrap(val(i).mul(x(), y())).(Integer)
+	return wrap(val(i).mul(x(), y())).(val).Integer()
 }
 func (i Integer) MulRange(a, b int64) Integer {
-	return wrap(val(i).mulRange(a, b)).(Integer)
+	return wrap(val(i).mulRange(a, b)).(val).Integer()
 }
 func (i Integer) Neg(x Integer) Integer {
-	return wrap(val(i).neg(x())).(Integer)
+	return wrap(val(i).neg(x())).(val).Integer()
 }
 func (i Integer) ProbablyPrime(n int) bool {
 	return val(i).probablyPrime(n)
 }
 func (i Integer) Quo(x, y Integer) Integer {
 	defer discardInt(x(), y())
-	return wrap(val(i).quo(x(), y())).(Integer)
+	return wrap(val(i).quo(x(), y())).(val).Integer()
 }
 func (i Integer) QuoRem(x, y, r Integer) (Integer, Integer) {
 	defer discardInt(x(), y(), r())
 	a, b := val(i).quoRem(x(), y(), r())
-	return wrap(a).(Integer), wrap(b).(Integer)
+	return wrap(a).(val).Integer(), wrap(b).(val).Integer()
 }
 func (i Integer) Rand(rnd *rand.Rand, x Integer) Integer {
 	defer discardInt(x())
-	return wrap(val(i).rand(rnd, x())).(Integer)
+	return wrap(val(i).rand(rnd, x())).(val).Integer()
 }
 func (i Integer) Rem(x, y Integer) Integer {
 	defer discardInt(x(), y())
-	return wrap(val(i).rem(x(), y())).(Integer)
+	return wrap(val(i).rem(x(), y())).(val).Integer()
 }
 func (i Integer) Set(x Integer) Integer {
 	defer discardInt(x())
-	return wrap(val(i).set(x())).(Integer)
+	return wrap(val(i).set(x())).(val).Integer()
 }
 func (i Integer) SetInt64(x int64) Integer {
-	return wrap(val(i).setInt64(x)).(Integer)
+	return wrap(val(i).setInt64(x)).(val).Integer()
 }
 func (i Integer) SetUint64(x uint64) Integer {
-	return wrap(val(i).setUint64(x)).(Integer)
+	return wrap(val(i).setUint64(x)).(val).Integer()
 }
 func (i Integer) SetString(s string, b int) (Integer, bool) {
 	x, y := val(i).setString(s, b)
-	return wrap(x).(Integer), y
+	return wrap(x).(val).Integer(), y
 }
 func (i Integer) Sub(x, y Integer) Integer {
 	defer discardInt(x(), y())
-	return wrap(val(i).sub(x(), y())).(Integer)
+	return wrap(val(i).sub(x(), y())).(val).Integer()
 }
 func (i Integer) Uint64() uint64 { return val(i).uint64() }
 

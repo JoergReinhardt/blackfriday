@@ -47,8 +47,14 @@ type Bool val
 
 func (u Bool) Eval() Evaluable   { return u }
 func (u Bool) Serialize() []byte { return val(u).bytes() }
-func (u Bool) String() string    { return val(u).text(2) }
-func (u Bool) Type() ValueType   { return BOOL }
+func (u Bool) String() string {
+	if u().Int64() > int64(0) {
+		return "true"
+	} else {
+		return "false"
+	}
+}
+func (u Bool) Type() ValueType { return BOOL }
 func (u Bool) And(x, y Bool) Bool {
 	defer discardInt(x(), y())
 	return wrap(val(u).and(x(), y())).(val).Bool()

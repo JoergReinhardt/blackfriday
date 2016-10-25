@@ -184,6 +184,21 @@ func (b Bytes) Serialize() []byte { return []byte(val(b)().String()) }
 func (b Bytes) String() string    { return b().Text(8) }
 func (b Bytes) Type() ValueType   { return BYTES }
 
+func (b Bytes) Append(x Bytes) Bytes {
+	defer discardInt(x())
+	res := val(b).append(val(x).bytes(), 10)
+	return Value(res).(val).Bytes()
+}
+func (b Bytes) Bit(n int) uint {
+	return val(b).bit(n)
+}
+func (b Bytes) BitLen() int {
+	return val(b).bitLen()
+}
+func (b Bytes) Bytes() Bytes {
+	return Value(val(b).bytes()).(val).Bytes()
+}
+
 /////////////////////////////////////////////////////////////////////////
 // STRING
 type Text val

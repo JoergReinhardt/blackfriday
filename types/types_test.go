@@ -219,3 +219,69 @@ func TestInteger(t *testing.T) {
 		(*t).Log(test)
 	}
 }
+
+var bytesTests = []struct {
+	a  []byte
+	b  []byte
+	ex string
+	op string
+}{
+	{[]byte("a"), []byte("b"), "6437175", "append"},
+	{[]byte(""), []byte(""), "", "bitlen"},
+	{[]byte("abc"), []byte(""), "30261143", "bytes"},
+}
+
+func TestBytes(t *testing.T) {
+	for _, test := range bytesTests {
+		a := Value(test.a).(val).Bytes()
+		b := Value(test.b).(val).Bytes()
+		ex := test.ex
+
+		switch test.op {
+		case "append":
+			if a.Append(b)().String() != ex {
+				(*t).Fail()
+				(*t).Log("failed operation: " + test.op +
+					" a: " + fmt.Sprint(test.a) +
+					" b: " + fmt.Sprint(test.b) +
+					" got: " + fmt.Sprint(a.Append(b)().String()) +
+					" expected: " + fmt.Sprint(test.ex))
+			}
+		case "bit":
+			if a.Bit(1) != 0 {
+				(*t).Fail()
+				(*t).Log("failed operation: " + test.op +
+					" a: " + fmt.Sprint(test.a) +
+					" b: " + fmt.Sprint(test.b) +
+					" expected: " + ex)
+			}
+			a = Value(3).(val).Bytes()
+			if a.Bit(1) != 1 {
+				(*t).Fail()
+				(*t).Log("failed operation: " + test.op +
+					" a: " + fmt.Sprint(test.a) +
+					" b: " + fmt.Sprint(test.b) +
+					" expected: " + ex)
+			}
+			(*t).Log(test)
+		case "bitlen":
+			a = Value(3).(val).Bytes()
+			if a.BitLen() != 2 {
+				(*t).Fail()
+				(*t).Log("failed operation: " + test.op +
+					" a: " + fmt.Sprint(test.a) +
+					" b: " + fmt.Sprint(test.b) +
+					" expected: " + ex)
+			}
+		case "bytes":
+			if fmt.Sprint(a.Bytes()) != ex {
+				(*t).Fail()
+				(*t).Log("failed operation: " + test.op +
+					" a: " + fmt.Sprint(test.a) +
+					" got: " + fmt.Sprint(a.Bytes()) +
+					" expected: " + ex)
+			}
+		}
+		(*t).Log(test)
+	}
+}

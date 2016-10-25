@@ -229,6 +229,7 @@ var bytesTests = []struct {
 	{[]byte("a"), []byte("b"), "6437175", "append"},
 	{[]byte(""), []byte(""), "", "bitlen"},
 	{[]byte("abc"), []byte(""), "30261143", "bytes"},
+	{[]byte(""), []byte("abc"), "30261143", "setBytes"},
 }
 
 func TestBytes(t *testing.T) {
@@ -281,6 +282,16 @@ func TestBytes(t *testing.T) {
 					" got: " + fmt.Sprint(a.Bytes()) +
 					" expected: " + ex)
 			}
+		case "setBytes":
+			if fmt.Sprint(a.SetBytes(b)) != ex {
+				(*t).Fail()
+				(*t).Log("failed operation: " + test.op +
+					" a: " + fmt.Sprint(test.a) +
+					" b: " + fmt.Sprint(test.a) +
+					" got: " + fmt.Sprint(a.Bytes()) +
+					" expected: " + ex)
+			}
+
 		}
 		(*t).Log(test)
 	}

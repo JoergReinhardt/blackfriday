@@ -198,6 +198,9 @@ func (b Bytes) BitLen() int {
 func (b Bytes) Bytes() Bytes {
 	return Value(val(b).bytes()).(val).Bytes()
 }
+func (b Bytes) SetBytes(x Bytes) Bytes {
+	return wrap(val(b).setBytes(x().Bytes())).(val).Bytes()
+}
 
 /////////////////////////////////////////////////////////////////////////
 // STRING

@@ -54,6 +54,13 @@ func (u Bool) String() string {
 		return "false"
 	}
 }
+func (u Bool) Native() bool {
+	if u().Int64() > int64(0) {
+		return true
+	} else {
+		return false
+	}
+}
 func (u Bool) Type() ValueType { return BOOL }
 func (u Bool) And(x, y Bool) Bool {
 	defer discardInt(x(), y())
@@ -76,6 +83,94 @@ func (u Bool) Xor(x, y Bool) Bool {
 	return wrap(val(u).xor(x(), y())).(val).Bool()
 }
 
+// sets a Bools value to the value of a passed Bool
+func (u Bool) SetBool(x Bool) Bool {
+	// discard parameter and old version
+	defer discardInt(x(), u())
+	// pre allocate return value
+	var res Bool
+	// return either positive, or negative one, Based on truthyness of
+	// the passed parameters, Where negativety, or abscense of a value, is
+	// considered false, while all positive values will be considdered
+	// true. by rewriting to positive, or negative one, Value will be
+	// normalized.
+	if u.And(u, x)().Int64() > 0 {
+		res = wrap(intPool.Get().(val).setInt64(1)).(val).Bool()
+	} else {
+		res = wrap(intPool.Get().(val).setInt64(-1)).(val).Bool()
+	}
+	return res
+}
+func (u Bool) SetBoolSlice(x ...Bool) (r BitFlag) {
+	var res *big.Int
+	// range over slice of Bools
+	for _, i := range x {
+		// use native to get a true/false value as the if condition
+		if i.Native() { // left shift either uint one…
+			res = val(r).lsh(r(), 1)
+		} else { // or uint zero to preexisting uint and overwrite it
+			// with the result
+			res = val(r).lsh(r(), 0)
+		}
+	}
+	return wrap(res).(val).bitFlag()
+}
+func (u Bool) SetBoolNative(x bool) (r Bool) {
+	if x {
+		r = wrap(intPool.Get().(val).setInt64(1)).(val).Bool()
+	} else {
+		r = wrap(intPool.Get().(val).setInt64(-1)).(val).Bool()
+	}
+	return r
+}
+func (u Bool) SetBoolSliceNative(x ...bool) (r BitFlag) {
+	var res *big.Int
+	// range over slice of Bools
+	for _, i := range x {
+		// use native to get a true/false value as the if condition
+		if i { // left shift either uint one…
+			res = val(r).lsh(r(), 1)
+		} else { // or uint zero to preexisting uint and overwrite it
+			// with the result
+			res = val(r).lsh(r(), 0)
+		}
+	}
+	return wrap(res).(val).bitFlag()
+}
+func (u Bool) SetInteger(x Integer) Bool {
+	// discard parameter and old version
+	defer discardInt(x(), u())
+	// pre allocate return value
+	var res Bool
+	if x().Int64() > 0 {
+		res = wrap(intPool.Get().(val).setInt64(1)).(val).Bool()
+	} else {
+		res = wrap(intPool.Get().(val).setInt64(-1)).(val).Bool()
+	}
+	return res
+}
+func (u Bool) SetIntegerNative(x int64) Bool {
+	// discard parameter and old version
+	defer discardInt(u())
+	// pre allocate return value
+	var res Bool
+	if x > 0 {
+		res = wrap(intPool.Get().(val).setInt64(1)).(val).Bool()
+	} else {
+		res = wrap(intPool.Get().(val).setInt64(-1)).(val).Bool()
+	}
+	return res
+}
+
+// if a uint iis passed, a bit-flag will be returned. Bit Flag is considered a
+// list type and implemented among the collections.
+func (u Bool) SetUintNative(x uint64) BitFlag {
+	// discard parameter and old version
+	defer discardInt(u())
+	// pre allocate return value
+	return wrap(intPool.Get().(val).setUint64(x)).(val).bitFlag()
+}
+
 /////////////////////////////////////////////////////////////////////////
 // INTEGER
 type Integer val
@@ -88,9 +183,9 @@ func (i Integer) Serialize() []byte {
 func (i Integer) String() string  { return val(i).text(10) }
 func (i Integer) Type() ValueType { return INTEGER }
 func (i Integer) Int64() int64    { return val(i).int64() }
-func (i Integer) Add(x, y Integer) Integer {
-	defer discardInt(x(), y())
-	return wrap(val(i).add(x(), y())).(val).Integer()
+func (i Integer) Add(y Integer) Integer {
+	defer discardInt(i(), y())
+	return wrap(val(i).add(i(), y())).(val).Integer()
 }
 func (i Integer) Sub(x, y Integer) Integer {
 	defer discardInt(x(), y())
@@ -101,9 +196,9 @@ func (i Integer) Cmp(x Integer) int {
 	a := wrap(intPool.Get().(*big.Int).Set(i())).(val).Integer()
 	return a().Cmp(x())
 }
-func (i Integer) Div(x, y Integer) Integer {
+func (i Integer) Div(y Integer) Integer {
 	defer discardInt(x(), y())
-	return wrap(val(i).div(x(), y())).(val).Integer()
+	return wrap(val(i).div(x(), i())).(val).Integer()
 }
 func (i Integer) DivMod(x, y, m Integer) (Integer, Integer) {
 	defer discardInt(x(), y(), m())

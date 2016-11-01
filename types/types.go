@@ -158,6 +158,8 @@ func (v val) gCD(x, y, a, b *big.Int) *big.Int              { return v().GCD(x, 
 func (v val) gobDecode(buf []byte) error                    { return v().GobDecode(buf) }
 func (v val) gobEncode() ([]byte, error)                    { return v().GobEncode() }
 func (v val) int64() int64                                  { return v().Int64() }
+func (v val) uint64() uint64                                { return v().Uint64() }
+func (v val) bitFlag() BitFlag                              { return BitFlag(wrap(v()).(val)) }
 func (v val) lsh(x *big.Int, n uint) *big.Int               { return v().Lsh(x, n) }
 func (v val) marshalJSON() ([]byte, error)                  { return v().MarshalJSON() }
 func (v val) marshalText() (text []byte, err error)         { return v().MarshalText() }
@@ -187,7 +189,6 @@ func (v val) sign() int                                     { return v().Sign() 
 func (v val) string() string                                { return v().String() }
 func (v val) sub(x, y *big.Int) *big.Int                    { return v().Sub(x, y) }
 func (v val) text(base int) string                          { return v().Text(base) }
-func (v val) uint64() uint64                                { return v().Uint64() }
 func (v val) unmarshalJSON(text []byte) error               { return v().UnmarshalJSON(text) }
 func (v val) unmarshalText(text []byte) error               { return v().UnmarshalText(text) }
 func (v val) xor(x, y *big.Int) *big.Int                    { return v().Xor(x, y) }

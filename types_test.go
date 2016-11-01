@@ -83,3 +83,39 @@ func TestBool(t *testing.T) {
 		(*t).Log(te)
 	}
 }
+
+var tests = []struct {
+	x   int64
+	y   int64
+	exp string
+	op  string
+}{
+	{1, 10, "11", "add"},
+}
+func testfunc(x Evaluable, y Evaluable, exp string, op string, t *testing.T) {
+		  if x(),Add(x(),y()).String() != exp {
+				(*t).Fail()
+				(*t).Log("failed op: " + op +
+					" x: " + fmt.Sprint(x) +
+					" y: " + fmt.Sprint(y) +
+					" expected: " + exp)
+		  } else {
+		(*t).Log(
+				(*t).Log("passed op: " + op +
+					" x: " + fmt.Sprint(x) +
+					" y: " + fmt.Sprint(y) +
+					" expected: " + exp))
+		  }
+}
+
+func TestInteger(t *testing.T) {
+	for _, te := range tests {
+		x := Value(te.x).(Integer)
+		y := Value(te.y).(Integer)
+		exp := te.exp
+		switch te.op {
+		case "add":
+		  testfunc(x,y,exp,op,t)
+		}
+	}
+}

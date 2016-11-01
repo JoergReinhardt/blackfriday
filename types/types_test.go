@@ -5,85 +5,84 @@ import (
 	"testing"
 )
 
+// boolean test slug type for table driven tests
 var boolTests = []struct {
-	x   bool
-	y   bool
-	exp string
-	op  string
+	a     bool         // native boolean
+	b     bool         // native boolean
+	exp   string       // expection is encoded as string
+	opStr string       // name of the performed operation
+	op    boolTestFunc // operation to performe
 }{
-	{true, true, "true", "and"},
-	{false, false, "false", "and"},
-	{true, false, "false", "and"},
-	{false, true, "false", "and"},
-	{true, true, "true", "andnot"},
-	{false, false, "false", "andnot"},
-	{true, false, "false", "andnot"},
-	{false, true, "false", "andnot"},
-	{true, true, "false", "not"},
-	{false, false, "false", "not"},
-	{true, false, "false", "not"},
-	{false, true, "false", "not"},
-	{false, true, "true", "or"},
-	{true, true, "true", "or"},
-	{true, false, "true", "or"},
-	{false, false, "false", "or"},
-	{false, true, "true", "xor"},
-	{true, true, "false", "xor"},
-	{true, false, "true", "xor"},
-	{false, false, "false", "xor"},
+	// boolean arrithmetic method tests
+	{true, true, "true", "and", func(a, b Bool) string { return a.And(a, b).String() }},
+	{false, false, "false", "and", func(a, b Bool) string { return a.And(a, b).String() }},
+	{true, false, "false", "and", func(a, b Bool) string { return a.And(a, b).String() }},
+	{false, true, "false", "and", func(a, b Bool) string { return a.And(a, b).String() }},
+	{true, true, "true", "andnot", func(a, b Bool) string { return a.AndNot(a, b).String() }},
+	{false, false, "false", "andnot", func(a, b Bool) string { return a.AndNot(a, b).String() }},
+	{true, false, "false", "andnot", func(a, b Bool) string { return a.AndNot(a, b).String() }},
+	{false, true, "false", "andnot", func(a, b Bool) string { return a.AndNot(a, b).String() }},
+	{true, true, "false", "not", func(a, b Bool) string { return a.Not(b).String() }},
+	{false, false, "false", "not", func(a, b Bool) string { return a.Not(b).String() }},
+	{true, false, "false", "not", func(a, b Bool) string { return a.Not(b).String() }},
+	{false, true, "false", "not", func(a, b Bool) string { return a.Not(b).String() }},
+	{false, true, "true", "or", func(a, b Bool) string { return a.Or(a, b).String() }},
+	{true, true, "true", "or", func(a, b Bool) string { return a.Or(a, b).String() }},
+	{true, false, "true", "or", func(a, b Bool) string { return a.Or(a, b).String() }},
+	{false, false, "false", "or", func(a, b Bool) string { return a.Or(a, b).String() }},
+	{false, true, "true", "xor", func(a, b Bool) string { return a.Xor(a, b).String() }},
+	{true, true, "false", "xor", func(a, b Bool) string { return a.Xor(a, b).String() }},
+	{true, false, "true", "xor", func(a, b Bool) string { return a.Xor(a, b).String() }},
+	{false, false, "false", "xor", func(a, b Bool) string { return a.Xor(a, b).String() }},
 }
 
-func TestBool(t *testing.T) {
-	for _, te := range boolTests {
-		x := Value(te.x).(Bool)
-		y := Value(te.y).(Bool)
-		exp := te.exp
-		switch te.op {
-		case "and":
-			if x.And(x, y).String() != exp {
-				(*t).Fail()
-				(*t).Log("failed op: " + te.op +
-					" x: " + fmt.Sprint(te.x) +
-					" y: " + fmt.Sprint(te.y) +
-					" expected: " + te.exp)
-			}
-		case "andnot":
-			if x.And(x, y).String() != exp {
-				(*t).Fail()
-				(*t).Log("failed op: " + te.op +
-					" x: " + fmt.Sprint(te.x) +
-					" y: " + fmt.Sprint(te.y) +
-					" expected: " + te.exp)
-			}
-		case "or":
-			if x.Or(x, y).String() != exp {
-				(*t).Fail()
-				(*t).Log("failed op: " + te.op +
-					" x: " + fmt.Sprint(te.x) +
-					" y: " + fmt.Sprint(te.y) +
-					" expected: " + te.exp)
-			}
-		case "xor":
-			if x.Xor(x, y).String() != exp {
-				(*t).Fail()
-				(*t).Log("failed op: " + te.op +
-					" x: " + fmt.Sprint(te.x) +
-					" y: " + fmt.Sprint(te.y) +
-					" expected: " + te.exp)
-			}
-		case "not":
-			if x.Not(x).String() != exp {
-				(*t).Fail()
-				(*t).Log("failed op: " + te.op +
-					" x: " + fmt.Sprint(te.x) +
-					" y: " + fmt.Sprint(te.y) +
-					" expected: " + te.exp)
-			}
-		}
-		(*t).Log(te)
+// the passed function type
+type boolTestFunc func(a, b Bool) string
+
+// the private testBool function runs the test and formats the output as
+// Log/Fail message appropriately
+func testBool(a Bool, b Bool, exp string, opStr string, op boolTestFunc, t *testing.T) {
+
+	res := op(a, b)
+
+	if fmt.Sprint(res) != exp {
+		(*t).Fail()
+		(*t).Log("failed op: " + opStr +
+			" x: " + fmt.Sprint(a) +
+			" y: " + fmt.Sprint(b) +
+			" got: " + fmt.Sprint(res) +
+			" expected: " + exp)
+	} else {
+		(*t).Log("failed op: " + opStr +
+			" x: " + fmt.Sprint(a) +
+			" y: " + fmt.Sprint(b) +
+			" got: " + fmt.Sprint(res) +
+			" expected: " + exp)
 	}
 }
 
+// public TestBool iterates over all test slugs, calling the private test
+// methode once per iteration, pasing the values from the testslug iterated
+// over
+func TestBool(t *testing.T) {
+
+	for n, test := range boolTests {
+
+		n := n
+		a := Value(test.a).(Bool)
+		b := Value(test.b).(Bool)
+		exp := test.exp
+		opStr := test.opStr
+		op := test.op
+
+		t.Log(fmt.Sprintf("Test Nr. %d: ", n))
+
+		testBool(a, b, exp, opStr, op, t)
+
+	}
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 // anonymois test slug type
 var integerTests = []struct {
 	a     int64
@@ -92,7 +91,7 @@ var integerTests = []struct {
 	opStr string
 	op    integerTestFunc
 }{
-	{1, 2, 3, "add", func(a, b Integer) Integer { return a.Add(a, b) }},
+	{1, 2, 3, "add", func(a, b Integer) Integer { return a.Add(b) }},
 	{3, 2, 1, "sub", func(a, b Integer) Integer { return a.Sub(a, b) }},
 	{3, 3, 0, "cmp", func(a, b Integer) Integer { return Value(a.Cmp(b)).(val).Integer() }},
 	{3, 22, -1, "cmp", func(a, b Integer) Integer { return Value(a.Cmp(b)).(val).Integer() }},
@@ -146,6 +145,8 @@ func TestInteger(t *testing.T) {
 	}
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+
 var bytesTests = []struct {
 	a  []byte
 	b  []byte
@@ -183,3 +184,5 @@ func TestBytes(t *testing.T) {
 		testBytesFunc(t, a, b, ex, op)
 	}
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////

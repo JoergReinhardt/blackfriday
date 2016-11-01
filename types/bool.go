@@ -52,19 +52,12 @@ func (u Bool) SetBool(x Bool) Bool {
 	// discard parameter and old version
 	defer discardInt(u())
 	// pre allocate return value
-	var res Bool
-	// return either positive, or negative one, Based on truthyness of
-	// the passed parameters, Where negativety, or abscense of a value, is
-	// considered false, while all positive values will be considdered
-	// true. by rewriting to positive, or negative one, Value will be
-	// normalized.
 
 	if u.And(x)().Int64() > 0 {
-		res = wrap(intPool.Get().(val).setInt64(1)).(val).Bool()
+		return Value(+1).(val).Bool()
 	} else {
-		res = wrap(intPool.Get().(val).setInt64(-1)).(val).Bool()
+		return Value(-1).(val).Bool()
 	}
-	return res
 }
 func (u Bool) SetBoolSlice(x ...Bool) (r BitFlag) {
 	var res *big.Int
@@ -82,7 +75,7 @@ func (u Bool) SetBoolSlice(x ...Bool) (r BitFlag) {
 }
 func (u Bool) SetBoolNative(x bool) (r Bool) {
 	if x {
-		r = wrap(intPool.Get().(val).setInt64(1)).(val).Bool()
+		r = wrap(intPool.Get().(val).setInt64(+1)).(val).Bool()
 	} else {
 		r = wrap(intPool.Get().(val).setInt64(-1)).(val).Bool()
 	}

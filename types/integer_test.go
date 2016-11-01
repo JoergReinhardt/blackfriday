@@ -19,7 +19,10 @@ var integerTests = []struct {
 	{3, 22, -1, "cmp", func(a, b Integer) Evaluable { return Value(a.Cmp(b)).(val).Integer() }},
 	{3, 2, 1, "div", func(a, b Integer) Evaluable { return a.Div(b) }},
 	{10, 2, 5, "div", func(a, b Integer) Evaluable { return a.Div(b) }},
-	{10, 5, 50, "mul", func(a, b Integer) Evaluable { return a.Mul(b) }},
+	{11, 5, 1, "mod", func(a, b Integer) Evaluable { return a.Mod(b) }},
+	{11, 5, 1, "modInverse", func(a, b Integer) Evaluable { return a.ModInverse(b) }},
+	{11, 5, 1, "ModSqrt", func(a, b Integer) Evaluable { return a.ModSqrt(b) }},
+	{11, 5, 55, "mul", func(a, b Integer) Evaluable { return a.Mul(b) }},
 }
 
 // function type, to be passed in the test slug

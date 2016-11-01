@@ -34,6 +34,10 @@ var boolTests = []struct {
 	{true, true, "false", "xor", func(a, b Bool) string { return a.Xor(b).String() }},
 	{true, false, "true", "xor", func(a, b Bool) string { return a.Xor(b).String() }},
 	{false, false, "false", "xor", func(a, b Bool) string { return a.Xor(b).String() }},
+	{false, false, "false", "setBool", func(a, b Bool) string { return a.SetBool(b).String() }},
+	{true, false, "false", "setBool", func(a, b Bool) string { return a.SetBool(b).String() }},
+	{true, true, "true", "setBool", func(a, b Bool) string { return a.SetBool(b).String() }},
+	{true, true, "true", "setBool", func(a, b Bool) string { return a.SetBool(b).String() }},
 }
 
 // the passed function type

@@ -49,14 +49,15 @@ func (i Integer) Mod(y Integer) Integer {
 	return wrap(val(i).mod(i(), y())).(val).Integer()
 }
 
-//func (i Integer) ModInverse(x, y Integer) Integer {
-//	defer discardInt(x(), y())
-//	return wrap(val(i).modInverse(x(), y())).(val).Integer()
-//}
-//func (i Integer) ModSqrt(x, y Integer) Integer {
-//	defer discardInt(x(), y())
-//	return wrap(val(i).modSqrt(x(), y())).(val).Integer()
-//}
+func (i Integer) ModInverse(y Integer) Integer {
+	defer discardInt(i(), y())
+	return wrap(val(i).modInverse(i(), y())).(val).Integer()
+}
+
+func (i Integer) ModSqrt(y Integer) Integer {
+	defer discardInt(i(), y())
+	return wrap(val(i).modSqrt(i(), y())).(val).Integer()
+}
 func (i Integer) Mul(y Integer) Integer {
 	defer discardInt(i(), y())
 	return wrap(val(i).mul(i(), y())).(val).Integer()

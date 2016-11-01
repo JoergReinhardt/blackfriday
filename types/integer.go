@@ -2,6 +2,7 @@ package types
 
 import (
 	"math/big"
+	"math/rand"
 )
 
 /////////////////////////////////////////////////////////////////////////
@@ -70,26 +71,33 @@ func (i Integer) Neg(x Integer) Integer {
 	return wrap(val(i).neg(x())).(val).Integer()
 }
 
-//func (i Integer) ProbablyPrime(n int) bool {
-//	return val(i).probablyPrime(n)
-//}
-//func (i Integer) Quo(x, y Integer) Integer {
-//	defer discardInt(x(), y())
-//	return wrap(val(i).quo(x(), y())).(val).Integer()
-//}
-//func (i Integer) QuoRem(x, y, r Integer) (Integer, Integer) {
-//	defer discardInt(x(), y(), r())
-//	a, b := val(i).quoRem(x(), y(), r())
-//	return wrap(a).(val).Integer(), wrap(b).(val).Integer()
-//}
-//func (i Integer) Rand(rnd *rand.Rand, x Integer) Integer {
-//	defer discardInt(x())
-//	return wrap(val(i).rand(rnd, x())).(val).Integer()
-//}
-//func (i Integer) Rem(x, y Integer) Integer {
-//	defer discardInt(x(), y())
-//	return wrap(val(i).rem(x(), y())).(val).Integer()
-//}
+func (i Integer) ProbablyPrime(n Integer) Bool {
+	return Value(val(i).probablyPrime(int(n.Int64()))).(val).Bool()
+}
+
+func (i Integer) Quo(y Integer) Integer {
+	defer discardInt(i(), y())
+	return wrap(val(i).quo(i(), y())).(val).Integer()
+}
+
+func (i Integer) QuoRem(y Integer) Pair {
+	r := intPool.Get().(val).Integer()
+	defer discardInt(i(), y(), r())
+	a, b := val(i).quoRem(i(), y(), r())
+	ret := pairPool.Get().(Pair).SetKey(wrap(a).(val).Integer())
+	ret = ret.SetValue(wrap(b).(val).Integer())
+	return ret
+}
+
+func (i Integer) Rand() Integer {
+	var rnd = rand.New(rand.NewSource(i().Int64()))
+	defer discardInt(i())
+	return wrap(val(i).rand(rnd, i())).(val).Integer()
+}
+func (i Integer) Rem(y Integer) Integer {
+	defer discardInt(i(), y())
+	return wrap(val(i).rem(i(), y())).(val).Integer()
+}
 func (i Integer) Set(x Integer) Integer {
 	defer discardInt(x())
 	return wrap(val(i).set(x())).(val).Integer()

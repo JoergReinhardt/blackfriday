@@ -87,8 +87,9 @@ import (
 /// to keep allocation pressure flat, cache instances of underlying native base
 //  values in sync pools for instance recycling.
 var (
-	intPool = sync.Pool{}
-	ratPool = sync.Pool{}
+	intPool  = sync.Pool{}
+	ratPool  = sync.Pool{}
+	pairPool = sync.Pool{}
 )
 
 // initializes pools with appropriate new function to return an instance of
@@ -96,6 +97,7 @@ var (
 func init() {
 	intPool.New = func() interface{} { return big.NewInt(0) }
 	ratPool.New = func() interface{} { return big.NewRat(1, 1) }
+	pairPool.New = func() interface{} { return [2]Evaluable{} }
 }
 
 ///// VALUE RECYCLING /////
@@ -108,6 +110,8 @@ func discard(v Evaluable) {
 		discardInt(v.(val)())
 	case v.Type()&REAL != 0:
 		discardRat(v.(ratio)())
+	case v.Type()&REAL != 0:
+		discardPair(v.(Pair)())
 	}
 }
 
@@ -124,13 +128,22 @@ func discardRat(v ...*big.Rat) {
 		ratPool.Put(v[n])
 	}
 }
+func discardPair(v ...[2]Evaluable) {
+	for n := 0; n < len(v); n++ {
+		n := n
+		pairPool.Put(v[n])
+	}
+}
 
-func wrap(i nativeBig) (r Evaluable) {
+func wrap(i interface{}) (r Evaluable) {
 	switch i.(type) {
 	case *big.Int:
 		r = val(func() *big.Int { return i.(*big.Int) })
 	case *big.Rat:
 		r = ratio(func() *big.Rat { return i.(*big.Rat) })
+	case Pair:
+		// set key to zero and value to passed interface
+		r = wrap([2]Evaluable{i.(Pair).Key(), i.(Pair).Value()})
 	}
 	return r
 }

@@ -24,11 +24,11 @@ func (b Bytes) String() string { return string(b().Bytes()) }
 func (b Bytes) Serialize() []byte { return []byte(b.String()) }
 func (b Bytes) Type() ValueType   { return BYTES }
 
-func (b Bytes) Bit(n int) uint {
-	return b().Bit(n)
+func (b Bytes) Bit(n int) Integer {
+	return Value(b().Bit(n)).(val).Integer()
 }
-func (b Bytes) BitLen() int {
-	return b().BitLen()
+func (b Bytes) BitLen() Integer {
+	return Value(b().BitLen()).(val).Integer()
 }
 func (b Bytes) Bytes() Bytes {
 	//the returned byte slice neds to be represented by a big Int, which is

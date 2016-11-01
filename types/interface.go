@@ -177,7 +177,7 @@ type Enumerable interface {
 	All(func(Evaluable, Evaluable) bool) (bool, Enumerable)
 
 	// key:int/value ← val:val ←|→ pair(value (index|key), value)
-	Find(func(Evaluable, Evaluable) bool) (pair, Enumerable)
+	Find(func(Evaluable, Evaluable) bool) (Pair, Enumerable)
 }
 
 // Iterables provide a Rev methode, that returns a boolean to indicate wether

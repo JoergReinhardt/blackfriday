@@ -30,7 +30,7 @@ type ( // functional types that form the base of all value implementations
 
 	// paired types
 	ratio func() *big.Rat
-	pair  func() [2]Evaluable
+	Pair  func() [2]Evaluable
 
 	// collection types see collection,go
 )
@@ -62,31 +62,31 @@ func (u Bool) Native() bool {
 	}
 }
 func (u Bool) Type() ValueType { return BOOL }
-func (u Bool) And(x, y Bool) Bool {
-	defer discardInt(x(), y())
-	return wrap(val(u).and(x(), y())).(val).Bool()
+func (u Bool) And(y Bool) Bool {
+	defer discardInt(u(), y())
+	return wrap(val(u).and(u(), y())).(val).Bool()
 }
-func (u Bool) AndNot(x, y Bool) Bool {
-	defer discardInt(x(), y())
-	return wrap(val(u).andNot(x(), y())).(val).Bool()
+func (u Bool) AndNot(y Bool) Bool {
+	defer discardInt(u(), y())
+	return wrap(val(u).andNot(u(), y())).(val).Bool()
 }
 func (u Bool) Not(x Bool) Bool {
 	defer discardInt(x())
 	return wrap(val(u).not(x())).(val).Bool()
 }
-func (u Bool) Or(x, y Bool) Bool {
-	defer discardInt(x(), y())
-	return wrap(val(u).or(x(), y())).(val).Bool()
+func (u Bool) Or(y Bool) Bool {
+	defer discardInt(u(), y())
+	return wrap(val(u).or(u(), y())).(val).Bool()
 }
-func (u Bool) Xor(x, y Bool) Bool {
-	defer discardInt(x(), y())
-	return wrap(val(u).xor(x(), y())).(val).Bool()
+func (u Bool) Xor(y Bool) Bool {
+	defer discardInt(u(), y())
+	return wrap(val(u).xor(u(), y())).(val).Bool()
 }
 
 // sets a Bools value to the value of a passed Bool
 func (u Bool) SetBool(x Bool) Bool {
 	// discard parameter and old version
-	defer discardInt(x(), u())
+	defer discardInt(u())
 	// pre allocate return value
 	var res Bool
 	// return either positive, or negative one, Based on truthyness of
@@ -94,7 +94,8 @@ func (u Bool) SetBool(x Bool) Bool {
 	// considered false, while all positive values will be considdered
 	// true. by rewriting to positive, or negative one, Value will be
 	// normalized.
-	if u.And(u, x)().Int64() > 0 {
+
+	if u.And(x)().Int64() > 0 {
 		res = wrap(intPool.Get().(val).setInt64(1)).(val).Bool()
 	} else {
 		res = wrap(intPool.Get().(val).setInt64(-1)).(val).Bool()
@@ -187,9 +188,9 @@ func (i Integer) Add(y Integer) Integer {
 	defer discardInt(i(), y())
 	return wrap(val(i).add(i(), y())).(val).Integer()
 }
-func (i Integer) Sub(x, y Integer) Integer {
-	defer discardInt(x(), y())
-	return wrap(val(i).sub(x(), y())).(val).Integer()
+func (i Integer) Sub(y Integer) Integer {
+	defer discardInt(i(), y())
+	return wrap(val(i).sub(i(), y())).(val).Integer()
 }
 func (i Integer) Cmp(x Integer) int {
 	defer discardInt(x())
@@ -197,21 +198,23 @@ func (i Integer) Cmp(x Integer) int {
 	return a().Cmp(x())
 }
 func (i Integer) Div(y Integer) Integer {
-	defer discardInt(x(), y())
-	return wrap(val(i).div(x(), i())).(val).Integer()
+	defer discardInt(y())
+	return wrap(val(i).div(i(), y())).(val).Integer()
 }
-func (i Integer) DivMod(x, y, m Integer) (Integer, Integer) {
-	defer discardInt(x(), y(), m())
-	a, b := val(i).divMod(x(), y(), m())
-	return wrap(a).(val).Integer(), wrap(b).(val).Integer()
+func (i Integer) DivMod(y Integer) Pair {
+	// assume base ten arrithmetic
+	m := Value(10).(val).Integer()
+	defer discardInt(i(), y(), m())
+	return func() [2]Evaluable { return [2]Evaluable{wrap(i), wrap(m)} }
 }
-func (i Integer) Exp(x, y, m Integer) Integer {
-	defer discardInt(x(), y(), m())
-	return wrap(val(i).exp(x(), y(), m())).(val).Integer()
+func (i Integer) Exp(y Integer) Integer {
+	m := Value(10).(val).Integer()
+	defer discardInt(i(), y(), m())
+	return wrap(val(i).exp(i(), y(), m())).(val).Integer()
 }
-func (i Integer) Mod(x, y Integer) Integer {
-	defer discardInt(x(), y())
-	return wrap(val(i).mod(x(), y())).(val).Integer()
+func (i Integer) Mod(y Integer) Integer {
+	defer discardInt(i(), y())
+	return wrap(val(i).mod(i(), y())).(val).Integer()
 }
 
 //func (i Integer) ModInverse(x, y Integer) Integer {
@@ -222,9 +225,9 @@ func (i Integer) Mod(x, y Integer) Integer {
 //	defer discardInt(x(), y())
 //	return wrap(val(i).modSqrt(x(), y())).(val).Integer()
 //}
-func (i Integer) Mul(x, y Integer) Integer {
-	defer discardInt(x(), y())
-	return wrap(val(i).mul(x(), y())).(val).Integer()
+func (i Integer) Mul(y Integer) Integer {
+	defer discardInt(i(), y())
+	return wrap(val(i).mul(i(), y())).(val).Integer()
 }
 
 //func (i Integer) MulRange(a, b int64) Integer {

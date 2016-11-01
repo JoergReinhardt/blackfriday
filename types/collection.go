@@ -399,12 +399,12 @@ func (e IdxEnumerable) All(pf func(index Evaluable, value Evaluable) bool) (bool
 		})
 	return ok, e
 }
-func (e IdxEnumerable) Find(pf func(index Evaluable, value Evaluable) bool) (pair, Enumerable) {
+func (e IdxEnumerable) Find(pf func(index Evaluable, value Evaluable) bool) (Pair, Enumerable) {
 	i, v := e().Find(
 		func(index int, value interface{}) bool {
 			return pf(Value(index), Value(value))
 		})
-	return Value(i, v).(pair), e
+	return Value(i, v).(Pair), e
 }
 
 //// KEY ENUMERABLE ////
@@ -432,12 +432,12 @@ func (e KeyEnumerable) All(pf func(index Evaluable, value Evaluable) bool) (bool
 		})
 	return ok, e
 }
-func (e KeyEnumerable) Find(pf func(index Evaluable, value Evaluable) bool) (pair, Enumerable) {
+func (e KeyEnumerable) Find(pf func(index Evaluable, value Evaluable) bool) (Pair, Enumerable) {
 	i, v := e().Find(
 		func(index interface{}, value interface{}) bool {
 			return pf(Value(index), Value(value))
 		})
-	return Value(i, v).(pair), e
+	return Value(i, v).(Pair), e
 }
 
 type EnumParameter func(index, value Evaluable) bool
@@ -478,7 +478,7 @@ func newOrderedList(v ...Evaluable) ArrayList {
 }
 
 // MAP FROM PAIRS OF VALUES
-func unorderedBidiMapFromPairs(v ...pair) HashBidiMap {
+func unorderedBidiMapFromPairs(v ...Pair) HashBidiMap {
 	var r = hbm.New()
 	for _, v := range v {
 		k := v.Key()

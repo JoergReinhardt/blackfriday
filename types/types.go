@@ -230,8 +230,8 @@ func (b val) toInteger() Integer { return Integer(b) }
 func (b val) toText() Text       { return Text(b) }
 
 // assign receiver value as returnvalue, set key to zero
-func (b val) toPair() pair {
-	var r pair
+func (b val) toPair() Pair {
+	var r Pair
 	return r
 }
 
@@ -306,8 +306,8 @@ func (r ratio) bigRat() *big.Rat { return Value(r).(ratio)() }
 
 // public methods to convert to other implementations of evaluable
 func (r ratio) Rational() ratio { return r }
-func (r ratio) Pair() pair {
-	return pair(func() [2]Evaluable { return [2]Evaluable{r.Num(), r.Denom()} })
+func (r ratio) Pair() Pair {
+	return Pair(func() [2]Evaluable { return [2]Evaluable{r.Num(), r.Denom()} })
 }
 
 // methods that take or return the integer type, to set, or get contained values
@@ -317,18 +317,18 @@ func (r ratio) Denom() Integer { return Value(r().Denom()).(Integer) }
 /////////////////////////////////////////////////
 /////// PAIR ////////////////////////////////////
 /////////////////////////////////////////////////
-func (b pair) Eval() Evaluable { return Value(b) }
+func (b Pair) Eval() Evaluable { return Value(b) }
 
-func (b pair) Value() Evaluable { return b()[1].Eval() }
+func (b Pair) Value() Evaluable { return b()[1].Eval() }
 
 // a pair allways provides a key, which can be of any given base type
-func (b pair) Key() Evaluable { return b()[0].Eval() }
+func (b Pair) Key() Evaluable { return b()[0].Eval() }
 
 // Index() int
 // returns the key of the element as native integger, if it turns out to be
 // convertable, otherwise return a negative integer to indicate that the key is
 // not convertable to a Number
-func (b pair) Index() Integer {
+func (b Pair) Index() Integer {
 	var ret Integer
 	if b.Key().Type()&SYMBOLIC != 0 {
 		ret = Value(-1).(Integer) // negative → not set
@@ -344,16 +344,16 @@ func (b pair) Index() Integer {
 	}
 	return ret
 }
-func (b pair) SetKey(v Evaluable) pair {
+func (b Pair) SetKey(v Evaluable) Pair {
 	return func() [2]Evaluable { return [2]Evaluable{v, b.Value()} }
 }
-func (b pair) SetValue(v Evaluable) pair {
+func (b Pair) SetValue(v Evaluable) Pair {
 	return func() [2]Evaluable { return [2]Evaluable{b.Key(), v} }
 }
-func (b pair) SetBoth(k Evaluable, v Evaluable) pair {
+func (b Pair) SetBoth(k Evaluable, v Evaluable) Pair {
 	return func() [2]Evaluable { return [2]Evaluable{k, v} }
 }
-func (p pair) Serialize() []byte {
+func (p Pair) Serialize() []byte {
 	var delim = []byte{}
 	if p.Index()().Int64() == -1 {
 		delim = []byte(": ")
@@ -371,8 +371,8 @@ func (p pair) Serialize() []byte {
 		)...,
 	)
 }
-func (b pair) String() string  { return string(b.Serialize()) }
-func (b pair) Type() ValueType { return TUPLE }
+func (b Pair) String() string  { return string(b.Serialize()) }
+func (b Pair) Type() ValueType { return TUPLE }
 
 // generate pair from evaluables
-func pairFromValues(k, v Evaluable) (r pair) { return r }
+func pairFromValues(k, v Evaluable) (r Pair) { return r }

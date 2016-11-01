@@ -59,7 +59,7 @@ func (l ArrayList) Join() Collected {
 		v := Value(value) // value propbably allready a value, otherwise converted
 		// pass both values as paired parameter, will trigger eval to
 		// produce a key/value tuple type.
-		retval.Add(Value(i, v).(pair))
+		retval.Add(Value(i, v).(Pair))
 	}
 
 	// pass prepared closure to each, appends all keys and values to the

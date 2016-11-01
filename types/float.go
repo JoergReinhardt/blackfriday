@@ -18,3 +18,8 @@ func (f Float) Float() Evaluable {
 	defer discardRat(f())
 	return wrap(f().Set(f()))
 }
+func (f Float) Ratio() Evaluable {
+	f = wrap(floatPool.Get().(*big.Rat)).(Float)
+	defer discardRat(f())
+	return wrap(f().Set(f()))
+}

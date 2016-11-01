@@ -78,7 +78,7 @@ func TestBool(t *testing.T) {
 					" x: " + fmt.Sprint(te.x) +
 					" y: " + fmt.Sprint(te.y) +
 					" expected: " + te.exp)
-			}
+			  }
 		}
 		(*t).Log(te)
 	}

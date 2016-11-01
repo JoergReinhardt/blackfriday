@@ -87,9 +87,10 @@ import (
 /// to keep allocation pressure flat, cache instances of underlying native base
 //  values in sync pools for instance recycling.
 var (
-	intPool  = sync.Pool{}
-	ratPool  = sync.Pool{}
-	pairPool = sync.Pool{}
+	intPool   = sync.Pool{}
+	ratPool   = sync.Pool{}
+	pairPool  = sync.Pool{}
+	floatPool = sync.Pool{}
 )
 
 // initializes pools with appropriate new function to return an instance of
@@ -97,6 +98,7 @@ var (
 func init() {
 	intPool.New = func() interface{} { return big.NewInt(0) }
 	ratPool.New = func() interface{} { return big.NewRat(1, 1) }
+	floatPool.New = func() interface{} { return big.NewFloat(0) }
 	pairPool.New = func() interface{} { return [2]Evaluable{} }
 }
 
@@ -109,8 +111,10 @@ func discard(v Evaluable) {
 	case v.Type()&NATURAL != 0:
 		discardInt(v.(val)())
 	case v.Type()&REAL != 0:
-		discardRat(v.(ratio)())
-	case v.Type()&REAL != 0:
+		discardRat(v.(Ratio)())
+	case v.Type()&FLOAT != 0:
+		discardRat(v.(Float)())
+	case v.Type()&TUPLE != 0:
 		discardPair(v.(Pair)())
 	}
 }
@@ -128,6 +132,12 @@ func discardRat(v ...*big.Rat) {
 		ratPool.Put(v[n])
 	}
 }
+func discardFloat(v ...*big.Float) {
+	for n := 0; n < len(v); n++ {
+		n := n
+		floatPool.Put(v[n])
+	}
+}
 func discardPair(v ...[2]Evaluable) {
 	for n := 0; n < len(v); n++ {
 		n := n
@@ -140,7 +150,9 @@ func wrap(i interface{}) (r Evaluable) {
 	case *big.Int:
 		r = val(func() *big.Int { return i.(*big.Int) })
 	case *big.Rat:
-		r = ratio(func() *big.Rat { return i.(*big.Rat) })
+		r = Ratio(func() *big.Rat { return i.(*big.Rat) })
+	case *big.Float:
+		r = Float(func() *big.Rat { return i.(*big.Rat) })
 	case Pair:
 		// set key to zero and value to passed interface
 		r = wrap([2]Evaluable{i.(Pair).Key(), i.(Pair).Value()})
@@ -326,66 +338,3 @@ func (r ratio) Pair() Pair {
 // methods that take or return the integer type, to set, or get contained values
 func (r ratio) Num() Integer   { return Value(r().Num()).(Integer) }
 func (r ratio) Denom() Integer { return Value(r().Denom()).(Integer) }
-
-/////////////////////////////////////////////////
-/////// PAIR ////////////////////////////////////
-/////////////////////////////////////////////////
-func (b Pair) Eval() Evaluable { return Value(b) }
-
-func (b Pair) Value() Evaluable { return b()[1].Eval() }
-
-// a pair allways provides a key, which can be of any given base type
-func (b Pair) Key() Evaluable { return b()[0].Eval() }
-
-// Index() int
-// returns the key of the element as native integger, if it turns out to be
-// convertable, otherwise return a negative integer to indicate that the key is
-// not convertable to a Number
-func (b Pair) Index() Integer {
-	var ret Integer
-	if b.Key().Type()&SYMBOLIC != 0 {
-		ret = Value(-1).(Integer) // negative → not set
-	} else { // NUMERIC
-		// if natural number, return as interger
-		if b.Key().Type()&NATURAL != 0 {
-			ret = b.Key().(Integer)
-		}
-		// if real number, return numerator as interger
-		if b.Key().Type()&REAL != 0 {
-			ret = b.Key().(ratio).Num()
-		}
-	}
-	return ret
-}
-func (b Pair) SetKey(v Evaluable) Pair {
-	return func() [2]Evaluable { return [2]Evaluable{v, b.Value()} }
-}
-func (b Pair) SetValue(v Evaluable) Pair {
-	return func() [2]Evaluable { return [2]Evaluable{b.Key(), v} }
-}
-func (b Pair) SetBoth(k Evaluable, v Evaluable) Pair {
-	return func() [2]Evaluable { return [2]Evaluable{k, v} }
-}
-func (p Pair) Serialize() []byte {
-	var delim = []byte{}
-	if p.Index()().Int64() == -1 {
-		delim = []byte(": ")
-	} else {
-		delim = []byte(".) ")
-	}
-	return append(
-		p()[0].Serialize(),
-		append(
-			delim,
-			append(
-				p()[1].Serialize(),
-				[]byte("\n")...,
-			)...,
-		)...,
-	)
-}
-func (b Pair) String() string  { return string(b.Serialize()) }
-func (b Pair) Type() ValueType { return TUPLE }
-
-// generate pair from evaluables
-func pairFromValues(k, v Evaluable) (r Pair) { return r }

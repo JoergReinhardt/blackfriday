@@ -84,139 +84,65 @@ func TestBool(t *testing.T) {
 	}
 }
 
+// anonymois test slug type
 var integerTests = []struct {
-	a  int64
-	b  int64
-	ex int64
-	op string
+	a     int64
+	b     int64
+	exp   int64
+	opStr string
+	op    integerTestFunc
 }{
-	{1, 2, 3, "add"},
-	{3, 2, 1, "sub"},
-	{-2, 2, -2, "neg"},
-	{3, 3, 0, "cmp"},
-	{10, 5, 2, "div"},
-	{10, 5, 50, "mul"},
-	{12, 5, 2, "divmod"},
-	{12, 5, 2, "mod"},
-	{10, 3, 1000, "exp"},
-	{0, 3, 3, "set"},
-	{0, 3, 3, "setInt64"},
-	{0, 3, 3, "setUint64"},
-	{0, 3, 3, "setString"},
+	{1, 2, 3, "add", func(a, b Integer) Integer { return a.Add(a, b) }},
+	{3, 2, 1, "sub", func(a, b Integer) Integer { return a.Sub(a, b) }},
+	{3, 3, 0, "cmp", func(a, b Integer) Integer { return Value(a.Cmp(b)).(val).Integer() }},
+	{3, 22, -1, "cmp", func(a, b Integer) Integer { return Value(a.Cmp(b)).(val).Integer() }},
+	{3, 2, 1, "div", func(a, b Integer) Integer { return a.Div(a, b) }},
+	{10, 2, 5, "div", func(a, b Integer) Integer { return a.Div(a, b) }},
+	{3, 2, 1, "divmod", func(a, b Integer) Integer { return a.Div(a, b) }},
+	{4, 2, 2, "divmod", func(a, b Integer) Integer { return a.Div(a, b) }},
 }
 
+// function type, to be passed in the test slug
+type integerTestFunc func(a, b Integer) Integer
+
+// testInteger runs the actual testing by calling op with its parameters and
+// reporting Log and Error Messages through the passed testing.T
+func testInteger(t *testing.T, a Integer, b Integer, exp int64, opStr string, op integerTestFunc) {
+	// run operation with parameters a and b
+	res := op(a, b).Int64()
+	if res != exp { // if result of the operation differs from the expected result. fail.
+		(*t).Fail()
+		(*t).Log("failed operation: " + opStr +
+			" a: " + fmt.Sprint(a) +
+			" b: " + fmt.Sprint(b) +
+			" got: " + fmt.Sprint(res) +
+			" expected: " + fmt.Sprint(exp))
+	} else { // if result and epexted integer are identical, return log
+		(*t).Log("passed operation: " + opStr +
+			" a: " + fmt.Sprint(a) +
+			" b: " + fmt.Sprint(b) +
+			" got: " + fmt.Sprint(res) +
+			" expected: " + fmt.Sprint(exp))
+	}
+}
+
+// TestInteger iterates over all test slugs, calling testInteger for each slug
+// and passing it's parameters.
 func TestInteger(t *testing.T) {
-	for _, test := range integerTests {
-		a := Integer(Value(test.a).(val))
-		b := Integer(Value(test.b).(val))
-		ex := test.ex
+
+	for n, test := range integerTests {
+
+		n := n
+		a := Value(test.a).(val).Integer()
+		b := Value(test.b).(val).Integer()
+		exp := test.exp
+		opStr := test.opStr
 		op := test.op
-		switch op {
-		case "add":
-			if a.Add(a, b)().Int64() != ex {
-				(*t).Fail()
-				(*t).Log("failed operation: " + test.op +
-					" a: " + fmt.Sprint(test.a) +
-					" b: " + fmt.Sprint(test.b) +
-					" expected: " + fmt.Sprint(test.ex))
-			}
-		case "sub":
-			if a.Sub(a, b)().Int64() != ex {
-				(*t).Fail()
-				(*t).Log("failed operation: " + test.op +
-					" a: " + fmt.Sprint(test.a) +
-					" b: " + fmt.Sprint(test.b) +
-					" expected: " + fmt.Sprint(test.ex))
-			}
-		case "cmp":
-			if a.Cmp(b) != int(ex) {
-				(*t).Fail()
-				(*t).Log("failed operation: " + test.op +
-					" a: " + fmt.Sprint(test.a) +
-					" b: " + fmt.Sprint(test.b) +
-					" expected: " + fmt.Sprint(test.ex))
-			}
-		case "neg":
-			if a.Neg(b).Int64() != ex {
-				(*t).Fail()
-				(*t).Log("failed operation: " + test.op +
-					" a: " + fmt.Sprint(test.a) +
-					" b: " + fmt.Sprint(test.b) +
-					" expected: " + fmt.Sprint(test.ex))
-			}
-		case "div":
-			if a.Div(a, b)().Int64() != ex {
-				(*t).Fail()
-				(*t).Log("failed operation: " + test.op +
-					" a: " + fmt.Sprint(test.a) +
-					" b: " + fmt.Sprint(test.b) +
-					" expected: " + fmt.Sprint(test.ex))
-			}
-		case "divmod":
-			_, mod := a.DivMod(a, b, Integer(Value(ex).(val)))
-			if mod().Int64() != ex {
-				(*t).Fail()
-				(*t).Log("failed operation: " + test.op +
-					" a: " + fmt.Sprint(test.a) +
-					" b: " + fmt.Sprint(test.b) +
-					" got: " + fmt.Sprint(mod) +
-					" expected: " + fmt.Sprint(test.ex))
-			}
-		case "mod":
-			_, mod := a.DivMod(a, b, Integer(Value(ex).(val)))
-			if mod().Int64() != ex {
-				(*t).Fail()
-				(*t).Log("failed operation: " + test.op +
-					" a: " + fmt.Sprint(test.a) +
-					" b: " + fmt.Sprint(test.b) +
-					" got: " + fmt.Sprint(mod) +
-					" expected: " + fmt.Sprint(test.ex))
-			}
-		case "exp":
-			res := a.Exp(a, b, Integer(Value(0).(val)))
-			if res.Int64() != ex {
-				(*t).Fail()
-				(*t).Log("failed operation: " + test.op +
-					" a: " + fmt.Sprint(test.a) +
-					" b: " + fmt.Sprint(test.b) +
-					" expected: " + fmt.Sprint(test.ex) +
-					" got: " + fmt.Sprint(res.Int64()))
-			}
-		case "mul":
-			if a.Mul(a, b)().Int64() != ex {
-				(*t).Fail()
-				(*t).Log("failed operation: " + test.op +
-					" a: " + fmt.Sprint(test.a) +
-					" b: " + fmt.Sprint(test.b) +
-					" expected: " + fmt.Sprint(test.ex))
-			}
-		case "set":
-			if a.Set(b)().Int64() != ex {
-				(*t).Fail()
-				(*t).Log("failed operation: " + test.op +
-					" a: " + fmt.Sprint(test.a) +
-					" b: " + fmt.Sprint(test.b) +
-					" expected: " + fmt.Sprint(test.ex))
-			}
-		case "setUint64":
-			if a.SetUint64(b().Uint64())().Uint64() != uint64(ex) {
-				(*t).Fail()
-				(*t).Log("failed operation: " + test.op +
-					" a: " + fmt.Sprint(test.a) +
-					" b: " + fmt.Sprint(test.b) +
-					" expected: " + fmt.Sprint(test.ex))
-			}
-		case "setString":
-			str, _ := a.SetString(b.String(), 10)
-			if str().String() != fmt.Sprint(ex) {
-				(*t).Fail()
-				(*t).Log("failed operation: " + test.op +
-					" a: " + fmt.Sprint(test.a) +
-					" b: " + fmt.Sprint(test.b) +
-					" expected: " + fmt.Sprint(test.ex))
-			}
-		}
-		(*t).Log(test)
+
+		t.Log(fmt.Sprintf("Test Nr. %d: ", n))
+
+		testInteger(t, a, b, exp, opStr, op)
+
 	}
 }
 
@@ -224,12 +150,27 @@ var bytesTests = []struct {
 	a  []byte
 	b  []byte
 	ex string
-	op string
+	op func(Evaluable, Evaluable) string
 }{
-	{[]byte("a"), []byte("b"), "6437175", "append"},
-	{[]byte(""), []byte(""), "", "bitlen"},
-	{[]byte("abc"), []byte(""), "30261143", "bytes"},
-	{[]byte(""), []byte("abc"), "30261143", "setBytes"},
+	{[]byte("a"), []byte("b"), "ab", func(a, b Evaluable) string { return a.(Bytes).AppendBytes(b.(Bytes)).String() }},
+	{[]byte(""), []byte(""), "0", func(a, b Evaluable) string { return fmt.Sprint(a.(Bytes).BitLen()) }},
+}
+
+func testBytesFunc(t *testing.T, a Evaluable, b Evaluable, ex string, op func(a, b Evaluable) string) {
+	if op(a, b) != ex {
+		(*t).Fail()
+		(*t).Log("failed operation: " + fmt.Sprint(op) +
+			" a: " + fmt.Sprint(a) +
+			" b: " + fmt.Sprint(b) +
+			" got: " + fmt.Sprint(op(a, b)) +
+			" expected: " + fmt.Sprint(ex))
+	} else {
+		(*t).Log("passed operation: " + fmt.Sprint(op) +
+			" a: " + fmt.Sprint(a) +
+			" b: " + fmt.Sprint(b) +
+			" got: " + fmt.Sprint(op(a, b)) +
+			" expected: " + fmt.Sprint(ex))
+	}
 }
 
 func TestBytes(t *testing.T) {
@@ -237,62 +178,8 @@ func TestBytes(t *testing.T) {
 		a := Value(test.a).(val).Bytes()
 		b := Value(test.b).(val).Bytes()
 		ex := test.ex
+		op := test.op
 
-		switch test.op {
-		case "append":
-			if a.Append(b)().String() != ex {
-				(*t).Fail()
-				(*t).Log("failed operation: " + test.op +
-					" a: " + fmt.Sprint(test.a) +
-					" b: " + fmt.Sprint(test.b) +
-					" got: " + fmt.Sprint(a.Append(b)().String()) +
-					" expected: " + fmt.Sprint(test.ex))
-			}
-		case "bit":
-			if a.Bit(1) != 0 {
-				(*t).Fail()
-				(*t).Log("failed operation: " + test.op +
-					" a: " + fmt.Sprint(test.a) +
-					" b: " + fmt.Sprint(test.b) +
-					" expected: " + ex)
-			}
-			a = Value(3).(val).Bytes()
-			if a.Bit(1) != 1 {
-				(*t).Fail()
-				(*t).Log("failed operation: " + test.op +
-					" a: " + fmt.Sprint(test.a) +
-					" b: " + fmt.Sprint(test.b) +
-					" expected: " + ex)
-			}
-			(*t).Log(test)
-		case "bitlen":
-			a = Value(3).(val).Bytes()
-			if a.BitLen() != 2 {
-				(*t).Fail()
-				(*t).Log("failed operation: " + test.op +
-					" a: " + fmt.Sprint(test.a) +
-					" b: " + fmt.Sprint(test.b) +
-					" expected: " + ex)
-			}
-		case "bytes":
-			if fmt.Sprint(a.Bytes()) != ex {
-				(*t).Fail()
-				(*t).Log("failed operation: " + test.op +
-					" a: " + fmt.Sprint(test.a) +
-					" got: " + fmt.Sprint(a.Bytes()) +
-					" expected: " + ex)
-			}
-		case "setBytes":
-			if fmt.Sprint(a.SetBytes(b)) != ex {
-				(*t).Fail()
-				(*t).Log("failed operation: " + test.op +
-					" a: " + fmt.Sprint(test.a) +
-					" b: " + fmt.Sprint(test.a) +
-					" got: " + fmt.Sprint(a.Bytes()) +
-					" expected: " + ex)
-			}
-
-		}
-		(*t).Log(test)
+		testBytesFunc(t, a, b, ex, op)
 	}
 }

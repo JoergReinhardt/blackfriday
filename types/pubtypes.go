@@ -179,37 +179,170 @@ func (i Integer) Uint64() uint64 { return val(i).uint64() }
 // BYTES
 type Bytes val
 
-func (b Bytes) Eval() Evaluable   { return b }
-func (b Bytes) Serialize() []byte { return []byte(val(b)().String()) }
-func (b Bytes) String() string    { return b().Text(8) }
+func (b Bytes) Eval() Evaluable { return b }
+
+// the string representation is provided by serializing the integer to a slice
+// of bytes and converting that to a string, that way preserving all contained
+// information. Lower order types are supposed to be stored in a more
+// appropriate internal type, like Bool, or Integer, and otherwise need to be
+// re-parsed to regain arithmetic, or boolean functionality.
+func (b Bytes) String() string { return string(b().Bytes()) }
+
+// if serialized, the string representation is converted to a slice of bytes,
+// in order to not use any valid information. In case a 'lower' type was stored
+// by the Bytes instance, it must br reparsed at a later point to convert it to
+// the appropriate internal type
+func (b Bytes) Serialize() []byte { return []byte(b.String()) }
 func (b Bytes) Type() ValueType   { return BYTES }
 
-func (b Bytes) Append(x Bytes) Bytes {
-	defer discardInt(x())
-	res := val(b).append(val(x).bytes(), 10)
-	return Value(res).(val).Bytes()
-}
 func (b Bytes) Bit(n int) uint {
-	return val(b).bit(n)
+	return b().Bit(n)
 }
 func (b Bytes) BitLen() int {
-	return val(b).bitLen()
+	return b().BitLen()
 }
 func (b Bytes) Bytes() Bytes {
-	return Value(val(b).bytes()).(val).Bytes()
+	//the returned byte slice neds to be represented by a big Int, which is
+	//provided by the modules public Value funcitons slice
+	return Value(b.Serialize()).(val).Bytes()
 }
 func (b Bytes) SetBytes(x Bytes) Bytes {
-	return wrap(val(b).setBytes(x().Bytes())).(val).Bytes()
+	// parameter instance will be reused
+	defer discardInt(x())
+	// returns a big Int, which only needs to be enclosed in a fresh
+	// closure, provided by the modules wrap function.
+	return wrap(b().SetBytes(x.Serialize())).(val).Bytes()
+}
+func (b Bytes) SetBytesNative(x []byte) Bytes {
+	// the wrapper encloses the returned big Int in a fresh closure for
+	// return.
+	return wrap(b().SetBytes(x)).(val).Bytes()
+}
+func (b Bytes) AppendBytes(x Bytes) Bytes {
+	defer discardInt(x(), b())
+	// since big Ints Append returns a byte slice, we need to allocate a
+	// complete new instance of an Evaluable using Value
+	return Value(append(b.Serialize(), x.Serialize()...)).(val).Bytes()
+}
+func (b Bytes) AppendBytesNative(x []byte) Bytes {
+	// since big Ints Append returns a byte slice, we need to allocate a
+	// complete new instance of an Evaluable using Value
+	return Value(append(b.Serialize(), x...)).(val).Bytes()
+}
+
+// set text is allmost identical to set bytes, since text is stored in the same
+// way as a byte slice and features a Serialize method just like it, since its
+// an implementation of an Evaluable just like the Bytes type.
+func (b Bytes) SetText(x Text) Bytes {
+	// parameter instance will be reused
+	defer discardInt(x(), b())
+	// the wrapper encloses the big Int, representing the string
+	// representation of the passed Text instance in a fresh closure for
+	// return.
+	return wrap(b().SetBytes([]byte(x.String()))).(val).Bytes()
+}
+func (b Bytes) SetTextNative(x string) Bytes {
+	// after returning the new instance, the old one is designated for
+	// reuse.
+	defer discardInt(b())
+	// b is set to a native string by replacing it vit a new value instance
+	return Value(x).(val).Bytes()
+}
+func (b Bytes) AppendText(x Text) Bytes {
+	defer discardInt(x())
+	// since big Ints Append returns a byte slice, we need to allocate a
+	// complete new instance of an Evaluable using Value
+	return Value(b.String() + x.String()).(val).Bytes()
+}
+func (b Bytes) AppendTextNative(x string) Bytes {
+	// since big Ints Append returns a byte slice, we need to allocate a
+	// complete new instance of an Evaluable using Value
+	return Value(b.String() + x).(val).Bytes()
 }
 
 /////////////////////////////////////////////////////////////////////////
 // STRING
 type Text val
 
-func (s Text) Eval() Evaluable   { return s }
-func (s Text) Serialize() []byte { return []byte(s().Bytes()) }
-func (s Text) String() string    { return string(s.Serialize()) }
-func (s Text) Type() ValueType   { return TEXT }
+func (s Text) Eval() Evaluable { return s }
+
+// text stored in the enclosed int, is retrieved, by serializing to a  Byte
+// slice representation.
+func (s Text) Serialize() []byte { return s().Bytes() }
+
+// the string method builds a string representation og the contained data, by
+// serializing it to bytes and representing those as a string
+func (s Text) String() string  { return string(s.Serialize()) }
+func (s Text) Type() ValueType { return TEXT }
+
+// set a pre-existing Text Instance to a Value represented by the internal
+// Bytes type.
+func (s Text) SetBytes(x Bytes) Text {
+	// parameter instance will be reused
+	defer discardInt(x())
+	// SetBytes takes a public Bytes instance and sets an existing text to
+	// its serialization to a byte slice
+	return Value(s().SetBytes(x.Serialize())).(val).Text()
+}
+
+// set a pre-existing Text Instance to a Value represented by the native byte
+// slice.
+func (s Text) SetBytesNative(x []byte) Text {
+	// setBytesNatice sets s to a native go byte slice. converted to Text
+	// via Value
+	return Value(s().SetBytes(x)).(val).Text()
+}
+
+// set a pre-existing Text Instance to a Value represented by the internal
+// Text type.
+func (s Text) SetText(x Text) Text {
+	// parameter instance will be reused
+	defer discardInt(x())
+	// setBytes with the string returned by the value converted to bytes as
+	// Parameter, finaly cinverted to Text via Value
+	return Value(s().SetBytes([]byte(x.String()))).(val).Text()
+}
+
+// set a pre-existing Text Instance to a Value represented by the native string.
+func (s Text) SetTextNative(x string) Text {
+	// setBytes with the string returned by the value converted to bytes as
+	// Parameter, finaly cinverted to Text via Value
+	return Value(s().SetBytes([]byte(x))).(val).Text()
+}
+
+// Append an Instance of the internal Bytes Type to a preexisting Text Instance
+func (s Text) AppendBytes(x Bytes) Text {
+	// parameter instance will be reused
+	defer discardInt(x())
+	// uses internal append funcrion and Serialize, which must be provided
+	// by all evaluable, to concatenate on a byte base
+	return Value(append(s.Serialize(), x.Serialize()...)).(val).Text()
+}
+
+// Append an Instance of a native byte slice to a preexisting Text Instance
+func (s Text) AppendBytesNative(x []byte) Text {
+	// uses internal append funcrion and Serialize to append a native byte
+	// Slice with a given text by re-valuabling using Value, asserting the
+	// intermediate val type and calling the Text() method on it.
+	return Value(append(s.Serialize(), x...)).(val).Text()
+}
+
+// Append an Instance of the internal Text Type to a preexisting Text Instance
+func (s Text) AppendText(x Text) Text {
+	// parameter instance will be reused
+	defer discardInt(x())
+	// uses string concatenation to append a text provided as parameter to
+	// a given Text instance
+	return Value(s.String() + x.String()).(val).Text()
+}
+
+// Append an Instance of a native string to a preexisting Text Instance
+func (s Text) AppendTextNative(x string) Text {
+	// uses gos append function and iinternal String method provided by all
+	// evaluables, to concatenate annative string  to the given Text using
+	// string concatenation.
+	return Value(s.String() + x).(val).Text()
+}
 
 /////////////////////////////////////////////////////////////////////////
 // FLOAT

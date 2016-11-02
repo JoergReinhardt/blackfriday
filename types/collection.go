@@ -300,6 +300,28 @@ func newRedBlack() (r RedBlack) {
 	return r
 }
 
+//func (r RedBlack) Get(key Evaluable) (Evaluable, Bool) {
+//	v, b := r().Get(key)
+//	return Value(v), Value(b).(val).Bool()
+//}
+//func (r RedBlack) Put(key Evaluable, val Evaluable) {
+//	r().Put(key, val)
+//}
+//func (r RedBlack) Type() ValueType           { return TREE }
+//func (r RedBlack) String() string            { return string(r.Serialize()) }
+//func (r RedBlack) Size() int                 { return r().Size() }
+//func (r RedBlack) Clear()                    { return r }
+//func (r RedBlack) Interfaces() []interface{} { return r().Interfaces() }
+//func (r RedBlack) Eval() Evaluable           { return r }
+//func (r RedBlack) Serialize() []byte         { return serializeCollection(r) }
+//func (r RedBlack) Empty() bool {
+//	if r().Size() == 0 {
+//		return true
+//	} else {
+//		return false
+//	}
+//}
+
 ////////////////////////////////////////////////
 //// COMPARARATOR IMPLEMENTED BY A FUNCTION TYPE
 type Compareable func(a, b Evaluable) int

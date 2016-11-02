@@ -39,6 +39,11 @@ type Listed interface {
 	//Join() Mapped // join indices and values to slice of pairs
 	//Split() (indices Listed, values Listed)
 }
+type Settish interface {
+	Collected
+	Add(...Evaluable) DeDublicated
+	Remove(int) DeDublicated
+}
 
 // is a list of values accessed sequencialy
 type Stacked interface {
@@ -120,6 +125,11 @@ type DeDublicated interface {
 	Add(...Evaluable) DeDublicated
 	Remove(int) DeDublicated
 	Contains(v ...Evaluable) bool
+}
+
+type Treeish interface {
+	Get(key Evaluable) (value Evaluable, found Bool)
+	Put(key Evaluable, value Evaluable)
 }
 
 ///////////////////////////////////////////////////

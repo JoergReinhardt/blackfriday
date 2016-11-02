@@ -161,8 +161,107 @@ func divideInts(i interface{}) (r Evaluable) {
 	return r
 }
 
+func flat(typ ValueType) Bool {
+	if typ > TEXT {
+		return wrap(intPool.Get().(val).setInt64(1)).(Bool)
+	} else {
+		return wrap(intPool.Get().(val).setInt64(-1)).(Bool)
+	}
+}
+func paired(typ ValueType) Bool {
+	if typ > TEXT && typ < FLAG {
+		return wrap(intPool.Get().(val).setInt64(1)).(Bool)
+	} else {
+		return wrap(intPool.Get().(val).setInt64(-1)).(Bool)
+	}
+}
+func collected(typ ValueType) Bool {
+	if typ > PAIR {
+		return wrap(intPool.Get().(val).setInt64(1)).(Bool)
+	} else {
+		return wrap(intPool.Get().(val).setInt64(-1)).(Bool)
+	}
+}
+func mostSignifficantType(t ...ValueType) (r ValueType) {
+	for _, typ := range t {
+		typ := typ
+		if typ > r {
+			r = typ
+		}
+	}
+	return r
+}
+
 // collection generator determines which type of collection to allocate, based
 // on the parameters it gets passed
 func Collect(v ...Evaluable) (r Collected) {
+
+	// concatenate all the parameters types
+	var types []ValueType
+	// most significant type encountered in all parameters
+	var mst *ValueType
+	// type concatenation loop
+	for _, t := range v {
+		t := t.Type()
+		types = append(types, t)
+		// if type is more significant it will be rewritten
+		(*mst) = mostSignifficantType(types...)
+	}
+	// switch to choose appropriate collection generating function
+	switch {
+	case val(flat(*mst)).Int64() > 0:
+		r = generateList(v...)
+	case val(paired(*mst)).Int64() > 0:
+		r = generateMap()
+		for _, val := range v {
+			val := val.(Tupled)
+			// use the interfaces to abstract away from the given
+			// parameter type
+			r.(Mapped).Add(val.(Tupled).Key(), val.(Tupled).Value())
+		}
+
+		//case val(collected(*mst)).Int64() > 0:
+	}
+
 	return r
 }
+
+////// COLLECTION GENERATOR FUNCTIONS //////////
+func generateList(v ...Evaluable) (r Listed) {
+	r = newOrderedList()
+	r.Add(v...)
+	return r
+}
+func generateStack(v ...Evaluable) (r Stacked) {
+	r = newArraystack()
+	r = r.Add(v...)
+	return r
+}
+func generateMap(v ...Pair) (r Mapped) {
+	r = newHashMap()
+	for _, val := range v {
+		key := val.Key()
+		val := val.Value()
+		r.Put(key, val)
+	}
+	return r
+}
+func generateSet(v ...Pair) (r DeDublicated) {
+	r = newHashSet()
+	for _, val := range v {
+		key := val.Key()
+		val := val.Value()
+		r.Add(key, val)
+	}
+	return r
+}
+
+//func generateTree(v ...Pair) (r Treeish) {
+//	r = newRedBlack()
+//	for _, val := range v {
+//		key := val.Key()
+//		val := val.Value()
+//		r.Put(key, val)
+//	}
+//	return r
+//}
